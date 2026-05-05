@@ -1,0 +1,161 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  tomcat:
+    max-http-form-post-size: 2MB
+
+spring:
+  application:
+    name: moments-packaging-backend
+  datasource:
+    url: ${DATABASE_URL:}
+    username: postgres
+    password: ${DATABASE_PASSWORD:janet-marketing}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        types:
+          print:
+            banner: false
+  mail:
+    host: smtp-relay.brevo.com
+    port: 587
+    username: mdaucodes@gmail.com
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        transport:
+          protocol: smtp
+    default-encoding: UTF-8
+    test-connection: false
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    mode: HTML
+    cache: false
+  cache:
+    type: caffeine
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+  mvc:
+    pathmatch:
+      use-suffix-pattern: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:}
+    access-token-expiration-ms: 900000
+    refresh-token-expiration-ms: 604800000
+  cloudinary:
+    cloud-name: dhgwijhdu
+    api-key: ${CLOUDINARY_API_KEY:"837784483137119"}
+    api-secret: ${CLOUDINARY_API_SECRET:1_hpvy6vfmO7ByjDjiUp5MORjSg}
+    upload-folder: moments-packaging
+
+  cors:
+    allowed-origins: "https://www.momentspackaging.com,https://momentspackaging.com,https://moments-connect-hub.lovable.app,https://preview--moments-connect-hub.lovable.app,http://localhost:5173"
+  frontend:
+    url: "https://moments-connect-hub.lovable.app"
+  admin:
+    superadmin-password: ${SUPERADMIN_PASSWORD:}
+    dev-admin-password: ${DEV_ADMIN_PASSWORD:}
+  rate-limit:
+    login:
+      capacity: 10
+      refill-minutes: 1
+    leads:
+      capacity: 20
+      refill-minutes: 1
+    enquiries:
+      capacity: 10
+      refill-minutes: 1
+    clicks:
+      capacity: 60
+      refill-minutes: 1
+  pagination:
+    max-page-size: 100
+    default-page-size: 20
+  email:
+    from: mdaucodes@gmail.com
+    from-name: Moments Packaging Kenya
+    sales-address: lezisign@gmail.com
+  company:
+    whatsapp-number: "+254733797412"
+    email: pkihara2gmail.com
+    phone: "+254733797412"
+  features:
+    blogs-enabled: true
+    email-capture-enabled: true
+  payhero:
+    api-username: ${PAYHERO_API_USERNAME:}
+    api-password: ${PAYHERO_API_PASSWORD:}
+    channel-id: ${PAYHERO_CHANNEL_ID:4260}
+    base-url: ${PAYHERO_BASE_URL:https://backend.payhero.co.ke/api/v2/payments}
+    callback-url: ${PAYHERO_CALLBACK_URL:https://your-domain.com/api/v1/payments/payhero/callback}
+  africastalking:
+    username: ${AT_USERNAME:sandbox}
+    api-key: ${AT_API_KEY:sandbox_key}
+    sender-id: ${AT_SENDER_ID:MOMENTS}
+    enabled: ${AT_ENABLED:false}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    try-it-out-enabled: true
+  show-actuator: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    mail:
+      enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.mdau.momentspackagingbackendjavafirstclient: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} [%X{traceId}] - %msg%n"

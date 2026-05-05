@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Lead Digest</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#f5f0e8;font-family:'Inter',Arial,sans-serif;color:#1a1510;}
+  .wrap{max-width:620px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(26,21,16,0.08);}
+  .header{background:#1a1510;padding:32px 40px;text-align:center;}
+  .header-logo{font-family:'Fraunces',Georgia,serif;font-size:13px;font-weight:600;color:#f5f0e8;letter-spacing:0.15em;text-transform:uppercase;opacity:0.6;}
+  .header h1{font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;color:#f5f0e8;margin-top:8px;}
+  .header p{font-size:13px;color:#a09080;margin-top:6px;}
+  .count-bar{background:#2d4a3e;padding:20px 40px;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .count-num{font-family:'Fraunces',Georgia,serif;font-size:36px;font-weight:700;color:#f5f0e8;}
+  .count-label{font-size:14px;color:#c8d8c4;line-height:1.4;}
+  .body{padding:32px 40px;}
+  .section-label{font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#c4622d;margin-bottom:12px;}
+  .empty-state{text-align:center;padding:32px;color:#a09080;font-size:14px;}
+  table.leads{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+  table.leads th{background:#f5f0e8;color:#2d4a3e;font-weight:600;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:2px solid #e8e2d8;}
+  table.leads td{padding:12px 14px;border-bottom:1px solid #f0ebe3;color:#1a1510;vertical-align:top;}
+  table.leads tr:last-child td{border-bottom:none;}
+  table.leads tr:hover td{background:#faf7f2;}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:#e8e2d8;color:#2d4a3e;}
+  .badge.source{background:#f0e8d8;color:#a07850;}
+  .cta-wrap{text-align:center;margin:28px 0;}
+  .cta{display:inline-block;background:#2d4a3e;color:#f5f0e8;font-size:14px;font-weight:600;padding:14px 32px;border-radius:8px;text-decoration:none;}
+  .footer{background:#f5f0e8;border-top:1px solid #e8e2d8;padding:20px 40px;text-align:center;}
+  .footer p{font-size:12px;color:#a09080;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="header-logo">moments · packaging kenya</div>
+    <h1>Morning Lead Digest</h1>
+    <p th:text="${digestPeriod}">Monday, 28 April 2025</p>
+  </div>
+
+  <div class="count-bar">
+    <span class="count-num" th:text="${count}">0</span>
+    <span class="count-label">new lead(s)<br/>since yesterday</span>
+  </div>
+
+  <div class="body">
+
+    <div th:if="${leads == null or leads.isEmpty()}">
+      <div class="empty-state">
+        No new leads captured since the last digest.<br/>
+        Check back tomorrow — the pipeline is warming up.
+      </div>
+    </div>
+
+    <div th:if="${leads != null and !leads.isEmpty()}">
+      <div class="section-label">New Leads — Follow Up Today</div>
+      <table class="leads">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Persona</th>
+            <th>Source</th>
+            <th>Trigger</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="lead : ${leads}">
+            <td>
+              <a th:href="'mailto:' + ${lead.email}" th:text="${lead.email}"
+                 style="color:#2d4a3e;font-weight:600;text-decoration:none;">—</a>
+            </td>
+            <td>
+              <span class="badge" th:if="${lead.persona != null}" th:text="${lead.persona}">—</span>
+              <span th:if="${lead.persona == null}" style="color:#a09080;">—</span>
+            </td>
+            <td>
+              <span class="badge source" th:if="${lead.source != null}" th:text="${lead.source}">—</span>
+              <span th:if="${lead.source == null}" style="color:#a09080;">—</span>
+            </td>
+            <td th:text="${lead.trigger != null ? lead.trigger : '—'}" style="color:#a09080;">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="cta-wrap">
+      <a class="cta" href="https://www.momentspackaging.com">Open Dashboard &rarr;</a>
+    </div>
+
+  </div>
+
+  <div class="footer">
+    <p>This digest is sent every weekday at 08:00 EAT by <strong>Moments Packaging Kenya</strong>.<br/>
+    Internal use only — do not forward.</p>
+  </div>
+
+</div>
+</body>
+</html>

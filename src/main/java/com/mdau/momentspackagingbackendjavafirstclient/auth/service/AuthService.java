@@ -1,0 +1,92 @@
+package com.mdau.momentspackagingbackendjavafirstclient.auth.service;
+
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.AuthResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.AuthUserDto;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.LoginRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.RefreshRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.TokenResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.entity.RefreshToken;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.RefreshTokenRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
+import com.mdau.momentspackagingbackendjavafirstclient.common.security.JwtService;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
+import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AuthService {
+
+    private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
+
+    @Value("${app.jwt.refresh-token-expiration-ms}")
+    private long refreshTokenExpirationMs;
+
+    @Transactional
+    public AuthResponse login(LoginRequest request) {
+        Authentication auth = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
+
+        User user = (User) auth.getPrincipal();
+
+        String accessToken  = jwtService.generateAccessToken(user);
+        String refreshToken = createRefreshToken(user);
+
+        return new AuthResponse(accessToken, refreshToken, new AuthUserDto(user));
+    }
+
+    @Transactional
+    public TokenResponse refresh(RefreshRequest request) {
+        RefreshToken stored = refreshTokenRepository.findByToken(request.getRefreshToken())
+                .orElseThrow(() -> new ResourceNotFoundException("Refresh token not found"));
+
+        if (!stored.isValid()) {
+            refreshTokenRepository.delete(stored);
+            throw new ResourceNotFoundException("Refresh token is expired or revoked");
+        }
+
+        User user = stored.getUser();
+
+        stored.setRevoked(true);
+        refreshTokenRepository.save(stored);
+
+        String newAccessToken  = jwtService.generateAccessToken(user);
+        String newRefreshToken = createRefreshToken(user);
+
+        return new TokenResponse(newAccessToken, newRefreshToken);
+    }
+
+    @Transactional
+    public void logout(String refreshTokenValue) {
+        refreshTokenRepository.findByToken(refreshTokenValue)
+                .ifPresent(rt -> {
+                    rt.setRevoked(true);
+                    refreshTokenRepository.save(rt);
+                });
+    }
+
+    private String createRefreshToken(User user) {
+        RefreshToken rt = RefreshToken.builder()
+                .token(UUID.randomUUID().toString())
+                .user(user)
+                .expiresAt(Instant.now().plusMillis(refreshTokenExpirationMs))
+                .build();
+        refreshTokenRepository.save(rt);
+        return rt.getToken();
+    }
+}
