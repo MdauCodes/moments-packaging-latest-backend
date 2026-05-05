@@ -16,6 +16,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.product.repository.Produc
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.Hibernate;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -187,6 +188,12 @@ public class ProductService {
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private ProductDto toDto(Product product) {
+        Hibernate.initialize(product.getSizes());
+        Hibernate.initialize(product.getTags());
+        Hibernate.initialize(product.getKeywords());
+        Hibernate.initialize(product.getImageUrls());
+        Hibernate.initialize(product.getIndustries());
+
         List<ProductPricingTierDto> tiers = pricingTierRepository
                 .findByProductId(product.getId())
                 .stream()
