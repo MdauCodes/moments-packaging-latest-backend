@@ -17,7 +17,6 @@ import java.util.UUID;
 public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findBySlug(String slug);
-
     boolean existsBySlug(String slug);
 
     @Query("""
@@ -27,7 +26,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
         AND (:isDiscount IS NULL OR p.isDiscount = :isDiscount)
         AND (:isNewArrival IS NULL OR p.isNewArrival = :isNewArrival)
         AND (:isFastMoving IS NULL OR p.isFastMoving = :isFastMoving)
-        AND (:category IS NULL OR LOWER(p.category) = LOWER(:category))
+        AND (:category IS NULL OR LOWER(p.category) = LOWER(CAST(:category AS string)))
         """)
     Page<Product> findAllWithFilters(
             @Param("industryId")   UUID industryId,
@@ -35,20 +34,13 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("isNewArrival") Boolean isNewArrival,
             @Param("isFastMoving") Boolean isFastMoving,
             @Param("category")     String category,
-            Pageable pageable
-    );
+            Pageable pageable);
 
-    @Query("""
-        SELECT p FROM Product p
-        ORDER BY p.monthlyClicks DESC
-        """)
+    @Query("SELECT p FROM Product p ORDER BY p.monthlyClicks DESC")
     List<Product> findTopByMonthlyClicks(Pageable pageable);
 
     @Modifying
-    @Query("""
-        UPDATE Product p
-        SET p.monthlyClicks = 0
-        """)
+    @Query("UPDATE Product p SET p.monthlyClicks = 0")
     void resetAllMonthlyClicks();
 
     @Modifying
@@ -59,4 +51,12 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
         WHERE p.id = :productId
         """)
     void incrementClicks(@Param("productId") UUID productId);
+
+    @Query("""
+        SELECT p FROM Product p
+        WHERE p.stockCount > 0
+        AND p.stockCount <= p.lowStockThreshold
+        ORDER BY p.stockCount ASC
+        """)
+    List<Product> findLowStockProducts();
 }

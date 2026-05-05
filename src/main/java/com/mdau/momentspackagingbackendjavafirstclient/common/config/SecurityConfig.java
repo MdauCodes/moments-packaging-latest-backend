@@ -52,6 +52,11 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/v1/auth/**",
                     "/api/v1/public/**",
+                    "/api/v1/cart/**",
+                    "/api/v1/checkout",
+                    "/api/v1/orders/track/**",
+                    "/api/v1/payments/payhero/callback",
+                    "/api/v1/payments/status/**",
                     "/swagger-ui.html",
                     "/swagger-ui/**",
                     "/api-docs/**",
@@ -69,14 +74,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-
         List<String> origins = Arrays.asList(allowedOriginsRaw.split(","));
         config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
-
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;

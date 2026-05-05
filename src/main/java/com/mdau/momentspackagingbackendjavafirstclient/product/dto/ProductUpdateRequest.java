@@ -1,9 +1,11 @@
 package com.mdau.momentspackagingbackendjavafirstclient.product.dto;
 
-import jakarta.validation.constraints.Min;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,35 +14,33 @@ import java.util.UUID;
 public class ProductUpdateRequest {
 
     private String name;
-
     private String category;
-
     private String description;
-
-    @Min(value = 1, message = "MOQ must be at least 1")
     private Integer moq;
 
     private List<String> sizes;
-
     private List<String> tags;
-
     private List<String> keywords;
 
     private String primaryImageUrl;
-
     private List<String> imageUrls;
 
     private Boolean isDiscount;
-
     private Integer discountPercent;
-
     private Boolean isNewArrival;
-
     private Boolean isFastMoving;
 
     private String material;
-
     private String finish;
 
-    private List<UUID> industryIds;
+    private BigDecimal basePrice;
+    private PriceUnit  priceUnit;
+    private StockStatus stockStatus;
+    private Integer leadTimeDays;
+    private Boolean customizable;
+    private Integer stockCount;
+    private Integer lowStockThreshold;
+
+    private List<UUID>                 industryIds;
+    private List<ProductPricingTierDto> pricingTiers;
 }

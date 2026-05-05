@@ -14,7 +14,8 @@ import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "users", indexes = {
-        @Index(name = "idx_users_email", columnList = "email", unique = true)
+        @Index(name = "idx_users_email", columnList = "email", unique = true),
+        @Index(name = "idx_users_phone", columnList = "phone")
 })
 @Getter
 @Setter
@@ -38,6 +39,28 @@ public class User extends BaseEntity implements UserDetails {
     @Column(nullable = false)
     @Builder.Default
     private boolean enabled = true;
+
+    @Column(unique = true, length = 20)
+    private String phone;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String deliveryAddress;
+
+    @Column(length = 100)
+    private String city;
+
+    @Column(length = 100)
+    private String county;
+
+    @Column(length = 20)
+    private String postalCode;
+
+    @Column(length = 255)
+    private String businessName;
 
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))

@@ -13,10 +13,13 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimitConfig {
 
-    private final Map<String, Bucket> loginBuckets     = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> leadBuckets      = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> enquiryBuckets   = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> clickBuckets     = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> loginBuckets    = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> leadBuckets     = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> enquiryBuckets  = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> clickBuckets    = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> cartBuckets     = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> checkoutBuckets = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> paymentBuckets  = new ConcurrentHashMap<>();
 
     private Bucket newBucket(int capacity, int refillMinutes) {
         Bandwidth limit = Bandwidth.builder()
@@ -28,41 +31,50 @@ public class RateLimitConfig {
 
     private String getClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
+        if (forwarded != null && !forwarded.isBlank())
             return forwarded.split(",")[0].trim();
-        }
         return request.getRemoteAddr();
     }
 
     public void checkLogin(HttpServletRequest request) {
         String ip = getClientIp(request);
-        Bucket bucket = loginBuckets.computeIfAbsent(ip, k -> newBucket(10, 1));
-        if (!bucket.tryConsume(1)) {
+        if (!loginBuckets.computeIfAbsent(ip, k -> newBucket(10, 1)).tryConsume(1))
             throw new RateLimitException("Too many login attempts. Please try again in a minute.");
-        }
     }
 
     public void checkLead(HttpServletRequest request) {
         String ip = getClientIp(request);
-        Bucket bucket = leadBuckets.computeIfAbsent(ip, k -> newBucket(20, 1));
-        if (!bucket.tryConsume(1)) {
+        if (!leadBuckets.computeIfAbsent(ip, k -> newBucket(20, 1)).tryConsume(1))
             throw new RateLimitException("Too many requests. Please try again in a minute.");
-        }
     }
 
     public void checkEnquiry(HttpServletRequest request) {
         String ip = getClientIp(request);
-        Bucket bucket = enquiryBuckets.computeIfAbsent(ip, k -> newBucket(10, 1));
-        if (!bucket.tryConsume(1)) {
+        if (!enquiryBuckets.computeIfAbsent(ip, k -> newBucket(10, 1)).tryConsume(1))
             throw new RateLimitException("Too many enquiries. Please try again in a minute.");
-        }
     }
 
     public void checkClick(HttpServletRequest request) {
         String ip = getClientIp(request);
-        Bucket bucket = clickBuckets.computeIfAbsent(ip, k -> newBucket(60, 1));
-        if (!bucket.tryConsume(1)) {
+        if (!clickBuckets.computeIfAbsent(ip, k -> newBucket(60, 1)).tryConsume(1))
             throw new RateLimitException("Too many requests.");
-        }
+    }
+
+    public void checkCart(HttpServletRequest request) {
+        String ip = getClientIp(request);
+        if (!cartBuckets.computeIfAbsent(ip, k -> newBucket(30, 1)).tryConsume(1))
+            throw new RateLimitException("Too many cart requests. Please slow down.");
+    }
+
+    public void checkCheckout(HttpServletRequest request) {
+        String ip = getClientIp(request);
+        if (!checkoutBuckets.computeIfAbsent(ip, k -> newBucket(5, 1)).tryConsume(1))
+            throw new RateLimitException("Too many checkout attempts. Please try again in a minute.");
+    }
+
+    public void checkPayment(HttpServletRequest request) {
+        String ip = getClientIp(request);
+        if (!paymentBuckets.computeIfAbsent(ip, k -> newBucket(3, 1)).tryConsume(1))
+            throw new RateLimitException("Too many payment attempts. Please try again in a minute.");
     }
 }

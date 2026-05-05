@@ -5,6 +5,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -17,7 +18,8 @@ import java.util.Set;
         @Index(name = "idx_products_is_discount",    columnList = "is_discount"),
         @Index(name = "idx_products_is_new_arrival", columnList = "is_new_arrival"),
         @Index(name = "idx_products_is_fast_moving", columnList = "is_fast_moving"),
-        @Index(name = "idx_products_monthly_clicks", columnList = "monthly_clicks")
+        @Index(name = "idx_products_monthly_clicks", columnList = "monthly_clicks"),
+        @Index(name = "idx_products_stock_status",   columnList = "stock_status")
 })
 @Getter
 @Setter
@@ -101,6 +103,39 @@ public class Product extends BaseEntity {
     @Column(name = "total_clicks", nullable = false)
     @Builder.Default
     private Long totalClicks = 0L;
+
+    @Column(name = "base_price", precision = 12, scale = 2)
+    private BigDecimal basePrice;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "price_unit", length = 20)
+    @Builder.Default
+    private PriceUnit priceUnit = PriceUnit.PER_UNIT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_status", length = 20)
+    @Builder.Default
+    private StockStatus stockStatus = StockStatus.IN_STOCK;
+
+    @Column(name = "lead_time_days")
+    @Builder.Default
+    private Integer leadTimeDays = 14;
+
+    @Column(name = "customizable")
+    @Builder.Default
+    private Boolean customizable = false;
+
+    @Column(name = "stock_count")
+    @Builder.Default
+    private Integer stockCount = 0;
+
+    @Column(name = "reserved_count")
+    @Builder.Default
+    private Integer reservedCount = 0;
+
+    @Column(name = "low_stock_threshold")
+    @Builder.Default
+    private Integer lowStockThreshold = 10;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

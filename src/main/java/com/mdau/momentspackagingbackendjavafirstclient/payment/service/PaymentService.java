@@ -1,0 +1,186 @@
+package com.mdau.momentspackagingbackendjavafirstclient.payment.service;
+
+import com.mdau.momentspackagingbackendjavafirstclient.notification.service.NotificationService;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.*;
+import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PaymentService {
+
+    private final PaymentRecordRepository paymentRecordRepository;
+    private final OrderRepository         orderRepository;
+    private final PayHeroService          payHeroService;
+    private final NotificationService     notificationService;
+
+    @Transactional
+    public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) {
+        Order order = orderRepository.findById(request.getOrderId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Order not found: " + request.getOrderId()));
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new IllegalArgumentException("Order is not in PENDING_PAYMENT status");
+        }
+
+        // Cancel any previous in-flight payment records
+        List<PaymentRecord> existing = paymentRecordRepository
+                .findByOrderIdOrderByCreatedAtDesc(order.getId());
+        for (PaymentRecord prev : existing) {
+            if (prev.getStatus() == PaymentRecordStatus.INITIATED
+                    || prev.getStatus() == PaymentRecordStatus.PROCESSING) {
+                prev.setStatus(PaymentRecordStatus.CANCELLED);
+                prev.setFailureReason("Superseded by new payment attempt");
+                paymentRecordRepository.save(prev);
+                log.info("Cancelled previous payment record {} for order {}",
+                        prev.getId(), order.getReference());
+            }
+        }
+
+        PaymentMethod method = request.getPaymentMethod();
+
+        if (method == PaymentMethod.PAYHERO || method == PaymentMethod.MPESA) {
+            if (request.getPhone() == null || request.getPhone().isBlank())
+                throw new IllegalArgumentException("Phone is required for M-Pesa payment");
+
+            String externalRef = UUID.randomUUID().toString();
+            PaymentRecord record = PaymentRecord.builder()
+                    .order(order).amount(order.getTotalAmount())
+                    .method(method).status(PaymentRecordStatus.INITIATED)
+                    .phone(request.getPhone()).externalReference(externalRef).build();
+            paymentRecordRepository.save(record);
+
+            try {
+                String checkoutRequestId = payHeroService.initiateSTKPush(
+                        request.getPhone(), order.getTotalAmount(), externalRef);
+                record.setCheckoutRequestId(checkoutRequestId);
+                record.setStatus(PaymentRecordStatus.PROCESSING);
+                paymentRecordRepository.save(record);
+
+                return PaymentInitiateResponse.builder()
+                        .orderId(order.getId()).reference(order.getReference())
+                        .status("STK_PUSH_SENT")
+                        .message("Check your phone for M-Pesa prompt")
+                        .amount(order.getTotalAmount()).build();
+
+            } catch (Exception e) {
+                record.setStatus(PaymentRecordStatus.FAILED);
+                record.setFailureReason(e.getMessage());
+                paymentRecordRepository.save(record);
+                throw new RuntimeException("Payment initiation failed: " + e.getMessage());
+            }
+        }
+
+        if (method == PaymentMethod.BANK_TRANSFER) {
+            paymentRecordRepository.save(PaymentRecord.builder()
+                    .order(order).amount(order.getTotalAmount())
+                    .method(method).status(PaymentRecordStatus.INITIATED).build());
+            return PaymentInitiateResponse.builder()
+                    .orderId(order.getId()).reference(order.getReference())
+                    .status("BANK_TRANSFER_PENDING")
+                    .message("Transfer KES " + order.getTotalAmount()
+                            + " to our account. Use order ref: " + order.getReference())
+                    .amount(order.getTotalAmount()).build();
+        }
+
+        paymentRecordRepository.save(PaymentRecord.builder()
+                .order(order).amount(order.getTotalAmount())
+                .method(method).status(PaymentRecordStatus.INITIATED).build());
+        return PaymentInitiateResponse.builder()
+                .orderId(order.getId()).reference(order.getReference())
+                .status("COD_PENDING")
+                .message("Pay KES " + order.getTotalAmount() + " on delivery")
+                .amount(order.getTotalAmount()).build();
+    }
+
+    @Transactional
+    public void handleCallback(PayHeroCallbackDto callback) {
+        if (callback.getResponse() == null) {
+            log.error("PayHero callback has no response data");
+            return;
+        }
+
+        PayHeroCallbackDto.PayHeroCallbackResponse response = callback.getResponse();
+        String checkoutRequestId = response.getCheckoutRequestId();
+
+        PaymentRecord record = paymentRecordRepository
+                .findByCheckoutRequestId(checkoutRequestId).orElse(null);
+        if (record == null) {
+            log.warn("No payment record found for checkoutRequestId: {}", checkoutRequestId);
+            return;
+        }
+
+        if (record.getStatus() == PaymentRecordStatus.SUCCESS) {
+            log.warn("Duplicate callback for already-completed payment {}. Ignoring.", record.getId());
+            return;
+        }
+
+        if (record.getStatus() == PaymentRecordStatus.CANCELLED) {
+            log.warn("Callback for cancelled record {}. Ignoring.", record.getId());
+            return;
+        }
+
+        record.setMerchantRequestId(response.getMerchantRequestId());
+        boolean isSuccess = response.getResultCode() != null && response.getResultCode() == 0;
+
+        if (isSuccess) {
+            record.setStatus(PaymentRecordStatus.SUCCESS);
+            record.setReceiptNumber(response.getMpesaReceiptNumber());
+            paymentRecordRepository.save(record);
+
+            Order order = record.getOrder();
+            order.setPaymentStatus(PaymentStatus.PAID);
+            order.setStatus(OrderStatus.PAID);
+            order.getStatusHistory().add(OrderStatusHistory.builder()
+                    .order(order).fromStatus(OrderStatus.PENDING_PAYMENT)
+                    .toStatus(OrderStatus.PAID)
+                    .note("Payment received. Receipt: " + response.getMpesaReceiptNumber())
+                    .changedBy("payhero-callback").build());
+            orderRepository.save(order);
+
+            notificationService.onOrderPaid(order);
+            log.info("Payment SUCCESS for order {}, receipt={}",
+                    order.getReference(), response.getMpesaReceiptNumber());
+
+        } else {
+            record.setStatus(PaymentRecordStatus.FAILED);
+            record.setFailureReason(response.getResultDesc());
+            paymentRecordRepository.save(record);
+
+            Order order = record.getOrder();
+            order.setPaymentStatus(PaymentStatus.FAILED);
+            orderRepository.save(order);
+            log.info("Payment FAILED for order {}: {}",
+                    order.getReference(), response.getResultDesc());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentInitiateResponse getPaymentStatus(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        List<PaymentRecord> records = paymentRecordRepository
+                .findByOrderIdOrderByCreatedAtDesc(orderId);
+        PaymentRecord latest = records.isEmpty() ? null : records.get(0);
+
+        return PaymentInitiateResponse.builder()
+                .orderId(order.getId()).reference(order.getReference())
+                .status(latest != null ? latest.getStatus().name() : "NO_PAYMENT")
+                .amount(order.getTotalAmount())
+                .receiptNumber(latest != null ? latest.getReceiptNumber() : null)
+                .build();
+    }
+}

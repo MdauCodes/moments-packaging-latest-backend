@@ -7,9 +7,6 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Getter
 @Setter
 public class EnquiryCreateRequest {
@@ -21,15 +18,11 @@ public class EnquiryCreateRequest {
     private ContactRequest contact;
 
     private String message;
-
     private String source;
-
-    private List<EnquiryItemRequest> items = new ArrayList<>();
 
     @Getter
     @Setter
     public static class ContactRequest {
-
         @NotBlank(message = "Contact name is required")
         private String name;
 
@@ -38,7 +31,6 @@ public class EnquiryCreateRequest {
         private String email;
 
         private String phone;
-
         private String company;
     }
 }

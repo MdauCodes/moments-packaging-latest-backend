@@ -3,8 +3,10 @@ package com.mdau.momentspackagingbackendjavafirstclient.product.controller;
 import com.mdau.momentspackagingbackendjavafirstclient.common.config.RateLimitConfig;
 import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ReviewDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.service.ProductSearchService;
 import com.mdau.momentspackagingbackendjavafirstclient.product.service.ProductService;
+import com.mdau.momentspackagingbackendjavafirstclient.product.service.ReviewService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -23,6 +26,7 @@ public class PublicProductController {
 
     private final ProductService       productService;
     private final ProductSearchService productSearchService;
+    private final ReviewService        reviewService;
     private final RateLimitConfig      rateLimitConfig;
 
     @GetMapping
@@ -62,5 +66,21 @@ public class PublicProductController {
         rateLimitConfig.checkClick(request);
         productService.recordClick(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{slug}/reviews")
+    public ResponseEntity<PageResponse<ReviewDto>> getReviews(
+            @PathVariable String slug,
+            @PageableDefault(size = 10, sort = "createdAt",
+                             direction = Sort.Direction.DESC) Pageable pageable) {
+        UUID productId = productService.getBySlug(slug).getId();
+        return ResponseEntity.ok(reviewService.getProductReviews(productId, pageable));
+    }
+
+    @GetMapping("/{slug}/rating-summary")
+    public ResponseEntity<Map<String, Object>> getRatingSummary(
+            @PathVariable String slug) {
+        UUID productId = productService.getBySlug(slug).getId();
+        return ResponseEntity.ok(reviewService.getRatingSummary(productId));
     }
 }

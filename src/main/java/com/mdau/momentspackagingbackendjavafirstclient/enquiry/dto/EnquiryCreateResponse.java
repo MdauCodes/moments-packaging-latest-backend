@@ -8,7 +8,5 @@ import java.util.UUID;
 @Getter
 @AllArgsConstructor
 public class EnquiryCreateResponse {
-
-    private UUID   id;
-    private String reference;
+    private UUID id;
 }

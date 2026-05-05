@@ -2,11 +2,13 @@ package com.mdau.momentspackagingbackendjavafirstclient.product.dto;
 
 import com.mdau.momentspackagingbackendjavafirstclient.industry.dto.IndustryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
 import lombok.Getter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,6 +32,13 @@ public class ProductDto {
     private final Boolean isFastMoving;
     private final String material;
     private final String finish;
+    private final BigDecimal basePrice;
+    private final PriceUnit priceUnit;
+    private final StockStatus stockStatus;
+    private final Integer leadTimeDays;
+    private final Boolean customizable;
+    private final Integer stockCount;
+    private final List<ProductPricingTierDto> pricingTiers;
     private final List<IndustryDto> industries;
     private final List<UUID> industryIds;
     private final Long monthlyClicks;
@@ -37,7 +46,7 @@ public class ProductDto {
     private final Instant createdAt;
     private final Instant updatedAt;
 
-    public ProductDto(Product product) {
+    public ProductDto(Product product, List<ProductPricingTierDto> pricingTiers) {
         this.id              = product.getId();
         this.slug            = product.getSlug();
         this.name            = product.getName();
@@ -55,6 +64,13 @@ public class ProductDto {
         this.isFastMoving    = product.getIsFastMoving();
         this.material        = product.getMaterial();
         this.finish          = product.getFinish();
+        this.basePrice       = product.getBasePrice();
+        this.priceUnit       = product.getPriceUnit();
+        this.stockStatus     = product.getStockStatus();
+        this.leadTimeDays    = product.getLeadTimeDays();
+        this.customizable    = product.getCustomizable();
+        this.stockCount      = product.getStockCount();
+        this.pricingTiers    = pricingTiers != null ? pricingTiers : List.of();
         this.monthlyClicks   = product.getMonthlyClicks();
         this.totalClicks     = product.getTotalClicks();
         this.createdAt       = product.getCreatedAt();
@@ -65,5 +81,9 @@ public class ProductDto {
         this.industryIds     = product.getIndustries().stream()
                                    .map(i -> i.getId())
                                    .collect(Collectors.toList());
+    }
+
+    public ProductDto(Product product) {
+        this(product, List.of());
     }
 }
