@@ -57,6 +57,7 @@ public class SecurityConfig {
                     "/api/v1/orders/track/**",
                     "/api/v1/payments/payhero/callback",
                     "/api/v1/payments/status/**",
+                    "/api/v1/payments/initiate",
                     "/swagger-ui.html",
                     "/swagger-ui/**",
                     "/api-docs/**",
