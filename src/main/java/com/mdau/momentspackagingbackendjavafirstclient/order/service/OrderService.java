@@ -57,8 +57,13 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + reference));
 
         return new OrderTrackingDto(
-                order.getId(), order.getReference(), order.getStatus().name(),
-                order.getContactName(), maskEmail(order.getEmail()),
+                order.getId(),
+                order.getReference(),
+                order.getStatus().name(),
+                order.getPaymentStatus().name(),
+                order.getPaymentMethod().name(),
+                order.getContactName(),
+                maskEmail(order.getEmail()),
                 order.getItems().stream()
                         .map(i -> new OrderTrackingDto.TrackingItemDto(
                                 i.getProductNameSnapshot(), i.getQuantity(), i.getLineTotal()))
@@ -67,9 +72,9 @@ public class OrderService {
                         .map(h -> new OrderTrackingDto.TrackingHistoryDto(
                                 h.getToStatus().name(), h.getChangedAt()))
                         .toList(),
-                order.getTotalAmount(), order.getDeliveryFee());
+                order.getTotalAmount(),
+                order.getDeliveryFee());
     }
-
     @Transactional(readOnly = true)
     public PageResponse<OrderDto> getMyOrders(User customer, Pageable pageable) {
         return new PageResponse<>(

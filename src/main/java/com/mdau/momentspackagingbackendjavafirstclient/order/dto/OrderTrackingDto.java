@@ -14,6 +14,8 @@ public class OrderTrackingDto {
     private UUID   id;
     private String reference;
     private String status;
+    private String paymentStatus;
+    private String paymentMethod;
     private String contactName;
     private String maskedEmail;
     private List<TrackingItemDto> items;
