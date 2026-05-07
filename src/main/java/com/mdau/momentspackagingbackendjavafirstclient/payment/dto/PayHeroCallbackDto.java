@@ -10,7 +10,7 @@ import lombok.Setter;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PayHeroCallbackDto {
 
-    @JsonProperty("Response")
+    @JsonProperty("response")
     private PayHeroCallbackResponse response;
 
     @Getter
