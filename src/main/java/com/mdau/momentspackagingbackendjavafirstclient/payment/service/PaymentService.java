@@ -25,6 +25,8 @@ public class PaymentService {
     private final PayHeroService          payHeroService;
     private final NotificationService     notificationService;
 
+    // ── Initiate ─────────────────────────────────────────────────────
+
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) {
         Order order = orderRepository.findById(request.getOrderId())
@@ -70,10 +72,12 @@ public class PaymentService {
                 paymentRecordRepository.save(record);
 
                 return PaymentInitiateResponse.builder()
-                        .orderId(order.getId()).reference(order.getReference())
+                        .orderId(order.getId())
+                        .reference(order.getReference())
                         .status("STK_PUSH_SENT")
                         .message("Check your phone for M-Pesa prompt")
-                        .amount(order.getTotalAmount()).build();
+                        .amount(order.getTotalAmount())
+                        .build();
 
             } catch (Exception e) {
                 record.setStatus(PaymentRecordStatus.FAILED);
@@ -104,6 +108,8 @@ public class PaymentService {
                 .message("Pay KES " + order.getTotalAmount() + " on delivery")
                 .amount(order.getTotalAmount()).build();
     }
+
+    // ── Callback ─────────────────────────────────────────────────────
 
     @Transactional
     public void handleCallback(PayHeroCallbackDto callback) {
@@ -167,20 +173,70 @@ public class PaymentService {
         }
     }
 
+    // ── Status ───────────────────────────────────────────────────────
+
+    /**
+     * Returns a normalized PaymentStatusResponse the frontend can poll.
+     *
+     * Status contract (always one of these four strings):
+     *   PROCESSING  – STK push sent, waiting for user PIN / callback
+     *   SUCCESS     – Payment confirmed, M-Pesa receipt attached
+     *   FAILED      – Payment failed or was cancelled; failureReason populated
+     *   NO_PAYMENT  – No payment record exists yet for this order
+     */
     @Transactional(readOnly = true)
-    public PaymentInitiateResponse getPaymentStatus(UUID orderId) {
+    public PaymentStatusResponse getPaymentStatus(UUID orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
         List<PaymentRecord> records = paymentRecordRepository
                 .findByOrderIdOrderByCreatedAtDesc(orderId);
-        PaymentRecord latest = records.isEmpty() ? null : records.get(0);
 
-        return PaymentInitiateResponse.builder()
-                .orderId(order.getId()).reference(order.getReference())
-                .status(latest != null ? latest.getStatus().name() : "NO_PAYMENT")
+        if (records.isEmpty()) {
+            return PaymentStatusResponse.builder()
+                    .orderId(order.getId())
+                    .orderReference(order.getReference())
+                    .status("NO_PAYMENT")
+                    .amount(order.getTotalAmount())
+                    .build();
+        }
+
+        PaymentRecord latest = records.get(0);
+        String normalizedStatus = normalizeStatus(latest.getStatus());
+
+        return PaymentStatusResponse.builder()
+                .orderId(order.getId())
+                .orderReference(order.getReference())
+                .status(normalizedStatus)
                 .amount(order.getTotalAmount())
-                .receiptNumber(latest != null ? latest.getReceiptNumber() : null)
+                .receiptNumber(latest.getReceiptNumber())
+                .failureReason(latest.getFailureReason())
+                .paymentMethod(latest.getMethod() != null ? latest.getMethod().name() : null)
+                .message(buildMessage(normalizedStatus, latest))
                 .build();
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────
+
+    /**
+     * Maps internal PaymentRecordStatus → one of the 4 frontend-facing strings.
+     */
+    private String normalizeStatus(PaymentRecordStatus status) {
+        return switch (status) {
+            case SUCCESS              -> "SUCCESS";
+            case FAILED, CANCELLED   -> "FAILED";
+            case INITIATED, PROCESSING -> "PROCESSING";
+        };
+    }
+
+    private String buildMessage(String normalizedStatus, PaymentRecord record) {
+        return switch (normalizedStatus) {
+            case "SUCCESS"    -> "Payment confirmed. Receipt: " + record.getReceiptNumber();
+            case "FAILED"     -> record.getFailureReason() != null
+                    ? record.getFailureReason()
+                    : "Payment was not completed.";
+            case "PROCESSING" -> "Waiting for M-Pesa confirmation. Enter your PIN on your phone.";
+            default           -> "No payment initiated yet.";
+        };
     }
 }

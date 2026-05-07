@@ -107,9 +107,9 @@ app:
     max-page-size: 100
     default-page-size: 20
   email:
-    from: mdaucodes@gmail.com
+    from: momentspackaging@gmail.com
     from-name: Moments Packaging Kenya
-    sales-address: lezisign@gmail.com
+    sales-address: momentspackaging@gmail.com
   company:
     whatsapp-number: "+254733797412"
     email: pkihara2gmail.com

@@ -25,6 +25,10 @@ public class PaymentController {
     private final RateLimitConfig rateLimitConfig;
     private final ObjectMapper    objectMapper;
 
+    /**
+     * POST /api/v1/payments/initiate
+     * Initiates a payment (STK push, bank transfer, or COD).
+     */
     @PostMapping("/initiate")
     public ResponseEntity<PaymentInitiateResponse> initiatePayment(
             @Valid @RequestBody PaymentInitiateRequest request,
@@ -33,17 +37,29 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.initiatePayment(request));
     }
 
+    /**
+     * GET /api/v1/payments/status/{orderId}
+     *
+     * Returns a normalized PaymentStatusResponse. Frontend polls this.
+     * Status is always one of: PROCESSING | SUCCESS | FAILED | NO_PAYMENT
+     */
     @GetMapping("/status/{orderId}")
-    public ResponseEntity<PaymentInitiateResponse> getStatus(
+    public ResponseEntity<PaymentStatusResponse> getStatus(
             @PathVariable UUID orderId) {
         return ResponseEntity.ok(paymentService.getPaymentStatus(orderId));
     }
 
+    /**
+     * POST /api/v1/payments/payhero/callback
+     * Receives async result from PayHero after user enters PIN.
+     * Must return 200 OK regardless — PayHero retries on non-2xx.
+     */
     @PostMapping("/payhero/callback")
     public ResponseEntity<String> handleCallback(
             @RequestBody String rawJson,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         log.info("PayHero callback received. Auth header present: {}", authHeader != null);
+        log.info("PayHero callback raw payload: {}", rawJson);  // ADD THIS
         try {
             PayHeroCallbackDto callback = objectMapper.readValue(rawJson, PayHeroCallbackDto.class);
             paymentService.handleCallback(callback);
