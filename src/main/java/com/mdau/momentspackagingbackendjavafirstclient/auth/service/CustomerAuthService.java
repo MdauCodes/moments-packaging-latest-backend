@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -138,17 +139,16 @@ public class CustomerAuthService {
     @Transactional
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-            // Invalidate any existing unused reset tokens for this user
-            prTokenRepository.findByUserAndUsedFalse(user).ifPresent(existing -> {
-                existing.setUsed(true);
-                prTokenRepository.save(existing);
-            });
+            // Invalidate ALL existing unused reset tokens for this user
+            List<PasswordResetToken> existing = prTokenRepository.findAllByUserAndUsedFalse(user);
+            existing.forEach(t -> t.setUsed(true));
+            prTokenRepository.saveAll(existing);
 
             String otp = generateOtp();
             PasswordResetToken prt = PasswordResetToken.builder()
                     .user(user)
                     .token(otp)
-                    .expiresAt(Instant.now().plusSeconds(900)) // 15 minutes
+                    .expiresAt(Instant.now().plusSeconds(900))
                     .used(false)
                     .build();
             prTokenRepository.save(prt);
@@ -167,9 +167,11 @@ public class CustomerAuthService {
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired code"));
 
         PasswordResetToken prt = prTokenRepository
-                .findByUserAndUsedFalse(user)
+                .findAllByUserAndUsedFalse(user)
+                .stream()
                 .filter(t -> t.getToken().equals(request.getOtp()))
                 .filter(t -> t.getExpiresAt().isAfter(Instant.now()))
+                .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired code"));
 
         // Replace OTP with a secure session token — valid for 10 minutes
