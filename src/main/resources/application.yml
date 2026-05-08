@@ -9,7 +9,7 @@ spring:
   application:
     name: moments-packaging-backend
   datasource:
-    url: ${DATABASE_URL:}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/moments_packaging_db}
     username: postgres
     password: ${DATABASE_PASSWORD:janet-marketing}
     driver-class-name: org.postgresql.Driver
