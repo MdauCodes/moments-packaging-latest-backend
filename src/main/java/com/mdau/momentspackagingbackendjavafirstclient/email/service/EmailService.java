@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.email.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.entity.Enquiry;
 import com.mdau.momentspackagingbackendjavafirstclient.lead.entity.Lead;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
@@ -9,23 +10,28 @@ import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
 
-    private final JavaMailSender mailSender;
-    private final TemplateEngine templateEngine;
+    private final JavaMailSender  mailSender;
+    private final TemplateEngine  templateEngine;
+    private final ObjectMapper    objectMapper;
 
     @Value("${app.email.from}")
     private String fromAddress;
@@ -35,6 +41,15 @@ public class EmailService {
 
     @Value("${app.email.sales-address}")
     private String salesAddress;
+
+    @Value("${app.email.brevo-api-key:}")
+    private String brevoApiKey;
+
+    @Value("${app.email.brevo-api-url:https://api.brevo.com/v3/smtp/email}")
+    private String brevoApiUrl;
+
+    @Value("${app.email.use-brevo-api:true}")
+    private boolean useBrevoApi;
 
     // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +63,7 @@ public class EmailService {
             sendHtml(user.getEmail(), "Your Moments Packaging verification code", html);
             log.info("OTP email sent to {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send OTP email: {}", e.getMessage());
+            log.error("Failed to send OTP email to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 
@@ -62,7 +77,7 @@ public class EmailService {
             sendHtml(user.getEmail(), "Reset your Moments Packaging password", html);
             log.info("Password reset email sent to {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send password reset email: {}", e.getMessage());
+            log.error("Failed to send password reset email to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 
@@ -75,7 +90,7 @@ public class EmailService {
             sendHtml(user.getEmail(), "Welcome to Moments Packaging Kenya!", html);
             log.info("Welcome email sent to {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send welcome email: {}", e.getMessage());
+            log.error("Failed to send welcome email to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 
@@ -236,9 +251,53 @@ public class EmailService {
         }
     }
 
-    // ── Internal ──────────────────────────────────────────────────────────────
+    // ── Core sender — Brevo API primary, SMTP fallback ────────────────────────
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
+        if (useBrevoApi && brevoApiKey != null && !brevoApiKey.isBlank()) {
+            try {
+                sendViaBrevoApi(to, subject, htmlBody);
+                log.debug("Email sent via Brevo API to {}", to);
+                return;
+            } catch (Exception e) {
+                log.warn("Brevo API failed for {}, falling back to SMTP: {}", to, e.getMessage());
+            }
+        }
+        sendViaSMTP(to, subject, htmlBody);
+        log.debug("Email sent via SMTP to {}", to);
+    }
+
+    private void sendViaBrevoApi(String to, String subject, String htmlBody) throws Exception {
+        Map<String, Object> sender = new HashMap<>();
+        sender.put("name", fromName);
+        sender.put("email", fromAddress);
+
+        Map<String, Object> recipient = new HashMap<>();
+        recipient.put("email", to);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("sender", sender);
+        payload.put("to", List.of(recipient));
+        payload.put("subject", subject);
+        payload.put("htmlContent", htmlBody);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("api-key", brevoApiKey);
+
+        String json = objectMapper.writeValueAsString(payload);
+        HttpEntity<String> entity = new HttpEntity<>(json, headers);
+
+        RestTemplate restTemplate = new RestTemplate();
+        ResponseEntity<String> response = restTemplate.postForEntity(brevoApiUrl, entity, String.class);
+
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new RuntimeException("Brevo API error " + response.getStatusCode()
+                    + ": " + response.getBody());
+        }
+    }
+
+    private void sendViaSMTP(String to, String subject, String htmlBody) throws Exception {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setFrom(fromAddress, fromName);

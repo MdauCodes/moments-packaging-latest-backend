@@ -40,8 +40,8 @@ spring:
   mail:
     host: smtp-relay.brevo.com
     port: 587
-    username: mdaucodes@gmail.com
-    password: ${MAIL_PASSWORD:}
+    username: ${BREVO_USERNAME:mdaucodes@gmail.com}
+    password: ${BREVO_SMTP_KEY:}
     properties:
       mail:
         smtp:
@@ -49,6 +49,9 @@ spring:
           starttls:
             enable: true
             required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
         transport:
           protocol: smtp
     default-encoding: UTF-8
@@ -79,10 +82,9 @@ app:
     refresh-token-expiration-ms: 604800000
   cloudinary:
     cloud-name: dhgwijhdu
-    api-key: ${CLOUDINARY_API_KEY:"837784483137119"}
+    api-key: ${CLOUDINARY_API_KEY:837784483137119}
     api-secret: ${CLOUDINARY_API_SECRET:1_hpvy6vfmO7ByjDjiUp5MORjSg}
     upload-folder: moments-packaging
-
   cors:
     allowed-origins: "https://www.momentspackaging.com,https://momentspackaging.com,https://moments-connect-hub.lovable.app,https://preview--moments-connect-hub.lovable.app,http://localhost:5173"
   frontend:
@@ -110,9 +112,12 @@ app:
     from: momentspackaging@gmail.com
     from-name: Moments Packaging Kenya
     sales-address: momentspackaging@gmail.com
+    brevo-api-key: ${BREVO_API_KEY:}
+    brevo-api-url: https://api.brevo.com/v3/smtp/email
+    use-brevo-api: ${USE_BREVO_API:true}
   company:
     whatsapp-number: "+254733797412"
-    email: pkihara2gmail.com
+    email: pkihara2008@gmail.com
     phone: "+254733797412"
   features:
     blogs-enabled: true
