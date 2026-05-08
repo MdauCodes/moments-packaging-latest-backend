@@ -44,6 +44,15 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Integer moq = 1;
 
+    /**
+     * When true  → customers can buy individual units (qty=1) at basePrice.
+     * When false → only named collections are purchasable; basePrice is internal reference only.
+     * Admin can toggle this at any time.
+     */
+    @Column(name = "individual_sales_enabled", nullable = false)
+    @Builder.Default
+    private Boolean individualSalesEnabled = true;
+
     @ElementCollection
     @CollectionTable(name = "product_sizes",
                      joinColumns = @JoinColumn(name = "product_id"))
@@ -104,6 +113,7 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Long totalClicks = 0L;
 
+    /** Per-unit reference price. Always stored. Hidden from buyers when individualSalesEnabled=false */
     @Column(name = "base_price", precision = 12, scale = 2)
     private BigDecimal basePrice;
 

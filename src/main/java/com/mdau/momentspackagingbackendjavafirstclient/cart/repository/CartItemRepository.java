@@ -13,6 +13,14 @@ import java.util.UUID;
 public interface CartItemRepository extends JpaRepository<CartItem, UUID> {
     List<CartItem> findByCartId(UUID cartId);
     Optional<CartItem> findByCartIdAndId(UUID cartId, UUID itemId);
+
+    /** Legacy — used for individual-unit items (tier is null) */
+    Optional<CartItem> findByCartIdAndProductIdAndTierIsNull(UUID cartId, UUID productId);
+
+    /** Collection items — unique per cart + product + tier combination */
+    Optional<CartItem> findByCartIdAndProductIdAndTierId(UUID cartId, UUID productId, UUID tierId);
+
+    /** Keep old method for merge logic compatibility */
     Optional<CartItem> findByCartIdAndProductId(UUID cartId, UUID productId);
 
     @Modifying

@@ -8,6 +8,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartItemR
 import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductPricingTier;
+import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductPricingTierRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -25,12 +27,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CartService {
 
-    private final CartRepository     cartRepository;
-    private final CartItemRepository cartItemRepository;
-    private final ProductRepository  productRepository;
-    private final PricingService     pricingService;
-
-    // ── Get or create ────────────────────────────────────────────────
+    private final CartRepository              cartRepository;
+    private final CartItemRepository          cartItemRepository;
+    private final ProductRepository           productRepository;
+    private final ProductPricingTierRepository tierRepository;
+    private final PricingService              pricingService;
 
     @Transactional
     public Cart getOrCreateCart(User customer, String sessionId) {
@@ -47,16 +48,12 @@ public class CartService {
         return cartRepository.save(Cart.builder().build());
     }
 
-    // ── Read ─────────────────────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public CartDto getCart(User customer, String sessionId) {
         Cart cart = resolveCart(customer, sessionId);
         if (cart == null) return emptyCart();
         return toDto(cart);
     }
-
-    // ── Add item ─────────────────────────────────────────────────────
 
     @Transactional
     public CartDto addItem(User customer, String sessionId, AddToCartRequest request) {
@@ -68,69 +65,120 @@ public class CartService {
 
         int quantity = request.getQuantity();
 
-        if (quantity < product.getMoq()) {
-            throw new IllegalArgumentException(
-                    "Minimum order quantity for this product is " + product.getMoq());
-        }
+        if (request.getTierId() != null) {
+            // ── Collection purchase ──────────────────────────────────────────
+            ProductPricingTier tier = tierRepository.findById(request.getTierId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Pricing tier not found: " + request.getTierId()));
 
-        // Check if same product + same config already in cart — increment qty
-        cartItemRepository.findByCartIdAndProductId(cart.getId(), product.getId())
-                .ifPresentOrElse(existing -> {
-                    int newQty = existing.getQuantity() + quantity;
-                    BigDecimal unitPrice = pricingService.calculateUnitPrice(product, newQty);
-                    existing.setQuantity(newQty);
-                    existing.setUnitPriceSnapshot(unitPrice);
-                    existing.setLineTotalSnapshot(
-                            pricingService.calculateLineTotal(unitPrice, newQty));
-                    cartItemRepository.save(existing);
-                }, () -> {
-                    BigDecimal unitPrice = pricingService.calculateUnitPrice(product, quantity);
-                    CartItem item = CartItem.builder()
-                            .cart(cart)
-                            .product(product)
-                            .quantity(quantity)
-                            .unitPriceSnapshot(unitPrice)
-                            .lineTotalSnapshot(
-                                    pricingService.calculateLineTotal(unitPrice, quantity))
-                            .productNameSnapshot(product.getName())
-                            .sizeSnapshot(request.getSize())
-                            .materialSnapshot(request.getMaterial())
-                            .finishSnapshot(request.getFinish())
-                            .build();
-                    cartItemRepository.save(item);
-                });
+            if (!tier.getProduct().getId().equals(product.getId())) {
+                throw new IllegalArgumentException(
+                        "Tier does not belong to this product");
+            }
+
+            cartItemRepository.findByCartIdAndProductIdAndTierId(
+                    cart.getId(), product.getId(), tier.getId())
+                    .ifPresentOrElse(existing -> {
+                        int newQty = existing.getQuantity() + quantity;
+                        existing.setQuantity(newQty);
+                        existing.setLineTotalSnapshot(
+                                pricingService.collectionLineTotal(tier, newQty));
+                        cartItemRepository.save(existing);
+                    }, () -> {
+                        BigDecimal lineTotal = pricingService.collectionLineTotal(tier, quantity);
+                        CartItem item = CartItem.builder()
+                                .cart(cart)
+                                .product(product)
+                                .tier(tier)
+                                .quantity(quantity)
+                                .collectionNameSnapshot(tier.getCollectionName())
+                                .collectionQuantitySnapshot(tier.getQuantity())
+                                .unitPriceSnapshot(tier.getPricePerUnit())
+                                .lineTotalSnapshot(lineTotal)
+                                .productNameSnapshot(product.getName())
+                                .sizeSnapshot(request.getSize())
+                                .materialSnapshot(request.getMaterial())
+                                .finishSnapshot(request.getFinish())
+                                .build();
+                        cartItemRepository.save(item);
+                    });
+
+        } else {
+            // ── Individual unit purchase ─────────────────────────────────────
+            if (!Boolean.TRUE.equals(product.getIndividualSalesEnabled())) {
+                throw new IllegalArgumentException(
+                        "This product is only available in collections. " +
+                        "Please select a collection to purchase.");
+            }
+
+            if (quantity < product.getMoq()) {
+                throw new IllegalArgumentException(
+                        "Minimum order quantity for this product is " + product.getMoq());
+            }
+
+            cartItemRepository.findByCartIdAndProductIdAndTierIsNull(
+                    cart.getId(), product.getId())
+                    .ifPresentOrElse(existing -> {
+                        int newQty = existing.getQuantity() + quantity;
+                        BigDecimal unitPrice = product.getBasePrice() != null
+                                ? product.getBasePrice() : BigDecimal.ZERO;
+                        existing.setQuantity(newQty);
+                        existing.setUnitPriceSnapshot(unitPrice);
+                        existing.setLineTotalSnapshot(
+                                pricingService.calculateLineTotal(unitPrice, newQty));
+                        cartItemRepository.save(existing);
+                    }, () -> {
+                        BigDecimal unitPrice = product.getBasePrice() != null
+                                ? product.getBasePrice() : BigDecimal.ZERO;
+                        CartItem item = CartItem.builder()
+                                .cart(cart)
+                                .product(product)
+                                .tier(null)
+                                .quantity(quantity)
+                                .unitPriceSnapshot(unitPrice)
+                                .lineTotalSnapshot(
+                                        pricingService.calculateLineTotal(unitPrice, quantity))
+                                .productNameSnapshot(product.getName())
+                                .sizeSnapshot(request.getSize())
+                                .materialSnapshot(request.getMaterial())
+                                .finishSnapshot(request.getFinish())
+                                .build();
+                        cartItemRepository.save(item);
+                    });
+        }
 
         return toDto(cart);
     }
-
-    // ── Update quantity ───────────────────────────────────────────────
 
     @Transactional
     public CartDto updateItemQuantity(User customer, String sessionId,
                                       UUID itemId, UpdateCartItemRequest request) {
         Cart cart = resolveCartOrThrow(customer, sessionId);
-
         CartItem item = cartItemRepository.findByCartIdAndId(cart.getId(), itemId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cart item not found"));
 
         int newQty = request.getQuantity();
-        Product product = item.getProduct();
 
-        if (newQty < product.getMoq()) {
-            throw new IllegalArgumentException(
-                    "Minimum order quantity for this product is " + product.getMoq());
+        if (item.getTier() != null) {
+            item.setQuantity(newQty);
+            item.setLineTotalSnapshot(
+                    pricingService.collectionLineTotal(item.getTier(), newQty));
+        } else {
+            Product product = item.getProduct();
+            if (newQty < product.getMoq()) {
+                throw new IllegalArgumentException(
+                        "Minimum order quantity for this product is " + product.getMoq());
+            }
+            BigDecimal unitPrice = product.getBasePrice() != null
+                    ? product.getBasePrice() : BigDecimal.ZERO;
+            item.setQuantity(newQty);
+            item.setUnitPriceSnapshot(unitPrice);
+            item.setLineTotalSnapshot(pricingService.calculateLineTotal(unitPrice, newQty));
         }
 
-        BigDecimal unitPrice = pricingService.calculateUnitPrice(product, newQty);
-        item.setQuantity(newQty);
-        item.setUnitPriceSnapshot(unitPrice);
-        item.setLineTotalSnapshot(pricingService.calculateLineTotal(unitPrice, newQty));
         cartItemRepository.save(item);
-
         return toDto(cart);
     }
-
-    // ── Remove item ───────────────────────────────────────────────────
 
     @Transactional
     public CartDto removeItem(User customer, String sessionId, UUID itemId) {
@@ -141,17 +189,11 @@ public class CartService {
         return toDto(cart);
     }
 
-    // ── Clear cart ────────────────────────────────────────────────────
-
     @Transactional
     public void clearCart(User customer, String sessionId) {
         Cart cart = resolveCart(customer, sessionId);
-        if (cart != null) {
-            cartItemRepository.deleteByCartId(cart.getId());
-        }
+        if (cart != null) cartItemRepository.deleteByCartId(cart.getId());
     }
-
-    // ── Merge guest cart into customer cart ───────────────────────────
 
     @Transactional
     public void mergeGuestCart(String sessionId, User customer) {
@@ -173,21 +215,36 @@ public class CartService {
         if (!customerCart.getId().equals(guestCart.getId())) {
             List<CartItem> guestItems = cartItemRepository.findByCartId(guestCart.getId());
             for (CartItem guestItem : guestItems) {
-                cartItemRepository.findByCartIdAndProductId(
-                        customerCart.getId(), guestItem.getProduct().getId())
-                        .ifPresentOrElse(existing -> {
-                            int newQty = existing.getQuantity() + guestItem.getQuantity();
-                            BigDecimal unitPrice = pricingService.calculateUnitPrice(
-                                    guestItem.getProduct(), newQty);
-                            existing.setQuantity(newQty);
-                            existing.setUnitPriceSnapshot(unitPrice);
-                            existing.setLineTotalSnapshot(
-                                    pricingService.calculateLineTotal(unitPrice, newQty));
-                            cartItemRepository.save(existing);
-                        }, () -> {
-                            guestItem.setCart(customerCart);
-                            cartItemRepository.save(guestItem);
-                        });
+                if (guestItem.getTier() != null) {
+                    cartItemRepository.findByCartIdAndProductIdAndTierId(
+                            customerCart.getId(),
+                            guestItem.getProduct().getId(),
+                            guestItem.getTier().getId())
+                            .ifPresentOrElse(existing -> {
+                                int newQty = existing.getQuantity() + guestItem.getQuantity();
+                                existing.setQuantity(newQty);
+                                existing.setLineTotalSnapshot(
+                                        pricingService.collectionLineTotal(guestItem.getTier(), newQty));
+                                cartItemRepository.save(existing);
+                            }, () -> {
+                                guestItem.setCart(customerCart);
+                                cartItemRepository.save(guestItem);
+                            });
+                } else {
+                    cartItemRepository.findByCartIdAndProductIdAndTierIsNull(
+                            customerCart.getId(), guestItem.getProduct().getId())
+                            .ifPresentOrElse(existing -> {
+                                int newQty = existing.getQuantity() + guestItem.getQuantity();
+                                BigDecimal unitPrice = existing.getUnitPriceSnapshot();
+                                existing.setQuantity(newQty);
+                                existing.setLineTotalSnapshot(
+                                        pricingService.calculateLineTotal(unitPrice, newQty));
+                                cartItemRepository.save(existing);
+                            }, () -> {
+                                guestItem.setCart(customerCart);
+                                cartItemRepository.save(guestItem);
+                            });
+                }
             }
             guestCart.setStatus(CartStatus.ABANDONED);
             cartRepository.save(guestCart);
@@ -195,8 +252,6 @@ public class CartService {
 
         log.info("Guest cart merged for customer: {}", customer.getEmail());
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────
 
     private Cart resolveCart(User customer, String sessionId) {
         if (customer != null) {

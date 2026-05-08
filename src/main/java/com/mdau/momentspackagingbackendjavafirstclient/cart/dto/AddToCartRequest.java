@@ -14,6 +14,12 @@ public class AddToCartRequest {
     @NotNull(message = "Product ID is required")
     private UUID productId;
 
+    /**
+     * The collection tier to purchase. NULL means individual unit purchase.
+     * Will be rejected if product.individualSalesEnabled = false.
+     */
+    private UUID tierId;
+
     @NotNull(message = "Quantity is required")
     @Min(value = 1, message = "Quantity must be at least 1")
     private Integer quantity;
