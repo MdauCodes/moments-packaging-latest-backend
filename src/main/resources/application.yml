@@ -109,7 +109,7 @@ app:
     max-page-size: 100
     default-page-size: 20
   email:
-    from: momentspackaging@gmail.com
+    from: mdaucodes@gmail.com
     from-name: Moments Packaging Kenya
     sales-address: momentspackaging@gmail.com
     brevo-api-key: ${BREVO_API_KEY:}
