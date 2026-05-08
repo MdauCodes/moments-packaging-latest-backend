@@ -43,8 +43,7 @@ public class CustomerAuthService {
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
 
-    @Value("${app.frontend.url:https://moments-connect-hub.lovable.app}")
-    private String frontendUrl;
+    // ── Register ──────────────────────────────────────────────────────────────
 
     @Transactional
     public CustomerRegisterResponse register(CustomerRegisterRequest request) {
@@ -81,6 +80,8 @@ public class CustomerAuthService {
                 "Verification code sent to your email");
     }
 
+    // ── Verify email ──────────────────────────────────────────────────────────
+
     @Transactional
     public AuthResponse verifyEmail(OtpVerifyRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
@@ -90,7 +91,8 @@ public class CustomerAuthService {
                 .findByTokenAndUsedFalse(request.getOtp())
                 .filter(t -> t.getUser().getId().equals(user.getId()))
                 .filter(t -> t.getExpiresAt().isAfter(Instant.now()))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired verification code"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Invalid or expired verification code"));
 
         evToken.setUsed(true);
         evTokenRepository.save(evToken);
@@ -106,6 +108,8 @@ public class CustomerAuthService {
         log.info("Email verified for: {}", user.getEmail());
         return new AuthResponse(accessToken, refreshToken, new AuthUserDto(user));
     }
+
+    // ── Resend OTP ────────────────────────────────────────────────────────────
 
     @Transactional
     public Map<String, String> resendOtp(ResendOtpRequest request) {
@@ -129,29 +133,67 @@ public class CustomerAuthService {
         return Map.of("message", "Code sent if account exists");
     }
 
+    // ── Forgot password — Step 1: send OTP ───────────────────────────────────
+
     @Transactional
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-            String token = UUID.randomUUID().toString();
+            // Invalidate any existing unused reset tokens for this user
+            prTokenRepository.findByUserAndUsedFalse(user).ifPresent(existing -> {
+                existing.setUsed(true);
+                prTokenRepository.save(existing);
+            });
+
+            String otp = generateOtp();
             PasswordResetToken prt = PasswordResetToken.builder()
                     .user(user)
-                    .token(token)
-                    .expiresAt(Instant.now().plusSeconds(900))
+                    .token(otp)
+                    .expiresAt(Instant.now().plusSeconds(900)) // 15 minutes
                     .used(false)
                     .build();
             prTokenRepository.save(prt);
-            String resetLink = frontendUrl + "/reset-password?token=" + token;
-            emailService.sendPasswordResetEmail(user, resetLink);
+
+            emailService.sendPasswordResetOtpEmail(user, otp);
+            log.info("Password reset OTP sent to {}", user.getEmail());
         });
-        return Map.of("message", "If an account exists, you will receive a reset link");
+        return Map.of("message", "If an account exists, you will receive a reset code");
     }
+
+    // ── Verify reset OTP — Step 2: validate OTP, return session token ─────────
+
+    @Transactional
+    public Map<String, String> verifyResetOtp(VerifyResetOtpRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired code"));
+
+        PasswordResetToken prt = prTokenRepository
+                .findByUserAndUsedFalse(user)
+                .filter(t -> t.getToken().equals(request.getOtp()))
+                .filter(t -> t.getExpiresAt().isAfter(Instant.now()))
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired code"));
+
+        // Replace OTP with a secure session token — valid for 10 minutes
+        String sessionToken = UUID.randomUUID().toString();
+        prt.setToken(sessionToken);
+        prt.setExpiresAt(Instant.now().plusSeconds(600));
+        prTokenRepository.save(prt);
+
+        log.info("Reset OTP verified for {}, session token issued", user.getEmail());
+        return Map.of(
+                "resetSessionToken", sessionToken,
+                "message", "OTP verified. Use the resetSessionToken to set your new password."
+        );
+    }
+
+    // ── Reset password — Step 3: use session token to set new password ────────
 
     @Transactional
     public Map<String, String> resetPassword(ResetPasswordRequest request) {
         PasswordResetToken prt = prTokenRepository
                 .findByTokenAndUsedFalse(request.getToken())
                 .filter(t -> t.getExpiresAt().isAfter(Instant.now()))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset token"));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Invalid or expired reset session. Please request a new code."));
 
         User user = prt.getUser();
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
@@ -160,9 +202,11 @@ public class CustomerAuthService {
         prt.setUsed(true);
         prTokenRepository.save(prt);
 
-        log.info("Password reset for: {}", user.getEmail());
-        return Map.of("message", "Password updated successfully");
+        log.info("Password reset successfully for: {}", user.getEmail());
+        return Map.of("message", "Password updated successfully. You can now log in.");
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private String generateOtp() {
         return String.format("%06d", new SecureRandom().nextInt(1_000_000));

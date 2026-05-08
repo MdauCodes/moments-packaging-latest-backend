@@ -68,16 +68,16 @@ public class EmailService {
     }
 
     @Async
-    public void sendPasswordResetEmail(User user, String resetLink) {
+    public void sendPasswordResetOtpEmail(User user, String otp) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
             ctx.setVariable("firstName", user.getFirstName());
-            ctx.setVariable("resetLink", resetLink);
+            ctx.setVariable("otp", otp);
             String html = templateEngine.process("email/password-reset", ctx);
-            sendHtml(user.getEmail(), "Reset your Moments Packaging password", html);
-            log.info("Password reset email sent to {}", user.getEmail());
+            sendHtml(user.getEmail(), "Your Moments Packaging password reset code", html);
+            log.info("Password reset OTP email sent to {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send password reset email to {}: {}", user.getEmail(), e.getMessage());
+            log.error("Failed to send password reset OTP email to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 

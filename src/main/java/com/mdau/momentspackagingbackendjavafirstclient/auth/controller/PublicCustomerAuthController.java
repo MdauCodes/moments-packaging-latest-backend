@@ -34,12 +34,21 @@ public class PublicCustomerAuthController {
         return ResponseEntity.ok(customerAuthService.resendOtp(request));
     }
 
+    /** Step 1 — request reset code */
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request) {
         return ResponseEntity.ok(customerAuthService.forgotPassword(request));
     }
 
+    /** Step 2 — verify OTP, receive resetSessionToken */
+    @PostMapping("/verify-reset-otp")
+    public ResponseEntity<Map<String, String>> verifyResetOtp(
+            @Valid @RequestBody VerifyResetOtpRequest request) {
+        return ResponseEntity.ok(customerAuthService.verifyResetOtp(request));
+    }
+
+    /** Step 3 — submit resetSessionToken + new password */
     @PostMapping("/reset-password")
     public ResponseEntity<Map<String, String>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request) {
