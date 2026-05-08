@@ -8,6 +8,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -15,72 +16,93 @@ import java.util.stream.Collectors;
 @Getter
 public class ProductDto {
 
-    private final UUID id;
+    private final UUID   id;
     private final String slug;
     private final String name;
     private final String category;
     private final String description;
     private final Integer moq;
+
+    /**
+     * true  → individual unit purchase allowed (basePrice is shown to buyers).
+     * false → collections only (basePrice hidden from buyers).
+     */
+    private final Boolean individualSalesEnabled;
+
     private final List<String> sizes;
     private final List<String> tags;
     private final List<String> keywords;
-    private final String primaryImageUrl;
+    private final String       primaryImageUrl;
     private final List<String> imageUrls;
-    private final Boolean isDiscount;
-    private final Integer discountPercent;
-    private final Boolean isNewArrival;
-    private final Boolean isFastMoving;
-    private final String material;
-    private final String finish;
-    private final BigDecimal basePrice;
-    private final PriceUnit priceUnit;
+    private final Boolean      isDiscount;
+    private final Integer      discountPercent;
+    private final Boolean      isNewArrival;
+    private final Boolean      isFastMoving;
+    private final String       material;
+    private final String       finish;
+
+    /**
+     * Internal reference price per unit.
+     * Only populate this in responses to admins/staff.
+     * For public responses, ProductService masks this when individualSalesEnabled=false.
+     */
+    private final BigDecimal  basePrice;
+    private final PriceUnit   priceUnit;
     private final StockStatus stockStatus;
-    private final Integer leadTimeDays;
-    private final Boolean customizable;
-    private final Integer stockCount;
+    private final Integer     leadTimeDays;
+    private final Boolean     customizable;
+    private final Integer     stockCount;
+
+    /** Collections sorted by sortOrder ascending (smallest → largest) */
     private final List<ProductPricingTierDto> pricingTiers;
+
     private final List<IndustryDto> industries;
-    private final List<UUID> industryIds;
-    private final Long monthlyClicks;
-    private final Long totalClicks;
-    private final Instant createdAt;
-    private final Instant updatedAt;
+    private final List<UUID>        industryIds;
+    private final Long              monthlyClicks;
+    private final Long              totalClicks;
+    private final Instant           createdAt;
+    private final Instant           updatedAt;
 
     public ProductDto(Product product, List<ProductPricingTierDto> pricingTiers) {
-        this.id              = product.getId();
-        this.slug            = product.getSlug();
-        this.name            = product.getName();
-        this.category        = product.getCategory();
-        this.description     = product.getDescription();
-        this.moq             = product.getMoq();
-        this.sizes           = product.getSizes();
-        this.tags            = product.getTags();
-        this.keywords        = product.getKeywords();
-        this.primaryImageUrl = product.getPrimaryImageUrl();
-        this.imageUrls       = product.getImageUrls();
-        this.isDiscount      = product.getIsDiscount();
-        this.discountPercent = product.getDiscountPercent();
-        this.isNewArrival    = product.getIsNewArrival();
-        this.isFastMoving    = product.getIsFastMoving();
-        this.material        = product.getMaterial();
-        this.finish          = product.getFinish();
-        this.basePrice       = product.getBasePrice();
-        this.priceUnit       = product.getPriceUnit();
-        this.stockStatus     = product.getStockStatus();
-        this.leadTimeDays    = product.getLeadTimeDays();
-        this.customizable    = product.getCustomizable();
-        this.stockCount      = product.getStockCount();
-        this.pricingTiers    = pricingTiers != null ? pricingTiers : List.of();
-        this.monthlyClicks   = product.getMonthlyClicks();
-        this.totalClicks     = product.getTotalClicks();
-        this.createdAt       = product.getCreatedAt();
-        this.updatedAt       = product.getUpdatedAt();
-        this.industries      = product.getIndustries().stream()
-                                   .map(IndustryDto::new)
-                                   .collect(Collectors.toList());
-        this.industryIds     = product.getIndustries().stream()
-                                   .map(i -> i.getId())
-                                   .collect(Collectors.toList());
+        this.id                     = product.getId();
+        this.slug                   = product.getSlug();
+        this.name                   = product.getName();
+        this.category               = product.getCategory();
+        this.description            = product.getDescription();
+        this.moq                    = product.getMoq();
+        this.individualSalesEnabled = product.getIndividualSalesEnabled();
+        this.sizes                  = product.getSizes();
+        this.tags                   = product.getTags();
+        this.keywords               = product.getKeywords();
+        this.primaryImageUrl        = product.getPrimaryImageUrl();
+        this.imageUrls              = product.getImageUrls();
+        this.isDiscount             = product.getIsDiscount();
+        this.discountPercent        = product.getDiscountPercent();
+        this.isNewArrival           = product.getIsNewArrival();
+        this.isFastMoving           = product.getIsFastMoving();
+        this.material               = product.getMaterial();
+        this.finish                 = product.getFinish();
+        this.basePrice              = product.getBasePrice();
+        this.priceUnit              = product.getPriceUnit();
+        this.stockStatus            = product.getStockStatus();
+        this.leadTimeDays           = product.getLeadTimeDays();
+        this.customizable           = product.getCustomizable();
+        this.stockCount             = product.getStockCount();
+        this.pricingTiers           = pricingTiers != null
+                ? pricingTiers.stream()
+                    .sorted(Comparator.comparingInt(t -> (t.getSortOrder() != null ? t.getSortOrder() : 0)))
+                    .collect(Collectors.toList())
+                : List.of();
+        this.monthlyClicks          = product.getMonthlyClicks();
+        this.totalClicks            = product.getTotalClicks();
+        this.createdAt              = product.getCreatedAt();
+        this.updatedAt              = product.getUpdatedAt();
+        this.industries             = product.getIndustries().stream()
+                                         .map(IndustryDto::new)
+                                         .collect(Collectors.toList());
+        this.industryIds            = product.getIndustries().stream()
+                                         .map(i -> i.getId())
+                                         .collect(Collectors.toList());
     }
 
     public ProductDto(Product product) {

@@ -8,9 +8,11 @@ import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductCreate
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductPricingTierDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductUpdateRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductClick;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductPricingTier;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductClickRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductPricingTierRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
@@ -26,10 +28,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -42,7 +47,7 @@ public class ProductService {
     private final ProductPricingTierRepository pricingTierRepository;
     private final IndustryRepository           industryRepository;
 
-    // ── Public ──────────────────────────────────────────────────────────
+    // ── Public ────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
@@ -52,7 +57,7 @@ public class ProductService {
         Pageable capped = PageRequest.of(pageable.getPageNumber(), size, pageable.getSort());
         return productRepository
                 .findAllWithFilters(industryId, isDiscount, isNewArrival, isFastMoving, category, capped)
-                .map(p -> toDto(p));
+                .map(this::toDto);
     }
 
     @Cacheable("recommended-products")
@@ -61,7 +66,7 @@ public class ProductService {
         return productRepository
                 .findTopByMonthlyClicks(PageRequest.of(0, 4))
                 .stream()
-                .map(p -> toDto(p))
+                .map(this::toDto)
                 .collect(Collectors.toList());
     }
 
@@ -84,7 +89,7 @@ public class ProductService {
         });
     }
 
-    // ── Admin CRUD ───────────────────────────────────────────────────────
+    // ── Admin CRUD ────────────────────────────────────────────────────────────
 
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
@@ -96,7 +101,10 @@ public class ProductService {
                 .slug(slug)
                 .category(request.getCategory())
                 .description(request.getDescription())
-                .moq(request.getMoq())
+                .moq(request.getMoq() != null ? request.getMoq() : 1)
+                .individualSalesEnabled(
+                        request.getIndividualSalesEnabled() != null
+                                ? request.getIndividualSalesEnabled() : true)
                 .sizes(request.getSizes())
                 .tags(request.getTags())
                 .keywords(request.getKeywords())
@@ -109,8 +117,8 @@ public class ProductService {
                 .material(request.getMaterial())
                 .finish(request.getFinish())
                 .basePrice(request.getBasePrice())
-                .priceUnit(request.getPriceUnit() != null ? request.getPriceUnit() : com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit.PER_UNIT)
-                .stockStatus(request.getStockStatus() != null ? request.getStockStatus() : com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.IN_STOCK)
+                .priceUnit(request.getPriceUnit() != null ? request.getPriceUnit() : PriceUnit.PER_UNIT)
+                .stockStatus(request.getStockStatus() != null ? request.getStockStatus() : StockStatus.IN_STOCK)
                 .leadTimeDays(request.getLeadTimeDays() != null ? request.getLeadTimeDays() : 14)
                 .customizable(request.getCustomizable() != null ? request.getCustomizable() : false)
                 .stockCount(request.getStockCount() != null ? request.getStockCount() : 0)
@@ -135,28 +143,29 @@ public class ProductService {
                 product.setSlug(generateUniqueSlug(request.getName()));
             }
         }
-        if (request.getCategory()          != null) product.setCategory(request.getCategory());
-        if (request.getDescription()       != null) product.setDescription(request.getDescription());
-        if (request.getMoq()               != null) product.setMoq(request.getMoq());
-        if (request.getSizes()             != null) product.setSizes(request.getSizes());
-        if (request.getTags()              != null) product.setTags(request.getTags());
-        if (request.getKeywords()          != null) product.setKeywords(request.getKeywords());
-        if (request.getPrimaryImageUrl()   != null) product.setPrimaryImageUrl(request.getPrimaryImageUrl());
-        if (request.getImageUrls()         != null) product.setImageUrls(request.getImageUrls());
-        if (request.getIsDiscount()        != null) product.setIsDiscount(request.getIsDiscount());
-        if (request.getDiscountPercent()   != null) product.setDiscountPercent(request.getDiscountPercent());
-        if (request.getIsNewArrival()      != null) product.setIsNewArrival(request.getIsNewArrival());
-        if (request.getIsFastMoving()      != null) product.setIsFastMoving(request.getIsFastMoving());
-        if (request.getMaterial()          != null) product.setMaterial(request.getMaterial());
-        if (request.getFinish()            != null) product.setFinish(request.getFinish());
-        if (request.getBasePrice()         != null) product.setBasePrice(request.getBasePrice());
-        if (request.getPriceUnit()         != null) product.setPriceUnit(request.getPriceUnit());
-        if (request.getStockStatus()       != null) product.setStockStatus(request.getStockStatus());
-        if (request.getLeadTimeDays()      != null) product.setLeadTimeDays(request.getLeadTimeDays());
-        if (request.getCustomizable()      != null) product.setCustomizable(request.getCustomizable());
-        if (request.getStockCount()        != null) product.setStockCount(request.getStockCount());
-        if (request.getLowStockThreshold() != null) product.setLowStockThreshold(request.getLowStockThreshold());
-        if (request.getIndustryIds()       != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
+        if (request.getCategory()              != null) product.setCategory(request.getCategory());
+        if (request.getDescription()           != null) product.setDescription(request.getDescription());
+        if (request.getMoq()                   != null) product.setMoq(request.getMoq());
+        if (request.getIndividualSalesEnabled() != null) product.setIndividualSalesEnabled(request.getIndividualSalesEnabled());
+        if (request.getSizes()                 != null) product.setSizes(request.getSizes());
+        if (request.getTags()                  != null) product.setTags(request.getTags());
+        if (request.getKeywords()              != null) product.setKeywords(request.getKeywords());
+        if (request.getPrimaryImageUrl()       != null) product.setPrimaryImageUrl(request.getPrimaryImageUrl());
+        if (request.getImageUrls()             != null) product.setImageUrls(request.getImageUrls());
+        if (request.getIsDiscount()            != null) product.setIsDiscount(request.getIsDiscount());
+        if (request.getDiscountPercent()       != null) product.setDiscountPercent(request.getDiscountPercent());
+        if (request.getIsNewArrival()          != null) product.setIsNewArrival(request.getIsNewArrival());
+        if (request.getIsFastMoving()          != null) product.setIsFastMoving(request.getIsFastMoving());
+        if (request.getMaterial()              != null) product.setMaterial(request.getMaterial());
+        if (request.getFinish()                != null) product.setFinish(request.getFinish());
+        if (request.getBasePrice()             != null) product.setBasePrice(request.getBasePrice());
+        if (request.getPriceUnit()             != null) product.setPriceUnit(request.getPriceUnit());
+        if (request.getStockStatus()           != null) product.setStockStatus(request.getStockStatus());
+        if (request.getLeadTimeDays()          != null) product.setLeadTimeDays(request.getLeadTimeDays());
+        if (request.getCustomizable()          != null) product.setCustomizable(request.getCustomizable());
+        if (request.getStockCount()            != null) product.setStockCount(request.getStockCount());
+        if (request.getLowStockThreshold()     != null) product.setLowStockThreshold(request.getLowStockThreshold());
+        if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
 
         Product saved = productRepository.save(product);
 
@@ -185,7 +194,7 @@ public class ProductService {
         return toDto(product);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private ProductDto toDto(Product product) {
         Hibernate.initialize(product.getSizes());
@@ -199,20 +208,61 @@ public class ProductService {
                 .stream()
                 .map(ProductPricingTierDto::new)
                 .collect(Collectors.toList());
+
         return new ProductDto(product, tiers);
     }
 
+    /**
+     * Persists pricing tiers for a product.
+     * - Assigns sortOrder automatically (0-based) if not supplied.
+     * - Auto-computes collectionPrice = pricePerUnit * quantity.
+     * - collectionName and quantity are required — validated here defensively.
+     */
     private void savePricingTiers(Product product, List<ProductPricingTierDto> tierDtos) {
         if (tierDtos == null || tierDtos.isEmpty()) return;
+
+        AtomicInteger autoOrder = new AtomicInteger(0);
+
         List<ProductPricingTier> tiers = tierDtos.stream()
-                .map(dto -> ProductPricingTier.builder()
-                        .product(product)
-                        .minQuantity(dto.getMinQuantity())
-                        .maxQuantity(dto.getMaxQuantity())
-                        .pricePerUnit(dto.getPricePerUnit())
-                        .build())
+                .map(dto -> {
+                    if (dto.getCollectionName() == null || dto.getCollectionName().isBlank()) {
+                        throw new IllegalArgumentException(
+                                "Each pricing tier must have a collectionName " +
+                                "(e.g. 'Half Dozen', 'Bale of 1000')");
+                    }
+                    if (dto.getQuantity() == null || dto.getQuantity() < 1) {
+                        throw new IllegalArgumentException(
+                                "Each pricing tier must have a quantity >= 1");
+                    }
+                    if (dto.getPricePerUnit() == null) {
+                        throw new IllegalArgumentException(
+                                "Each pricing tier must have a pricePerUnit");
+                    }
+
+                    BigDecimal collectionPrice = dto.getPricePerUnit()
+                            .multiply(BigDecimal.valueOf(dto.getQuantity()))
+                            .setScale(2, RoundingMode.HALF_UP);
+
+                    int order = dto.getSortOrder() != null
+                            ? dto.getSortOrder()
+                            : autoOrder.getAndIncrement();
+
+                    return ProductPricingTier.builder()
+                            .product(product)
+                            .collectionName(dto.getCollectionName())
+                            .quantity(dto.getQuantity())
+                            .pricePerUnit(dto.getPricePerUnit())
+                            .collectionPrice(collectionPrice)
+                            .sortOrder(order)
+                            // legacy fields — preserve if supplied
+                            .minQuantity(dto.getMinQuantity())
+                            .maxQuantity(dto.getMaxQuantity())
+                            .build();
+                })
                 .collect(Collectors.toList());
+
         pricingTierRepository.saveAll(tiers);
+        log.debug("Saved {} pricing tiers for product {}", tiers.size(), product.getId());
     }
 
     private String generateUniqueSlug(String name) {

@@ -18,6 +18,9 @@ public class ProductUpdateRequest {
     private String description;
     private Integer moq;
 
+    /** null = no change. false = collections-only. true = individual units allowed. */
+    private Boolean individualSalesEnabled;
+
     private List<String> sizes;
     private List<String> tags;
     private List<String> keywords;
@@ -41,6 +44,6 @@ public class ProductUpdateRequest {
     private Integer stockCount;
     private Integer lowStockThreshold;
 
-    private List<UUID>                 industryIds;
+    private List<UUID>                  industryIds;
     private List<ProductPricingTierDto> pricingTiers;
 }
