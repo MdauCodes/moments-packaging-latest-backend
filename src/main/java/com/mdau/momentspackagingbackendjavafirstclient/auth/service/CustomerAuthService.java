@@ -11,6 +11,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.exception.Conflict
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.security.JwtService;
 import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.Role;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
@@ -40,6 +41,7 @@ public class CustomerAuthService {
     private final JwtService                       jwtService;
     private final PasswordEncoder                  passwordEncoder;
     private final EmailService                     emailService;
+    private final ReferralService                  referralService;
 
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
@@ -64,6 +66,14 @@ public class CustomerAuthService {
                 .build();
 
         User saved = userRepository.save(user);
+
+        // Initialize referral code + credit wallet
+        referralService.initializeNewUser(saved);
+
+        // Record referral signup if a referral code was provided
+        if (request.getReferralCode() != null && !request.getReferralCode().isBlank()) {
+            referralService.recordReferralSignup(saved, request.getReferralCode());
+        }
 
         String otp = generateOtp();
         EmailVerificationToken token = EmailVerificationToken.builder()
@@ -134,12 +144,11 @@ public class CustomerAuthService {
         return Map.of("message", "Code sent if account exists");
     }
 
-    // ── Forgot password — Step 1: send OTP ───────────────────────────────────
+    // ── Forgot password — Step 1 ──────────────────────────────────────────────
 
     @Transactional
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
         userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
-            // Invalidate ALL existing unused reset tokens for this user
             List<PasswordResetToken> existing = prTokenRepository.findAllByUserAndUsedFalse(user);
             existing.forEach(t -> t.setUsed(true));
             prTokenRepository.saveAll(existing);
@@ -159,7 +168,7 @@ public class CustomerAuthService {
         return Map.of("message", "If an account exists, you will receive a reset code");
     }
 
-    // ── Verify reset OTP — Step 2: validate OTP, return session token ─────────
+    // ── Verify reset OTP — Step 2 ─────────────────────────────────────────────
 
     @Transactional
     public Map<String, String> verifyResetOtp(VerifyResetOtpRequest request) {
@@ -174,7 +183,6 @@ public class CustomerAuthService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired code"));
 
-        // Replace OTP with a secure session token — valid for 10 minutes
         String sessionToken = UUID.randomUUID().toString();
         prt.setToken(sessionToken);
         prt.setExpiresAt(Instant.now().plusSeconds(600));
@@ -187,7 +195,7 @@ public class CustomerAuthService {
         );
     }
 
-    // ── Reset password — Step 3: use session token to set new password ────────
+    // ── Reset password — Step 3 ───────────────────────────────────────────────
 
     @Transactional
     public Map<String, String> resetPassword(ResetPasswordRequest request) {
