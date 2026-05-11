@@ -44,12 +44,11 @@ public class CheckoutService {
 
         if (cartItems.isEmpty()) throw new IllegalArgumentException("Cart is empty");
 
-        BigDecimal subtotal    = cartItems.stream()
+        BigDecimal subtotal = cartItems.stream()
                 .map(CartItem::getLineTotalSnapshot)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
 
-        // Apply promo code if provided
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromo = null;
         if (request.getPromoCode() != null && !request.getPromoCode().isBlank()) {
@@ -80,17 +79,26 @@ public class CheckoutService {
                 .build();
 
         List<OrderItem> orderItems = cartItems.stream()
-                .map(ci -> OrderItem.builder()
-                        .order(order).productId(ci.getProduct().getId())
-                        .productNameSnapshot(ci.getProductNameSnapshot())
-                        .categorySnapshot(ci.getProduct().getCategory())
-                        .sizeSnapshot(ci.getSizeSnapshot())
-                        .materialSnapshot(ci.getMaterialSnapshot())
-                        .finishSnapshot(ci.getFinishSnapshot())
-                        .quantity(ci.getQuantity())
-                        .unitPrice(ci.getUnitPriceSnapshot())
-                        .lineTotal(ci.getLineTotalSnapshot())
-                        .build())
+                .map(ci -> {
+                    int totalUnits = ci.getTier() != null && ci.getCollectionQuantitySnapshot() != null
+                            ? ci.getQuantity() * ci.getCollectionQuantitySnapshot()
+                            : ci.getQuantity();
+                    return OrderItem.builder()
+                            .order(order)
+                            .productId(ci.getProduct().getId())
+                            .productNameSnapshot(ci.getProductNameSnapshot())
+                            .categorySnapshot(ci.getProduct().getCategory())
+                            .sizeSnapshot(ci.getSizeSnapshot())
+                            .materialSnapshot(ci.getMaterialSnapshot())
+                            .finishSnapshot(ci.getFinishSnapshot())
+                            .collectionNameSnapshot(ci.getCollectionNameSnapshot())
+                            .collectionQuantitySnapshot(ci.getCollectionQuantitySnapshot())
+                            .quantity(ci.getQuantity())
+                            .totalUnits(totalUnits)
+                            .unitPrice(ci.getUnitPriceSnapshot())
+                            .lineTotal(ci.getLineTotalSnapshot())
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         order.getItems().addAll(orderItems);

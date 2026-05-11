@@ -11,11 +11,7 @@ import java.util.UUID;
         @Index(name = "idx_order_items_order_id",   columnList = "order_id"),
         @Index(name = "idx_order_items_product_id", columnList = "product_id")
 })
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class OrderItem {
 
     @Id
@@ -44,8 +40,21 @@ public class OrderItem {
     @Column(name = "finish_snapshot", length = 100)
     private String finishSnapshot;
 
+    /** null = individual unit purchase */
+    @Column(name = "collection_name_snapshot", length = 100)
+    private String collectionNameSnapshot;
+
+    /** units per collection e.g. 12 for a Dozen */
+    @Column(name = "collection_quantity_snapshot")
+    private Integer collectionQuantitySnapshot;
+
+    /** number of collections (or units for individual purchases) */
     @Column(nullable = false)
     private Integer quantity;
+
+    /** total physical units = quantity * collectionQuantity (or just quantity) */
+    @Column(name = "total_units")
+    private Integer totalUnits;
 
     @Column(name = "unit_price", precision = 12, scale = 2, nullable = false)
     private BigDecimal unitPrice;
