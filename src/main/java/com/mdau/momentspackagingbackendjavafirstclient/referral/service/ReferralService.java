@@ -1,6 +1,5 @@
 package com.mdau.momentspackagingbackendjavafirstclient.referral.service;
 
-import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.dto.*;
@@ -29,32 +28,47 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ReferralService {
 
-    private final ReferralCodeRepository      referralCodeRepo;
-    private final ReferralEventRepository     referralEventRepo;
-    private final CreditWalletRepository      walletRepo;
-    private final CreditTransactionRepository txRepo;
+    private final ReferralCodeRepository       referralCodeRepo;
+    private final ReferralEventRepository      referralEventRepo;
+    private final CreditWalletRepository       walletRepo;
+    private final CreditTransactionRepository  txRepo;
     private final ReferralTierConfigRepository tierRepo;
-    private final UserRepository              userRepository;
-    private final SettingsService             settingsService;
+    private final UserRepository               userRepository;
+    private final SettingsService              settingsService;
 
     @Value("${app.frontend.url:https://moments-connect-hub.lovable.app}")
     private String frontendUrl;
 
     // ── Settings keys ─────────────────────────────────────────────────────────
-    private static final String KEY_PROGRAM_ENABLED      = "referral.program.enabled";
-    private static final String KEY_CREDITS_PER_KES      = "referral.credits.per.kes";
-    private static final String KEY_MAX_REDEMPTION_PCT   = "referral.max.redemption.percent";
-    private static final String KEY_MAX_ACTIVE_REFERRALS = "referral.max.active.referrals.per.user";
+    public  static final String KEY_FEATURE_UNLOCKED    = "referral.feature.unlocked";
+    public  static final String KEY_PROGRAM_ENABLED     = "referral.program.enabled";
+    private static final String KEY_CREDITS_PER_KES     = "referral.credits.per.kes";
+    private static final String KEY_MAX_REDEMPTION_PCT  = "referral.max.redemption.percent";
+    private static final String KEY_MAX_ACTIVE_REFERRALS= "referral.max.active.referrals.per.user";
 
-    // ── On registration: create referral code + wallet ────────────────────────
+    // ── Feature status (public — for frontend) ────────────────────────────────
+
+    public ReferralFeatureStatusDto getFeatureStatus() {
+        boolean unlocked = isFeatureUnlocked();
+        boolean enabled  = unlocked && isProgramEnabled();
+        int creditsPerKes = Integer.parseInt(
+                settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+        int maxRedemptionPct = Integer.parseInt(
+                settingsService.getValue(KEY_MAX_REDEMPTION_PCT, "20"));
+        return new ReferralFeatureStatusDto(unlocked, enabled, creditsPerKes, maxRedemptionPct);
+    }
+
+    // ── On registration: create wallet (always) + referral code (if unlocked) ─
 
     @Transactional
     public void initializeNewUser(User user) {
-        // Create wallet
         CreditWallet wallet = CreditWallet.builder().user(user).build();
         walletRepo.save(wallet);
 
-        // Create referral code only if program is enabled
+        if (!isFeatureUnlocked()) {
+            log.debug("Referral feature locked — skipping code creation for {}", user.getEmail());
+            return;
+        }
         if (!isProgramEnabled()) {
             log.debug("Referral program disabled — skipping code creation for {}", user.getEmail());
             return;
@@ -74,7 +88,7 @@ public class ReferralService {
 
     @Transactional
     public void recordReferralSignup(User referee, String referralCode) {
-        if (!isProgramEnabled()) return;
+        if (!isFeatureUnlocked() || !isProgramEnabled()) return;
 
         ReferralCode rc = referralCodeRepo.findByCode(referralCode.toUpperCase()).orElse(null);
         if (rc == null || !rc.getIsActive()) {
@@ -82,13 +96,13 @@ public class ReferralService {
             return;
         }
 
-        // Check referrer cap
         int maxActive = Integer.parseInt(
                 settingsService.getValue(KEY_MAX_ACTIVE_REFERRALS, "50"));
         long activeCount = referralEventRepo.countByReferrerAndStatus(
                 rc.getUser(), ReferralEventStatus.PENDING);
+
         if (rc.getMaxReferrals() != null && rc.getTotalReferrals() >= rc.getMaxReferrals()) {
-            log.warn("Referral code {} has reached its max referrals cap", referralCode);
+            log.warn("Referral code {} has reached its cap", referralCode);
             return;
         }
         if (activeCount >= maxActive) {
@@ -96,7 +110,6 @@ public class ReferralService {
             return;
         }
 
-        // Check referee hasn't already been referred
         boolean alreadyReferred = referralEventRepo
                 .findByRefereeAndStatus(referee, ReferralEventStatus.PENDING).isPresent();
         if (alreadyReferred) return;
@@ -112,39 +125,30 @@ public class ReferralService {
         rc.setTotalReferrals(rc.getTotalReferrals() + 1);
         referralCodeRepo.save(rc);
 
-        log.info("Referral event created: {} referred {}", rc.getUser().getEmail(), referee.getEmail());
+        log.info("Referral event: {} referred {}", rc.getUser().getEmail(), referee.getEmail());
     }
 
-    // ── On order completion: confirm referral + award credits ─────────────────
+    // ── On order completion ───────────────────────────────────────────────────
 
     @Transactional
     public void processOrderForReferral(User buyer, Order order) {
-        if (!isProgramEnabled()) return;
+        if (!isFeatureUnlocked() || !isProgramEnabled()) return;
 
         BigDecimal orderTotal = order.getTotalAmount();
-
-        // Find matching tier
         ReferralTierConfig tier = tierRepo.findMatchingTier(orderTotal).orElse(null);
-        if (tier == null) {
-            log.debug("No matching referral tier for order amount {}", orderTotal);
-            return;
-        }
+        if (tier == null) return;
 
-        // Find pending referral event for this buyer
         ReferralEvent event = referralEventRepo
                 .findByRefereeAndStatus(buyer, ReferralEventStatus.PENDING)
                 .orElse(null);
         if (event == null) return;
 
-        // Award referee credits
         if (tier.getRefereeCredits() > 0) {
             awardCredits(buyer, tier.getRefereeCredits(),
                     CreditTransactionType.EARNED_PURCHASE,
                     "Credits earned for qualifying purchase of KES " + orderTotal,
                     event, order.getId().toString());
         }
-
-        // Award referrer credits
         if (tier.getReferrerCredits() > 0) {
             awardCredits(event.getReferrer(), tier.getReferrerCredits(),
                     CreditTransactionType.EARNED_REFERRAL,
@@ -152,7 +156,6 @@ public class ReferralService {
                     event, order.getId().toString());
         }
 
-        // Confirm the event
         event.setStatus(ReferralEventStatus.CONFIRMED);
         event.setOrder(order);
         event.setQualifyingAmount(orderTotal);
@@ -160,12 +163,11 @@ public class ReferralService {
         event.setReferrerCreditsAwarded(tier.getReferrerCredits());
         referralEventRepo.save(event);
 
-        log.info("Referral confirmed: {} credits to referrer {}, {} credits to referee {}",
-                tier.getReferrerCredits(), event.getReferrer().getEmail(),
-                tier.getRefereeCredits(), buyer.getEmail());
+        log.info("Referral confirmed: {} credits → referrer, {} credits → referee",
+                tier.getReferrerCredits(), tier.getRefereeCredits());
     }
 
-    // ── Calculate max credits redeemable for an order ─────────────────────────
+    // ── Credit redemption ─────────────────────────────────────────────────────
 
     public BigDecimal calculateMaxRedeemableKes(BigDecimal orderTotal) {
         int maxPct = Integer.parseInt(
@@ -174,11 +176,9 @@ public class ReferralService {
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.FLOOR);
     }
 
-    // ── Redeem credits on an order ────────────────────────────────────────────
-
     @Transactional
     public BigDecimal redeemCredits(User user, int creditsToRedeem, Order order) {
-        if (!isProgramEnabled()) return BigDecimal.ZERO;
+        assertFeatureAvailable();
 
         CreditWallet wallet = getOrCreateWallet(user);
         if (wallet.getBalance() < creditsToRedeem) {
@@ -196,12 +196,10 @@ public class ReferralService {
                     "Maximum redeemable for this order is KES " + maxRedeemable);
         }
 
-        // Deduct from wallet
         wallet.setBalance(wallet.getBalance() - creditsToRedeem);
         wallet.setLifetimeRedeemed(wallet.getLifetimeRedeemed() + creditsToRedeem);
         walletRepo.save(wallet);
 
-        // Record transaction
         CreditTransaction tx = CreditTransaction.builder()
                 .user(user)
                 .type(CreditTransactionType.REDEEMED)
@@ -212,21 +210,20 @@ public class ReferralService {
                 .build();
         txRepo.save(tx);
 
-        log.info("User {} redeemed {} credits = KES {} discount on order {}",
+        log.info("User {} redeemed {} credits = KES {} on order {}",
                 user.getEmail(), creditsToRedeem, discountKes, order.getId());
         return discountKes;
     }
 
-    // ── Customer: get my referral code ────────────────────────────────────────
+    // ── Customer endpoints ────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public ReferralCodeDto getMyReferralCode(User user) {
+        assertFeatureAvailable();
         ReferralCode rc = referralCodeRepo.findByUser(user)
                 .orElseThrow(() -> new ResourceNotFoundException("Referral code not found"));
         return new ReferralCodeDto(rc, frontendUrl);
     }
-
-    // ── Customer: get my wallet ───────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public CreditWalletDto getMyWallet(User user) {
@@ -236,58 +233,52 @@ public class ReferralService {
         return new CreditWalletDto(wallet, creditsPerKes);
     }
 
-    // ── Customer: get my transaction history ──────────────────────────────────
-
     @Transactional(readOnly = true)
     public Page<CreditTransactionDto> getMyTransactions(User user, Pageable pageable) {
         return txRepo.findByUserOrderByCreatedAtDesc(user, pageable)
                 .map(CreditTransactionDto::new);
     }
 
-    // ── Customer: get my referral events ──────────────────────────────────────
-
     @Transactional(readOnly = true)
     public List<ReferralEventDto> getMyReferrals(User user) {
+        assertFeatureAvailable();
         return referralEventRepo.findByReferrerOrderByCreatedAtDesc(user)
-                .stream()
-                .map(ReferralEventDto::new)
-                .collect(Collectors.toList());
+                .stream().map(ReferralEventDto::new).collect(Collectors.toList());
     }
 
-    // ── Admin: CRUD tiers ─────────────────────────────────────────────────────
+    // ── Admin: tier CRUD ──────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public List<ReferralTierConfigDto> getAllTiers() {
         return tierRepo.findAll().stream()
-                .map(ReferralTierConfigDto::new)
-                .collect(Collectors.toList());
+                .map(ReferralTierConfigDto::new).collect(Collectors.toList());
     }
 
     @Transactional
-    public ReferralTierConfigDto createTier(ReferralTierConfigDto request) {
+    public ReferralTierConfigDto createTier(ReferralTierConfigDto req) {
         ReferralTierConfig tier = ReferralTierConfig.builder()
-                .tierName(request.getTierName())
-                .minOrderAmount(request.getMinOrderAmount())
-                .maxOrderAmount(request.getMaxOrderAmount())
-                .referrerCredits(request.getReferrerCredits())
-                .refereeCredits(request.getRefereeCredits())
-                .isActive(request.getIsActive() != null ? request.getIsActive() : true)
-                .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
+                .tierName(req.getTierName())
+                .minOrderAmount(req.getMinOrderAmount())
+                .maxOrderAmount(req.getMaxOrderAmount())
+                .referrerCredits(req.getReferrerCredits())
+                .refereeCredits(req.getRefereeCredits())
+                .isActive(req.getIsActive() != null ? req.getIsActive() : true)
+                .sortOrder(req.getSortOrder() != null ? req.getSortOrder() : 0)
                 .build();
         return new ReferralTierConfigDto(tierRepo.save(tier));
     }
 
     @Transactional
-    public ReferralTierConfigDto updateTier(UUID id, ReferralTierConfigDto request) {
+    public ReferralTierConfigDto updateTier(UUID id, ReferralTierConfigDto req) {
         ReferralTierConfig tier = tierRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tier not found: " + id));
-        if (request.getTierName()       != null) tier.setTierName(request.getTierName());
-        if (request.getMinOrderAmount() != null) tier.setMinOrderAmount(request.getMinOrderAmount());
-        if (request.getMaxOrderAmount() != null) tier.setMaxOrderAmount(request.getMaxOrderAmount());
-        if (request.getReferrerCredits()!= null) tier.setReferrerCredits(request.getReferrerCredits());
-        if (request.getRefereeCredits() != null) tier.setRefereeCredits(request.getRefereeCredits());
-        if (request.getIsActive()       != null) tier.setIsActive(request.getIsActive());
-        if (request.getSortOrder()      != null) tier.setSortOrder(request.getSortOrder());
+        if (req.getTierName()        != null) tier.setTierName(req.getTierName());
+        if (req.getMinOrderAmount()  != null) tier.setMinOrderAmount(req.getMinOrderAmount());
+        if (req.getMaxOrderAmount()  != null) tier.setMaxOrderAmount(req.getMaxOrderAmount());
+        if (req.getReferrerCredits() != null) tier.setReferrerCredits(req.getReferrerCredits());
+        if (req.getRefereeCredits()  != null) tier.setRefereeCredits(req.getRefereeCredits());
+        if (req.getIsActive()        != null) tier.setIsActive(req.getIsActive());
+        if (req.getSortOrder()       != null) tier.setSortOrder(req.getSortOrder());
         return new ReferralTierConfigDto(tierRepo.save(tier));
     }
 
@@ -298,7 +289,7 @@ public class ReferralService {
         tierRepo.deleteById(id);
     }
 
-    // ── Admin: manual credit adjustment ──────────────────────────────────────
+    // ── Admin: credit adjustment ──────────────────────────────────────────────
 
     @Transactional
     public CreditWalletDto adminAdjustCredits(AdminCreditAdjustRequest request) {
@@ -307,12 +298,12 @@ public class ReferralService {
         CreditWallet wallet = getOrCreateWallet(user);
 
         int newBalance = wallet.getBalance() + request.getAmount();
-        if (newBalance < 0) throw new IllegalArgumentException("Adjustment would result in negative balance");
+        if (newBalance < 0)
+            throw new IllegalArgumentException("Adjustment would result in negative balance");
 
         wallet.setBalance(newBalance);
-        if (request.getAmount() > 0) {
+        if (request.getAmount() > 0)
             wallet.setLifetimeEarned(wallet.getLifetimeEarned() + request.getAmount());
-        }
         walletRepo.save(wallet);
 
         CreditTransaction tx = CreditTransaction.builder()
@@ -329,28 +320,36 @@ public class ReferralService {
         return new CreditWalletDto(wallet, creditsPerKes);
     }
 
-    // ── Admin: all transactions ───────────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public Page<CreditTransactionDto> getAllTransactions(Pageable pageable) {
-        return txRepo.findAllByOrderByCreatedAtDesc(pageable)
-                .map(CreditTransactionDto::new);
+        return txRepo.findAllByOrderByCreatedAtDesc(pageable).map(CreditTransactionDto::new);
     }
-
-    // ── Admin: all referral events ────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<ReferralEventDto> getAllReferralEvents(Pageable pageable) {
-        return referralEventRepo.findAllByOrderByCreatedAtDesc(pageable)
-                .map(ReferralEventDto::new);
+        return referralEventRepo.findAllByOrderByCreatedAtDesc(pageable).map(ReferralEventDto::new);
+    }
+
+    // ── Guards ────────────────────────────────────────────────────────────────
+
+    public boolean isFeatureUnlocked() {
+        return Boolean.parseBoolean(
+                settingsService.getValue(KEY_FEATURE_UNLOCKED, "false"));
+    }
+
+    public boolean isProgramEnabled() {
+        return Boolean.parseBoolean(
+                settingsService.getValue(KEY_PROGRAM_ENABLED, "false"));
+    }
+
+    private void assertFeatureAvailable() {
+        if (!isFeatureUnlocked())
+            throw new IllegalStateException("Referral feature is not available");
+        if (!isProgramEnabled())
+            throw new IllegalStateException("Referral program is currently disabled");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private boolean isProgramEnabled() {
-        return Boolean.parseBoolean(
-                settingsService.getValue(KEY_PROGRAM_ENABLED, "true"));
-    }
 
     private CreditWallet getOrCreateWallet(User user) {
         return walletRepo.findByUser(user).orElseGet(() -> {
@@ -367,13 +366,10 @@ public class ReferralService {
         walletRepo.save(wallet);
 
         CreditTransaction tx = CreditTransaction.builder()
-                .user(user)
-                .type(type)
-                .amount(amount)
+                .user(user).type(type).amount(amount)
                 .balanceAfter(wallet.getBalance())
                 .description(description)
-                .referralEvent(event)
-                .orderId(orderId)
+                .referralEvent(event).orderId(orderId)
                 .build();
         txRepo.save(tx);
     }
@@ -387,8 +383,7 @@ public class ReferralService {
         do {
             String suffix = String.format("%04d", new SecureRandom().nextInt(10000));
             code = base + suffix;
-            attempts++;
-            if (attempts > 20) code = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            if (++attempts > 20) code = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         } while (referralCodeRepo.existsByCode(code));
         return code;
     }
