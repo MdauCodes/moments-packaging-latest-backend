@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: 8080
   servlet:
     context-path: /
@@ -110,7 +110,8 @@ app:
     default-page-size: 20
   email:
     from: mdaucodes@gmail.com
-    from-name: Moments Packaging Kenya
+
+    sales-address: pkihara2008@gmail.com
 
     notify-addresses: pkihara2008@gmail.com,mdaucodes@gmail.com
     brevo-api-key: ${BREVO_API_KEY:}
