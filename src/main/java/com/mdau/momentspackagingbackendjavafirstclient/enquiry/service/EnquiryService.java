@@ -1,4 +1,4 @@
-package com.mdau.momentspackagingbackendjavafirstclient.enquiry.service;
+﻿package com.mdau.momentspackagingbackendjavafirstclient.enquiry.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.dto.EnquiryCreateRequest;
@@ -34,6 +34,7 @@ public class EnquiryService {
         log.info("Enterprise enquiry saved: {}", saved.getId());
 
         emailService.sendEnterpriseQuoteToSales(saved);
+        emailService.sendEnquiryAcknowledgement(saved);
 
         return new EnquiryCreateResponse(saved.getId());
     }

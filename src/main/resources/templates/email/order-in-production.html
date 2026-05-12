@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"/>
 <style>
@@ -9,6 +9,7 @@ body{font-family:Arial,sans-serif;background:#f5f0eb;margin:0;padding:0}
 .body{padding:36px 40px;color:#333}
 .ref{background:#f0ebe3;border-left:4px solid #2d5016;padding:12px 16px;margin:20px 0;font-size:18px;font-weight:bold;color:#2d5016}
 .footer{background:#f0ebe3;padding:16px 40px;text-align:center;font-size:12px;color:#888}
+a.link{color:#2d5016;font-weight:bold}
 </style></head>
 <body>
 <div class="wrapper">
@@ -17,10 +18,11 @@ body{font-family:Arial,sans-serif;background:#f5f0eb;margin:0;padding:0}
     <p>Hi <strong th:text="${order.contactName}">Customer</strong>,</p>
     <p>Great news! Your order is now in production.</p>
     <div class="ref" th:text="${order.reference}">ORD-2026-05-0001</div>
-    <p>Estimated completion: <strong>7–14 business days</strong></p>
+    <p>Once your order is ready, we will dispatch it. Delivery is typically <strong>same day within Nairobi</strong> (for orders placed earlier in the day) or <strong>up to 3 days</strong> for other locations across Kenya, depending on courier availability.</p>
     <p>We will send you another update when your order is ready for dispatch.</p>
-    <p>Track your order at <a href="https://www.momentspackaging.com">momentspackaging.com</a></p>
+    <p>Track your order at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
+    <p style="margin-top:24px">Have a question about your order? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a> and our team will get back to you shortly.</p>
   </div>
-  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; info@momentspackaging.com</div>
+  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; <a href="mailto:info@momentspackaging.com" style="color:#888">info@momentspackaging.com</a></div>
 </div>
 </body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"/>
 <style>
@@ -13,6 +13,7 @@ th{background:#2d5016;color:#fff;padding:10px;text-align:left;font-size:13px}
 td{padding:10px;border-bottom:1px solid #eee;font-size:13px}
 .total{font-weight:bold;font-size:15px}
 .footer{background:#f0ebe3;padding:16px 40px;text-align:center;font-size:12px;color:#888}
+a.link{color:#2d5016;font-weight:bold}
 </style></head>
 <body>
 <div class="wrapper">
@@ -32,10 +33,11 @@ td{padding:10px;border-bottom:1px solid #eee;font-size:13px}
     <p class="total">Subtotal: KES <span th:text="${order.subtotal}">0</span></p>
     <p class="total">Delivery: KES <span th:text="${order.deliveryFee}">0</span></p>
     <p class="total">Total: KES <span th:text="${order.totalAmount}">0</span></p>
-    <p>Payment method: <strong th:text="${order.paymentMethod}">PAYHERO</strong></p>
-    <p>Estimated lead time: <strong>7–14 business days</strong></p>
-    <p>Track your order at <a href="https://www.momentspackaging.com">momentspackaging.com</a></p>
+    <p>Payment method: <strong th:text="${order.paymentMethod}">MPESA</strong></p>
+    <p>We will keep you updated at every stage of your order.</p>
+    <p>Track your order at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
+    <p style="margin-top:24px">Have a question? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a></p>
   </div>
-  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; info@momentspackaging.com</div>
+  <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a href="mailto:pkihara2008@gmail.com" style="color:#888">pkihara2008@gmail.com</a></div>
 </div>
 </body></html>

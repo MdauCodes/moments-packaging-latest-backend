@@ -1,4 +1,4 @@
-package com.mdau.momentspackagingbackendjavafirstclient.email.service;
+﻿package com.mdau.momentspackagingbackendjavafirstclient.email.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.entity.Enquiry;
@@ -42,6 +42,9 @@ public class EmailService {
     @Value("${app.email.sales-address}")
     private String salesAddress;
 
+    @Value("${app.email.notify-addresses:}")
+    private String notifyAddresses;
+
     @Value("${app.email.brevo-api-key:}")
     private String brevoApiKey;
 
@@ -51,7 +54,7 @@ public class EmailService {
     @Value("${app.email.use-brevo-api:true}")
     private boolean useBrevoApi;
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
+    // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Async
     public void sendOtpEmail(User user, String otp) {
@@ -94,12 +97,12 @@ public class EmailService {
         }
     }
 
-    // ── Enquiry ───────────────────────────────────────────────────────────────
+    // â”€â”€ Enquiry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Async
     public void sendEnterpriseQuoteToSales(Enquiry enquiry) {
         try {
-            String subject = "New Enterprise Enquiry — " + enquiry.getContactName();
+            String subject = "New Enterprise Enquiry â€” " + enquiry.getContactName();
             String body = """
                     <h2>New Enterprise Quote Request</h2>
                     <p><strong>Name:</strong> %s</p>
@@ -109,19 +112,35 @@ public class EmailService {
                     <p><strong>Message:</strong><br>%s</p>
                     """.formatted(
                     enquiry.getContactName(), enquiry.getEmail(),
-                    enquiry.getPhone()   != null ? enquiry.getPhone()   : "—",
-                    enquiry.getCompany() != null ? enquiry.getCompany() : "—",
-                    enquiry.getMessage() != null ? enquiry.getMessage() : "—");
-            sendHtml(salesAddress, subject, body);
+                    enquiry.getPhone()   != null ? enquiry.getPhone()   : "â€”",
+                    enquiry.getCompany() != null ? enquiry.getCompany() : "â€”",
+                    enquiry.getMessage() != null ? enquiry.getMessage() : "â€”");
+            for (String addr : notifyAddresses.split(",")) {
+                String trimmed = addr.trim();
+                if (!trimmed.isBlank()) sendHtml(trimmed, subject, body);
+            }
         } catch (Exception e) {
             log.error("Failed to send enterprise quote email: {}", e.getMessage());
         }
     }
 
-    // ── Lead digest ───────────────────────────────────────────────────────────
+    // â”€â”€ Lead digest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Async
-    public void sendLeadDigest(List<Lead> leads, String digestPeriod) {
+    
+    @Async
+    public void sendEnquiryAcknowledgement(Enquiry enquiry) {
+        try {
+            Context ctx = new Context(Locale.ENGLISH);
+            ctx.setVariable("name", enquiry.getContactName());
+            String html = templateEngine.process("email/enquiry-received", ctx);
+            sendHtml(enquiry.getEmail(), "We received your enquiry - Moments Packaging Kenya", html);
+            log.info("Enquiry acknowledgement sent to {}", enquiry.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send enquiry acknowledgement to {}: {}", enquiry.getEmail(), e.getMessage());
+        }
+    }
+public void sendLeadDigest(List<Lead> leads, String digestPeriod) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
             ctx.setVariable("leads", leads);
@@ -129,13 +148,13 @@ public class EmailService {
             ctx.setVariable("count", leads.size());
             String html = templateEngine.process("email/lead-digest", ctx);
             sendHtml(salesAddress,
-                    "Lead Digest — " + digestPeriod + " (" + leads.size() + " new)", html);
+                    "Lead Digest â€” " + digestPeriod + " (" + leads.size() + " new)", html);
         } catch (Exception e) {
             log.error("Failed to send lead digest email: {}", e.getMessage());
         }
     }
 
-    // ── Low stock alert ───────────────────────────────────────────────────────
+    // â”€â”€ Low stock alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Async
     public void sendLowStockAlert(List<Product> products) {
@@ -147,7 +166,7 @@ public class EmailService {
                     .append("<td>").append(p.getLowStockThreshold()).append("</td></tr>");
             }
             String body = """
-                    <h2>Low Stock Alert — Moments Packaging</h2>
+                    <h2>Low Stock Alert â€” Moments Packaging</h2>
                     <p>The following products are running low on stock:</p>
                     <table border="1" cellpadding="8" cellspacing="0"
                            style="border-collapse:collapse;width:100%%">
@@ -159,14 +178,14 @@ public class EmailService {
                     <p>Please restock soon.</p>
                     """.formatted(rows.toString());
             sendHtml(salesAddress,
-                    "Low Stock Alert — " + products.size() + " product(s)", body);
+                    "Low Stock Alert â€” " + products.size() + " product(s)", body);
             log.info("Low stock alert sent for {} products", products.size());
         } catch (Exception e) {
             log.error("Failed to send low stock alert: {}", e.getMessage());
         }
     }
 
-    // ── Order notifications ───────────────────────────────────────────────────
+    // â”€â”€ Order notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Async
     public void sendOrderConfirmedEmail(Order order) {
@@ -174,7 +193,7 @@ public class EmailService {
             Context ctx = new Context(Locale.ENGLISH);
             ctx.setVariable("order", order);
             String html = templateEngine.process("email/order-confirmed", ctx);
-            sendHtml(order.getEmail(), "Order Confirmed — " + order.getReference(), html);
+            sendHtml(order.getEmail(), "Order Confirmed â€” " + order.getReference(), html);
             log.info("Order confirmed email sent for {}", order.getReference());
         } catch (Exception e) {
             log.error("Failed to send order confirmed email: {}", e.getMessage());
@@ -188,7 +207,7 @@ public class EmailService {
             ctx.setVariable("order", order);
             ctx.setVariable("receiptNumber", null);
             String html = templateEngine.process("email/order-paid", ctx);
-            sendHtml(order.getEmail(), "Payment Received — " + order.getReference(), html);
+            sendHtml(order.getEmail(), "Payment Received â€” " + order.getReference(), html);
             log.info("Order paid email sent for {}", order.getReference());
         } catch (Exception e) {
             log.error("Failed to send order paid email: {}", e.getMessage());
@@ -202,7 +221,7 @@ public class EmailService {
             ctx.setVariable("order", order);
             String html = templateEngine.process("email/order-in-production", ctx);
             sendHtml(order.getEmail(),
-                    "Your Order is In Production — " + order.getReference(), html);
+                    "Your Order is In Production â€” " + order.getReference(), html);
             log.info("Order in production email sent for {}", order.getReference());
         } catch (Exception e) {
             log.error("Failed to send order in production email: {}", e.getMessage());
@@ -216,7 +235,7 @@ public class EmailService {
             ctx.setVariable("order", order);
             String html = templateEngine.process("email/order-dispatched", ctx);
             sendHtml(order.getEmail(),
-                    "Your Order is On Its Way — " + order.getReference(), html);
+                    "Your Order is On Its Way â€” " + order.getReference(), html);
             log.info("Order dispatched email sent for {}", order.getReference());
         } catch (Exception e) {
             log.error("Failed to send order dispatched email: {}", e.getMessage());
@@ -230,7 +249,7 @@ public class EmailService {
             ctx.setVariable("order", order);
             String html = templateEngine.process("email/order-delivered", ctx);
             sendHtml(order.getEmail(),
-                    "Order Delivered — " + order.getReference(), html);
+                    "Order Delivered â€” " + order.getReference(), html);
             log.info("Order delivered email sent for {}", order.getReference());
         } catch (Exception e) {
             log.error("Failed to send order delivered email: {}", e.getMessage());
@@ -258,14 +277,14 @@ public class EmailService {
             ctx.setVariable("order", order);
             String html = templateEngine.process("email/order-cancelled", ctx);
             sendHtml(order.getEmail(),
-                    "Order Cancelled — " + order.getReference(), html);
+                    "Order Cancelled â€” " + order.getReference(), html);
             log.info("Order cancelled email sent for {}", order.getReference());
         } catch (Exception e) {
             log.error("Failed to send order cancelled email: {}", e.getMessage());
         }
     }
 
-    // ── Core sender — Brevo API primary, SMTP fallback ────────────────────────
+    // â”€â”€ Core sender â€” Brevo API primary, SMTP fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
         if (useBrevoApi && brevoApiKey != null && !brevoApiKey.isBlank()) {
@@ -321,5 +340,9 @@ public class EmailService {
         mailSender.send(message);
     }
 }
+
+
+
+
 
 
