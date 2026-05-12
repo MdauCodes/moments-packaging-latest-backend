@@ -54,6 +54,8 @@ public class EmailService {
     @Value("${app.email.use-brevo-api:true}")
     private boolean useBrevoApi;
 
+    // Auth
+
     @Async
     public void sendOtpEmail(User user, String otp) {
         try {
@@ -95,16 +97,24 @@ public class EmailService {
         }
     }
 
+    // Enquiry
+
     @Async
     public void sendEnterpriseQuoteToSales(Enquiry enquiry) {
         try {
             String subject = "New Enquiry - " + enquiry.getContactName();
-            String body = "<h2>New Enquiry</h2>"
-                    + "<p><strong>Name:</strong> " + enquiry.getContactName() + "</p>"
-                    + "<p><strong>Email:</strong> " + enquiry.getEmail() + "</p>"
-                    + "<p><strong>Phone:</strong> " + (enquiry.getPhone() != null ? enquiry.getPhone() : "-") + "</p>"
-                    + "<p><strong>Company:</strong> " + (enquiry.getCompany() != null ? enquiry.getCompany() : "-") + "</p>"
-                    + "<p><strong>Message:</strong><br>" + (enquiry.getMessage() != null ? enquiry.getMessage() : "-") + "</p>";
+            String body = """
+                    <h2>New Enquiry</h2>
+                    <p><strong>Name:</strong> %s</p>
+                    <p><strong>Email:</strong> %s</p>
+                    <p><strong>Phone:</strong> %s</p>
+                    <p><strong>Company:</strong> %s</p>
+                    <p><strong>Message:</strong><br>%s</p>
+                    """.formatted(
+                    enquiry.getContactName(), enquiry.getEmail(),
+                    enquiry.getPhone()   != null ? enquiry.getPhone()   : "-",
+                    enquiry.getCompany() != null ? enquiry.getCompany() : "-",
+                    enquiry.getMessage() != null ? enquiry.getMessage() : "-");
             for (String addr : notifyAddresses.split(",")) {
                 String trimmed = addr.trim();
                 if (!trimmed.isBlank()) sendHtml(trimmed, subject, body);
@@ -127,6 +137,8 @@ public class EmailService {
         }
     }
 
+    // Lead digest
+
     @Async
     public void sendLeadDigest(List<Lead> leads, String digestPeriod) {
         try {
@@ -144,21 +156,29 @@ public class EmailService {
         }
     }
 
+    // Low stock alert
+
     @Async
     public void sendLowStockAlert(List<Product> products) {
         try {
             StringBuilder rows = new StringBuilder();
             for (Product p : products) {
                 rows.append("<tr><td>").append(p.getName()).append("</td>")
-                    .append("<td>").append(p.getStockCount()).append("</td>")
-                    .append("<td>").append(p.getLowStockThreshold()).append("</td></tr>");
+                        .append("<td>").append(p.getStockCount()).append("</td>")
+                        .append("<td>").append(p.getLowStockThreshold()).append("</td></tr>");
             }
-            String body = "<h2>Low Stock Alert - Moments Packaging</h2>"
-                    + "<p>The following products are running low on stock:</p>"
-                    + "<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;width:100%\">"
-                    + "<tr style=\"background:#2d5016;color:#fff\"><th>Product</th><th>Stock</th><th>Threshold</th></tr>"
-                    + rows.toString()
-                    + "</table><p>Please restock soon.</p>";
+            String body = """
+                    <h2>Low Stock Alert - Moments Packaging</h2>
+                    <p>The following products are running low on stock:</p>
+                    <table border="1" cellpadding="8" cellspacing="0"
+                           style="border-collapse:collapse;width:100%%">
+                      <tr style="background:#2d5016;color:#fff">
+                        <th>Product</th><th>Stock</th><th>Threshold</th>
+                      </tr>
+                      %s
+                    </table>
+                    <p>Please restock soon.</p>
+                    """.formatted(rows.toString());
             for (String addr : notifyAddresses.split(",")) {
                 String trimmed = addr.trim();
                 if (!trimmed.isBlank()) sendHtml(trimmed, "Low Stock Alert - " + products.size() + " product(s)", body);
@@ -168,6 +188,8 @@ public class EmailService {
             log.error("Failed to send low stock alert: {}", e.getMessage());
         }
     }
+
+    // Order notifications
 
     @Async
     public void sendOrderConfirmedEmail(Order order) {
@@ -260,6 +282,8 @@ public class EmailService {
             log.error("Failed to send order cancelled email: {}", e.getMessage());
         }
     }
+
+    // Core sender - Brevo API primary, SMTP fallback
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
         if (useBrevoApi && brevoApiKey != null && !brevoApiKey.isBlank()) {
