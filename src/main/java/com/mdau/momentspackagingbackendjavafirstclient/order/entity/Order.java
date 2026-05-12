@@ -71,6 +71,11 @@ public class Order {
     @Builder.Default
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fulfillment_type", nullable = false, length = 30)
+    @Builder.Default
+    private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
+
     @Column(precision = 12, scale = 2, nullable = false)
     private BigDecimal subtotal;
 

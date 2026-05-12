@@ -96,6 +96,22 @@ public class NotificationService {
     }
 
     @Async
+    public void onOrderReadyForDispatch(Order order) {
+        try {
+            emailService.sendOrderReadyForDispatchEmail(order);
+        } catch (Exception e) {
+            log.error("onOrderReadyForDispatch email failed for {}: {}", order.getReference(), e.getMessage());
+        }
+        try {
+            smsService.sendSms(order.getPhone(),
+                    "Order " + order.getReference()
+                    + " iko tayari kutumwa! Utapata update punde. - Moments Packaging");
+        } catch (Exception e) {
+            log.error("onOrderReadyForDispatch SMS failed for {}: {}", order.getReference(), e.getMessage());
+        }
+    }
+
+    @Async
     public void onOrderCancelled(Order order) {
         try {
             emailService.sendOrderCancelledEmail(order);

@@ -238,6 +238,20 @@ public class EmailService {
     }
 
     @Async
+    public void sendOrderReadyForDispatchEmail(Order order) {
+        try {
+            Context ctx = new Context(Locale.ENGLISH);
+            ctx.setVariable("order", order);
+            String html = templateEngine.process("email/order-ready-for-dispatch", ctx);
+            sendHtml(order.getEmail(),
+                    "Your Order is Ready for Dispatch -- " + order.getReference(), html);
+            log.info("Order ready for dispatch email sent for {}", order.getReference());
+        } catch (Exception e) {
+            log.error("Failed to send order ready for dispatch email: {}", e.getMessage());
+        }
+    }
+
+    @Async
     public void sendOrderCancelledEmail(Order order) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
@@ -307,3 +321,5 @@ public class EmailService {
         mailSender.send(message);
     }
 }
+
+

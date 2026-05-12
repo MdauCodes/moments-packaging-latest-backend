@@ -21,6 +21,11 @@ public class DeliveryZone {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    /** Human-readable display name e.g. "Nairobi CBD", "Thika Road", "Mombasa" */
+    @Column(name = "zone_name", nullable = false, length = 100)
+    private String zoneName;
+
+    /** County identifier used for fee lookup — must match checkout county field */
     @Column(nullable = false, unique = true, length = 100)
     private String county;
 
@@ -30,4 +35,8 @@ public class DeliveryZone {
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;
+
+    /** Optional description shown to customer e.g. "Same day delivery within Nairobi" */
+    @Column(length = 255)
+    private String description;
 }

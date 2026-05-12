@@ -12,4 +12,5 @@ import java.util.UUID;
 public interface DeliveryZoneRepository extends JpaRepository<DeliveryZone, UUID> {
     Optional<DeliveryZone> findByCountyIgnoreCase(String county);
     List<DeliveryZone> findAllByActiveTrue();
+    List<DeliveryZone> findAllByOrderByZoneNameAsc();
 }

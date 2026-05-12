@@ -25,25 +25,41 @@ public class DeliveryZoneService {
                 .orElse(BigDecimal.ZERO);
     }
 
+    /** Public — active zones only for checkout dropdown */
     @Transactional(readOnly = true)
     public List<DeliveryZone> getAllActive() {
         return deliveryZoneRepository.findAllByActiveTrue();
     }
 
+    /** Admin — all zones including inactive */
+    @Transactional(readOnly = true)
+    public List<DeliveryZone> getAll() {
+        return deliveryZoneRepository.findAllByOrderByZoneNameAsc();
+    }
+
     @Transactional
-    public DeliveryZone create(String county, BigDecimal fee) {
+    public DeliveryZone create(String zoneName, String county,
+                                BigDecimal fee, String description) {
         DeliveryZone zone = DeliveryZone.builder()
-                .county(county).feeAmount(fee).active(true).build();
+                .zoneName(zoneName)
+                .county(county)
+                .feeAmount(fee)
+                .description(description)
+                .active(true)
+                .build();
         return deliveryZoneRepository.save(zone);
     }
 
     @Transactional
-    public DeliveryZone update(UUID id, String county, BigDecimal fee, Boolean active) {
+    public DeliveryZone update(UUID id, String zoneName, String county,
+                                BigDecimal fee, Boolean active, String description) {
         DeliveryZone zone = deliveryZoneRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery zone not found"));
-        if (county != null) zone.setCounty(county);
-        if (fee    != null) zone.setFeeAmount(fee);
-        if (active != null) zone.setActive(active);
+        if (zoneName    != null) zone.setZoneName(zoneName);
+        if (county      != null) zone.setCounty(county);
+        if (fee         != null) zone.setFeeAmount(fee);
+        if (active      != null) zone.setActive(active);
+        if (description != null) zone.setDescription(description);
         return deliveryZoneRepository.save(zone);
     }
 

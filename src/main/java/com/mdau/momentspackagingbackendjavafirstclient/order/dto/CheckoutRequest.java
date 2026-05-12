@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.order.dto;
 
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentMethod;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -39,4 +40,8 @@ public class CheckoutRequest {
 
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
+
+    @NotNull(message = "Fulfillment type is required")
+    private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
 }
+

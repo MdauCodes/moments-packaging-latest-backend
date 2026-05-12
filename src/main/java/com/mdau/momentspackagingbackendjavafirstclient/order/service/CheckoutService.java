@@ -7,10 +7,13 @@ import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartItemR
 import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.cart.service.CartService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.mdau.momentspackagingbackendjavafirstclient.notification.service.NotificationService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.dto.CheckoutRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.order.dto.OrderDto;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.*;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +39,7 @@ public class CheckoutService {
     private final DeliveryZoneService     deliveryZoneService;
     private final NotificationService     notificationService;
     private final PromoCodeService        promoCodeService;
+    private final SettingsService         settingsService;
 
     @Transactional
     public OrderDto checkout(User customer, String sessionId, CheckoutRequest request) {
@@ -47,7 +51,26 @@ public class CheckoutService {
         BigDecimal subtotal = cartItems.stream()
                 .map(CartItem::getLineTotalSnapshot)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
+
+        FulfillmentType fulfillmentType = request.getFulfillmentType() != null
+                ? request.getFulfillmentType() : FulfillmentType.ZONE_DELIVERY;
+
+        if (fulfillmentType == FulfillmentType.PICKUP) {
+            boolean pickupEnabled = Boolean.parseBoolean(
+                    settingsService.getValue("fulfillment.pickup.enabled", "false"));
+            if (!pickupEnabled) throw new IllegalArgumentException(
+                    "Pickup is currently unavailable. Please select delivery.");
+        }
+        if (fulfillmentType == FulfillmentType.OWN_COURIER) {
+            boolean ownCourierEnabled = Boolean.parseBoolean(
+                    settingsService.getValue("fulfillment.own-courier.enabled", "false"));
+            if (!ownCourierEnabled) throw new IllegalArgumentException(
+                    "Own courier option is currently unavailable. Please select delivery.");
+        }
+
+        BigDecimal deliveryFee = fulfillmentType == FulfillmentType.ZONE_DELIVERY
+                ? deliveryZoneService.getFeeForCounty(request.getCounty())
+                : BigDecimal.ZERO;
 
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromo = null;
@@ -71,6 +94,7 @@ public class CheckoutService {
                 .city(request.getCity()).county(request.getCounty())
                 .postalCode(request.getPostalCode())
                 .status(OrderStatus.PENDING_PAYMENT)
+                .fulfillmentType(fulfillmentType)
                 .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(PaymentStatus.PENDING)
                 .subtotal(subtotal).deliveryFee(deliveryFee)
@@ -119,3 +143,9 @@ public class CheckoutService {
         return new OrderDto(saved);
     }
 }
+
+
+
+
+
+

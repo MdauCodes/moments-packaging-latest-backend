@@ -32,6 +32,7 @@ public class OrderDto {
     private final String     staffNotes;
     private final String     assignedTo;
     private final String     promoCode;
+    private final String     fulfillmentType;
     private final List<OrderItemDto>          items;
     private final List<OrderStatusHistoryDto> statusHistory;
     private final Instant    createdAt;
@@ -58,6 +59,8 @@ public class OrderDto {
         this.staffNotes     = order.getStaffNotes();
         this.assignedTo     = order.getAssignedTo();
         this.promoCode      = order.getPromoCode();
+        this.fulfillmentType = order.getFulfillmentType() != null
+                ? order.getFulfillmentType().name() : null;
         this.createdAt      = order.getCreatedAt();
         this.updatedAt      = order.getUpdatedAt();
         this.items          = order.getItems().stream()
@@ -66,3 +69,4 @@ public class OrderDto {
                                 .map(OrderStatusHistoryDto::new).collect(Collectors.toList());
     }
 }
+

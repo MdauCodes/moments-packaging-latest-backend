@@ -73,7 +73,8 @@ public class OrderService {
                                 h.getToStatus().name(), h.getChangedAt()))
                         .toList(),
                 order.getTotalAmount(),
-                order.getDeliveryFee());
+                order.getDeliveryFee(),
+                order.getFulfillmentType() != null ? order.getFulfillmentType().name() : null);
     }
     @Transactional(readOnly = true)
     public PageResponse<OrderDto> getMyOrders(User customer, Pageable pageable) {
@@ -109,10 +110,11 @@ public class OrderService {
         Order saved = orderRepository.save(order);
 
         switch (newStatus) {
-            case IN_PRODUCTION -> notificationService.onOrderInProduction(saved);
-            case DISPATCHED    -> notificationService.onOrderDispatched(saved);
-            case DELIVERED     -> notificationService.onOrderDelivered(saved);
-            case CANCELLED     -> notificationService.onOrderCancelled(saved);
+            case IN_PRODUCTION     -> notificationService.onOrderInProduction(saved);
+            case READY_FOR_DISPATCH -> notificationService.onOrderReadyForDispatch(saved);
+            case DISPATCHED        -> notificationService.onOrderDispatched(saved);
+            case DELIVERED         -> notificationService.onOrderDelivered(saved);
+            case CANCELLED         -> notificationService.onOrderCancelled(saved);
             default -> {}
         }
 
@@ -210,3 +212,4 @@ public class OrderService {
         return visible + "***@" + parts[1];
     }
 }
+

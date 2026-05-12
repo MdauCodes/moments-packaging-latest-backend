@@ -22,6 +22,7 @@ public class OrderTrackingDto {
     private List<TrackingHistoryDto> statusHistory;
     private BigDecimal totalAmount;
     private BigDecimal deliveryFee;
+    private String     fulfillmentType;
 
     @Getter
     @AllArgsConstructor
