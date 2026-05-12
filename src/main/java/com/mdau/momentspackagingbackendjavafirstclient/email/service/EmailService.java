@@ -127,8 +127,6 @@ public class EmailService {
     // â”€â”€ Lead digest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Async
-    
-    @Async
     public void sendEnquiryAcknowledgement(Enquiry enquiry) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
