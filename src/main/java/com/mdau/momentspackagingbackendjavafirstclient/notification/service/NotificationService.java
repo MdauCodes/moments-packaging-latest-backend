@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.notification.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentMethod;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -17,10 +18,15 @@ public class NotificationService {
 
     @Async
     public void onOrderCreated(Order order) {
-        try {
-            emailService.sendOrderConfirmedEmail(order);
-        } catch (Exception e) {
-            log.error("onOrderCreated email failed for {}: {}", order.getReference(), e.getMessage());
+        // For M-Pesa orders, no confirmation email until payment is confirmed
+        boolean isMpesa = order.getPaymentMethod() == PaymentMethod.MPESA
+                || order.getPaymentMethod() == PaymentMethod.PAYHERO;
+        if (!isMpesa) {
+            try {
+                emailService.sendOrderConfirmedEmail(order);
+            } catch (Exception e) {
+                log.error("onOrderCreated email failed for {}: {}", order.getReference(), e.getMessage());
+            }
         }
         try {
             smsService.sendSms(order.getPhone(),
