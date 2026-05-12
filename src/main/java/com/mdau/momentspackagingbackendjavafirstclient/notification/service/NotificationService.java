@@ -126,4 +126,20 @@ public class NotificationService {
             log.error("onOrderCancelled SMS failed for {}: {}", order.getReference(), e.getMessage());
         }
     }
+
+    @Async
+    public void onPaymentFailed(Order order, String failureReason) {
+        try {
+            emailService.sendPaymentFailedEmail(order, failureReason);
+        } catch (Exception e) {
+            log.error("onPaymentFailed email failed for {}: {}", order.getReference(), e.getMessage());
+        }
+        try {
+            smsService.sendSms(order.getPhone(),
+                    "Malipo ya " + order.getReference()
+                    + " hayakufanikiwa. Jaribu tena: momentspackaging.com - Moments Packaging");
+        } catch (Exception e) {
+            log.error("onPaymentFailed SMS failed for {}: {}", order.getReference(), e.getMessage());
+        }
+    }
 }

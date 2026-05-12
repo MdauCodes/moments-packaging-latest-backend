@@ -26,7 +26,7 @@ public class PaymentService {
     private final PayHeroService          payHeroService;
     private final NotificationService     notificationService;
 
-    // ── Initiate ─────────────────────────────────────────────────────
+    // -- Initiate ---------------------------------------------------
 
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) {
@@ -81,14 +81,14 @@ public class PaymentService {
                         .build();
 
             } catch (PaymentGatewayException e) {
-                // Typed gateway error — record it and re-throw for GlobalExceptionHandler (502)
+                // Typed gateway error - record it and re-throw for GlobalExceptionHandler (502)
                 record.setStatus(PaymentRecordStatus.FAILED);
                 record.setFailureReason(e.getMessage());
                 paymentRecordRepository.save(record);
                 throw e;
 
             } catch (Exception e) {
-                // Unexpected error — record it and wrap
+                // Unexpected error - record it and wrap
                 record.setStatus(PaymentRecordStatus.FAILED);
                 record.setFailureReason(e.getMessage());
                 paymentRecordRepository.save(record);
@@ -118,7 +118,7 @@ public class PaymentService {
                 .amount(order.getTotalAmount()).build();
     }
 
-    // ── Callback ─────────────────────────────────────────────────────
+    // -- Callback ---------------------------------------------------
 
     @Transactional
     public void handleCallback(PayHeroCallbackDto callback) {
@@ -177,12 +177,13 @@ public class PaymentService {
             Order order = record.getOrder();
             order.setPaymentStatus(PaymentStatus.FAILED);
             orderRepository.save(order);
+            notificationService.onPaymentFailed(order, response.getResultDesc());
             log.info("Payment FAILED for order {}: {}",
                     order.getReference(), response.getResultDesc());
         }
     }
 
-    // ── Status ───────────────────────────────────────────────────────
+    // -- Status -----------------------------------------------------
 
     @Transactional(readOnly = true)
     public PaymentStatusResponse getPaymentStatus(UUID orderId) {
@@ -216,7 +217,7 @@ public class PaymentService {
                 .build();
     }
 
-    // ── Private helpers ───────────────────────────────────────────────
+    // -- Private helpers --------------------------------------------
 
     private String normalizeStatus(PaymentRecordStatus status) {
         return switch (status) {

@@ -283,6 +283,21 @@ public class EmailService {
         }
     }
 
+
+    @Async
+    public void sendPaymentFailedEmail(Order order, String failureReason) {
+        try {
+            Context ctx = new Context(Locale.ENGLISH);
+            ctx.setVariable("order", order);
+            ctx.setVariable("failureReason", failureReason);
+            String html = templateEngine.process("email/payment-failed", ctx);
+            sendHtml(order.getEmail(), "Payment unsuccessful - " + order.getReference(), html);
+            log.info("Payment failed email sent for {}", order.getReference());
+        } catch (Exception e) {
+            log.error("Failed to send payment failed email for {}: {}", order.getReference(), e.getMessage());
+        }
+    }
+
     // Core sender - Brevo API primary, SMTP fallback
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
