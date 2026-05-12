@@ -110,6 +110,7 @@ app:
     default-page-size: 20
   email:
     from: mdaucodes@gmail.com
+    from-name: Moments Packaging Kenya
 
     sales-address: pkihara2008@gmail.com
 
