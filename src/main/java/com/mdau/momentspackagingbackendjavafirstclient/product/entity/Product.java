@@ -19,7 +19,8 @@ import java.util.Set;
         @Index(name = "idx_products_is_new_arrival", columnList = "is_new_arrival"),
         @Index(name = "idx_products_is_fast_moving", columnList = "is_fast_moving"),
         @Index(name = "idx_products_monthly_clicks", columnList = "monthly_clicks"),
-        @Index(name = "idx_products_stock_status",   columnList = "stock_status")
+        @Index(name = "idx_products_stock_status",   columnList = "stock_status"),
+        @Index(name = "idx_products_deleted",        columnList = "deleted")
 })
 @Getter
 @Setter
@@ -44,32 +45,24 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Integer moq = 1;
 
-    /**
-     * When true  → customers can buy individual units (qty=1) at basePrice.
-     * When false → only named collections are purchasable; basePrice is internal reference only.
-     * Admin can toggle this at any time.
-     */
     @Column(name = "individual_sales_enabled", nullable = false)
     @Builder.Default
     private Boolean individualSalesEnabled = true;
 
     @ElementCollection
-    @CollectionTable(name = "product_sizes",
-                     joinColumns = @JoinColumn(name = "product_id"))
+    @CollectionTable(name = "product_sizes", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "size", length = 100)
     @Builder.Default
     private List<String> sizes = new ArrayList<>();
 
     @ElementCollection
-    @CollectionTable(name = "product_tags",
-                     joinColumns = @JoinColumn(name = "product_id"))
+    @CollectionTable(name = "product_tags", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "tag", length = 100)
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
     @ElementCollection
-    @CollectionTable(name = "product_keywords",
-                     joinColumns = @JoinColumn(name = "product_id"))
+    @CollectionTable(name = "product_keywords", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "keyword", length = 100)
     @Builder.Default
     private List<String> keywords = new ArrayList<>();
@@ -78,8 +71,7 @@ public class Product extends BaseEntity {
     private String primaryImageUrl;
 
     @ElementCollection
-    @CollectionTable(name = "product_image_urls",
-                     joinColumns = @JoinColumn(name = "product_id"))
+    @CollectionTable(name = "product_image_urls", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "image_url", length = 512)
     @Builder.Default
     private List<String> imageUrls = new ArrayList<>();
@@ -113,7 +105,6 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Long totalClicks = 0L;
 
-    /** Per-unit reference price. Always stored. Hidden from buyers when individualSalesEnabled=false */
     @Column(name = "base_price", precision = 12, scale = 2)
     private BigDecimal basePrice;
 
@@ -146,6 +137,10 @@ public class Product extends BaseEntity {
     @Column(name = "low_stock_threshold")
     @Builder.Default
     private Integer lowStockThreshold = 10;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean deleted = false;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

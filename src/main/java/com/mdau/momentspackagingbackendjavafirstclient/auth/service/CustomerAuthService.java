@@ -46,11 +46,10 @@ public class CustomerAuthService {
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
 
-    // ── Register ──────────────────────────────────────────────────────────────
-
     @Transactional
     public CustomerRegisterResponse register(CustomerRegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        // Only blocks registration if a non-deleted account exists with this email
+        if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new ConflictException("An account with this email already exists");
         }
 
@@ -62,15 +61,14 @@ public class CustomerAuthService {
                 .phone(request.getPhone())
                 .emailVerified(false)
                 .enabled(true)
+                .deleted(false)
                 .roles(Set.of(Role.ROLE_CUSTOMER))
                 .build();
 
         User saved = userRepository.save(user);
 
-        // Initialize referral code + credit wallet
         referralService.initializeNewUser(saved);
 
-        // Record referral signup if a referral code was provided
         if (request.getReferralCode() != null && !request.getReferralCode().isBlank()) {
             referralService.recordReferralSignup(saved, request.getReferralCode());
         }
@@ -91,11 +89,9 @@ public class CustomerAuthService {
                 "Verification code sent to your email");
     }
 
-    // ── Verify email ──────────────────────────────────────────────────────────
-
     @Transactional
     public AuthResponse verifyEmail(OtpVerifyRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailAndDeletedFalse(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
 
         EmailVerificationToken evToken = evTokenRepository
@@ -120,11 +116,9 @@ public class CustomerAuthService {
         return new AuthResponse(accessToken, refreshToken, new AuthUserDto(user));
     }
 
-    // ── Resend OTP ────────────────────────────────────────────────────────────
-
     @Transactional
     public Map<String, String> resendOtp(ResendOtpRequest request) {
-        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+        userRepository.findByEmailAndDeletedFalse(request.getEmail()).ifPresent(user -> {
             if (!user.getEmailVerified()) {
                 evTokenRepository.findByUserAndUsedFalse(user).ifPresent(t -> {
                     t.setUsed(true);
@@ -144,11 +138,9 @@ public class CustomerAuthService {
         return Map.of("message", "Code sent if account exists");
     }
 
-    // ── Forgot password — Step 1 ──────────────────────────────────────────────
-
     @Transactional
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
-        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+        userRepository.findByEmailAndDeletedFalse(request.getEmail()).ifPresent(user -> {
             List<PasswordResetToken> existing = prTokenRepository.findAllByUserAndUsedFalse(user);
             existing.forEach(t -> t.setUsed(true));
             prTokenRepository.saveAll(existing);
@@ -168,11 +160,9 @@ public class CustomerAuthService {
         return Map.of("message", "If an account exists, you will receive a reset code");
     }
 
-    // ── Verify reset OTP — Step 2 ─────────────────────────────────────────────
-
     @Transactional
     public Map<String, String> verifyResetOtp(VerifyResetOtpRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailAndDeletedFalse(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired code"));
 
         PasswordResetToken prt = prTokenRepository
@@ -188,14 +178,11 @@ public class CustomerAuthService {
         prt.setExpiresAt(Instant.now().plusSeconds(600));
         prTokenRepository.save(prt);
 
-        log.info("Reset OTP verified for {}, session token issued", user.getEmail());
         return Map.of(
                 "resetSessionToken", sessionToken,
                 "message", "OTP verified. Use the resetSessionToken to set your new password."
         );
     }
-
-    // ── Reset password — Step 3 ───────────────────────────────────────────────
 
     @Transactional
     public Map<String, String> resetPassword(ResetPasswordRequest request) {
@@ -212,11 +199,8 @@ public class CustomerAuthService {
         prt.setUsed(true);
         prTokenRepository.save(prt);
 
-        log.info("Password reset successfully for: {}", user.getEmail());
         return Map.of("message", "Password updated successfully. You can now log in.");
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private String generateOtp() {
         return String.format("%06d", new SecureRandom().nextInt(1_000_000));

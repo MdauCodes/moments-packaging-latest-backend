@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.user.service;
 
+import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.RefreshTokenRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.user.dto.UserCreateRequest;
@@ -9,10 +10,13 @@ import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -22,15 +26,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserService {
 
-    private final UserRepository  userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepository         userRepository;
+    private final PasswordEncoder        passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Transactional(readOnly = true)
     public List<UserDto> getAllUsers() {
-        return userRepository.findAll()
+        return userRepository.findByDeletedFalse(Pageable.unpaged())
                 .stream()
                 .map(UserDto::new)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserDto> getAllUsers(Pageable pageable) {
+        return userRepository.findByDeletedFalse(pageable).map(UserDto::new);
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +52,7 @@ public class UserService {
 
     @Transactional
     public UserDto createUser(UserCreateRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new ConflictException("Email already in use: " + request.getEmail());
         }
 
@@ -52,6 +62,7 @@ public class UserService {
                 .lastName(request.getLastName())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .enabled(true)
+                .deleted(false)
                 .roles(request.getRoles())
                 .build();
 
@@ -76,9 +87,15 @@ public class UserService {
 
     @Transactional
     public void deleteUser(UUID id) {
-        if (!userRepository.existsById(id)) {
-            throw new ResourceNotFoundException("User not found: " + id);
-        }
-        userRepository.deleteById(id);
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
+
+        refreshTokenRepository.revokeAllByUser(user);
+
+        user.setDeleted(true);
+        user.setEnabled(false);
+        user.setDeletedAt(Instant.now());
+        userRepository.save(user);
+        log.info("User {} soft-deleted", id);
     }
 }

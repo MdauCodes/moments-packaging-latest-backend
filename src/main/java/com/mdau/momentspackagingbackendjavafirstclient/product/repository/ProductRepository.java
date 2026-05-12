@@ -16,13 +16,17 @@ import java.util.UUID;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID> {
 
-    Optional<Product> findBySlug(String slug);
-    boolean existsBySlug(String slug);
+    Optional<Product> findBySlugAndDeletedFalse(String slug);
+
+    Optional<Product> findByIdAndDeletedFalse(UUID id);
+
+    boolean existsBySlugAndDeletedFalse(String slug);
 
     @Query("""
         SELECT DISTINCT p FROM Product p
         LEFT JOIN p.industries i
-        WHERE (:industryId IS NULL OR i.id = :industryId)
+        WHERE p.deleted = false
+        AND (:industryId IS NULL OR i.id = :industryId)
         AND (:isDiscount IS NULL OR p.isDiscount = :isDiscount)
         AND (:isNewArrival IS NULL OR p.isNewArrival = :isNewArrival)
         AND (:isFastMoving IS NULL OR p.isFastMoving = :isFastMoving)
@@ -36,11 +40,11 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("category")     String category,
             Pageable pageable);
 
-    @Query("SELECT p FROM Product p ORDER BY p.monthlyClicks DESC")
+    @Query("SELECT p FROM Product p WHERE p.deleted = false ORDER BY p.monthlyClicks DESC")
     List<Product> findTopByMonthlyClicks(Pageable pageable);
 
     @Modifying
-    @Query("UPDATE Product p SET p.monthlyClicks = 0")
+    @Query("UPDATE Product p SET p.monthlyClicks = 0 WHERE p.deleted = false")
     void resetAllMonthlyClicks();
 
     @Modifying
@@ -54,9 +58,13 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     @Query("""
         SELECT p FROM Product p
-        WHERE p.stockCount > 0
+        WHERE p.deleted = false
+        AND p.stockCount > 0
         AND p.stockCount <= p.lowStockThreshold
         ORDER BY p.stockCount ASC
         """)
     List<Product> findLowStockProducts();
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.deleted = false")
+    long countActive();
 }

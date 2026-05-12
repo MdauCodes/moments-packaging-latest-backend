@@ -1,12 +1,13 @@
 package com.mdau.momentspackagingbackendjavafirstclient.payment.service;
 
+import com.mdau.momentspackagingbackendjavafirstclient.common.exception.PaymentGatewayException;
+import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.notification.service.NotificationService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
-import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -79,7 +80,15 @@ public class PaymentService {
                         .amount(order.getTotalAmount())
                         .build();
 
+            } catch (PaymentGatewayException e) {
+                // Typed gateway error — record it and re-throw for GlobalExceptionHandler (502)
+                record.setStatus(PaymentRecordStatus.FAILED);
+                record.setFailureReason(e.getMessage());
+                paymentRecordRepository.save(record);
+                throw e;
+
             } catch (Exception e) {
+                // Unexpected error — record it and wrap
                 record.setStatus(PaymentRecordStatus.FAILED);
                 record.setFailureReason(e.getMessage());
                 paymentRecordRepository.save(record);
@@ -175,15 +184,6 @@ public class PaymentService {
 
     // ── Status ───────────────────────────────────────────────────────
 
-    /**
-     * Returns a normalized PaymentStatusResponse the frontend can poll.
-     *
-     * Status contract (always one of these four strings):
-     *   PROCESSING  – STK push sent, waiting for user PIN / callback
-     *   SUCCESS     – Payment confirmed, M-Pesa receipt attached
-     *   FAILED      – Payment failed or was cancelled; failureReason populated
-     *   NO_PAYMENT  – No payment record exists yet for this order
-     */
     @Transactional(readOnly = true)
     public PaymentStatusResponse getPaymentStatus(UUID orderId) {
         Order order = orderRepository.findById(orderId)
@@ -218,13 +218,10 @@ public class PaymentService {
 
     // ── Private helpers ───────────────────────────────────────────────
 
-    /**
-     * Maps internal PaymentRecordStatus → one of the 4 frontend-facing strings.
-     */
     private String normalizeStatus(PaymentRecordStatus status) {
         return switch (status) {
-            case SUCCESS              -> "SUCCESS";
-            case FAILED, CANCELLED   -> "FAILED";
+            case SUCCESS                -> "SUCCESS";
+            case FAILED, CANCELLED     -> "FAILED";
             case INITIATED, PROCESSING -> "PROCESSING";
         };
     }

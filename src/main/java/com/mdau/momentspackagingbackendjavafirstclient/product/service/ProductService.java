@@ -47,8 +47,6 @@ public class ProductService {
     private final ProductPricingTierRepository pricingTierRepository;
     private final IndustryRepository           industryRepository;
 
-    // ── Public ────────────────────────────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
                                         Boolean isNewArrival, Boolean isFastMoving,
@@ -72,24 +70,27 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public ProductDto getBySlug(String slug) {
-        Product product = productRepository.findBySlug(slug)
+        Product product = productRepository.findBySlugAndDeletedFalse(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + slug));
+        return toDto(product);
+    }
+
+    @Transactional(readOnly = true)
+    public ProductDto getById(UUID id) {
+        Product product = productRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
         return toDto(product);
     }
 
     @Async
     @Transactional
     public void recordClick(UUID productId) {
-        productRepository.findById(productId).ifPresent(product -> {
+        productRepository.findByIdAndDeletedFalse(productId).ifPresent(product -> {
             productRepository.incrementClicks(productId);
-            ProductClick click = ProductClick.builder()
-                    .product(product)
-                    .build();
+            ProductClick click = ProductClick.builder().product(product).build();
             productClickRepository.save(click);
         });
     }
-
-    // ── Admin CRUD ────────────────────────────────────────────────────────────
 
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
@@ -102,9 +103,7 @@ public class ProductService {
                 .category(request.getCategory())
                 .description(request.getDescription())
                 .moq(request.getMoq() != null ? request.getMoq() : 1)
-                .individualSalesEnabled(
-                        request.getIndividualSalesEnabled() != null
-                                ? request.getIndividualSalesEnabled() : true)
+                .individualSalesEnabled(request.getIndividualSalesEnabled() != null ? request.getIndividualSalesEnabled() : true)
                 .sizes(request.getSizes())
                 .tags(request.getTags())
                 .keywords(request.getKeywords())
@@ -123,6 +122,7 @@ public class ProductService {
                 .customizable(request.getCustomizable() != null ? request.getCustomizable() : false)
                 .stockCount(request.getStockCount() != null ? request.getStockCount() : 0)
                 .lowStockThreshold(request.getLowStockThreshold() != null ? request.getLowStockThreshold() : 10)
+                .deleted(false)
                 .industries(resolveIndustries(request.getIndustryIds()))
                 .build();
 
@@ -134,7 +134,7 @@ public class ProductService {
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
     public ProductDto updateProduct(UUID id, ProductUpdateRequest request) {
-        Product product = productRepository.findById(id)
+        Product product = productRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
 
         if (request.getName() != null) {
@@ -143,29 +143,29 @@ public class ProductService {
                 product.setSlug(generateUniqueSlug(request.getName()));
             }
         }
-        if (request.getCategory()              != null) product.setCategory(request.getCategory());
-        if (request.getDescription()           != null) product.setDescription(request.getDescription());
-        if (request.getMoq()                   != null) product.setMoq(request.getMoq());
-        if (request.getIndividualSalesEnabled() != null) product.setIndividualSalesEnabled(request.getIndividualSalesEnabled());
-        if (request.getSizes()                 != null) product.setSizes(request.getSizes());
-        if (request.getTags()                  != null) product.setTags(request.getTags());
-        if (request.getKeywords()              != null) product.setKeywords(request.getKeywords());
-        if (request.getPrimaryImageUrl()       != null) product.setPrimaryImageUrl(request.getPrimaryImageUrl());
-        if (request.getImageUrls()             != null) product.setImageUrls(request.getImageUrls());
-        if (request.getIsDiscount()            != null) product.setIsDiscount(request.getIsDiscount());
-        if (request.getDiscountPercent()       != null) product.setDiscountPercent(request.getDiscountPercent());
-        if (request.getIsNewArrival()          != null) product.setIsNewArrival(request.getIsNewArrival());
-        if (request.getIsFastMoving()          != null) product.setIsFastMoving(request.getIsFastMoving());
-        if (request.getMaterial()              != null) product.setMaterial(request.getMaterial());
-        if (request.getFinish()                != null) product.setFinish(request.getFinish());
-        if (request.getBasePrice()             != null) product.setBasePrice(request.getBasePrice());
-        if (request.getPriceUnit()             != null) product.setPriceUnit(request.getPriceUnit());
-        if (request.getStockStatus()           != null) product.setStockStatus(request.getStockStatus());
-        if (request.getLeadTimeDays()          != null) product.setLeadTimeDays(request.getLeadTimeDays());
-        if (request.getCustomizable()          != null) product.setCustomizable(request.getCustomizable());
-        if (request.getStockCount()            != null) product.setStockCount(request.getStockCount());
-        if (request.getLowStockThreshold()     != null) product.setLowStockThreshold(request.getLowStockThreshold());
-        if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
+        if (request.getCategory()               != null) product.setCategory(request.getCategory());
+        if (request.getDescription()            != null) product.setDescription(request.getDescription());
+        if (request.getMoq()                    != null) product.setMoq(request.getMoq());
+        if (request.getIndividualSalesEnabled()  != null) product.setIndividualSalesEnabled(request.getIndividualSalesEnabled());
+        if (request.getSizes()                  != null) product.setSizes(request.getSizes());
+        if (request.getTags()                   != null) product.setTags(request.getTags());
+        if (request.getKeywords()               != null) product.setKeywords(request.getKeywords());
+        if (request.getPrimaryImageUrl()        != null) product.setPrimaryImageUrl(request.getPrimaryImageUrl());
+        if (request.getImageUrls()              != null) product.setImageUrls(request.getImageUrls());
+        if (request.getIsDiscount()             != null) product.setIsDiscount(request.getIsDiscount());
+        if (request.getDiscountPercent()        != null) product.setDiscountPercent(request.getDiscountPercent());
+        if (request.getIsNewArrival()           != null) product.setIsNewArrival(request.getIsNewArrival());
+        if (request.getIsFastMoving()           != null) product.setIsFastMoving(request.getIsFastMoving());
+        if (request.getMaterial()               != null) product.setMaterial(request.getMaterial());
+        if (request.getFinish()                 != null) product.setFinish(request.getFinish());
+        if (request.getBasePrice()              != null) product.setBasePrice(request.getBasePrice());
+        if (request.getPriceUnit()              != null) product.setPriceUnit(request.getPriceUnit());
+        if (request.getStockStatus()            != null) product.setStockStatus(request.getStockStatus());
+        if (request.getLeadTimeDays()           != null) product.setLeadTimeDays(request.getLeadTimeDays());
+        if (request.getCustomizable()           != null) product.setCustomizable(request.getCustomizable());
+        if (request.getStockCount()             != null) product.setStockCount(request.getStockCount());
+        if (request.getLowStockThreshold()      != null) product.setLowStockThreshold(request.getLowStockThreshold());
+        if (request.getIndustryIds()            != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
 
         Product saved = productRepository.save(product);
 
@@ -180,21 +180,12 @@ public class ProductService {
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
     public void deleteProduct(UUID id) {
-        if (!productRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Product not found: " + id);
-        }
-        pricingTierRepository.deleteByProductId(id);
-        productRepository.deleteById(id);
-    }
-
-    @Transactional(readOnly = true)
-    public ProductDto getById(UUID id) {
-        Product product = productRepository.findById(id)
+        Product product = productRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
-        return toDto(product);
+        product.setDeleted(true);
+        productRepository.save(product);
+        log.info("Product {} soft-deleted", id);
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private ProductDto toDto(Product product) {
         Hibernate.initialize(product.getSizes());
@@ -212,12 +203,6 @@ public class ProductService {
         return new ProductDto(product, tiers);
     }
 
-    /**
-     * Persists pricing tiers for a product.
-     * - Assigns sortOrder automatically (0-based) if not supplied.
-     * - Auto-computes collectionPrice = pricePerUnit * quantity.
-     * - collectionName and quantity are required — validated here defensively.
-     */
     private void savePricingTiers(Product product, List<ProductPricingTierDto> tierDtos) {
         if (tierDtos == null || tierDtos.isEmpty()) return;
 
@@ -225,27 +210,18 @@ public class ProductService {
 
         List<ProductPricingTier> tiers = tierDtos.stream()
                 .map(dto -> {
-                    if (dto.getCollectionName() == null || dto.getCollectionName().isBlank()) {
-                        throw new IllegalArgumentException(
-                                "Each pricing tier must have a collectionName " +
-                                "(e.g. 'Half Dozen', 'Bale of 1000')");
-                    }
-                    if (dto.getQuantity() == null || dto.getQuantity() < 1) {
-                        throw new IllegalArgumentException(
-                                "Each pricing tier must have a quantity >= 1");
-                    }
-                    if (dto.getPricePerUnit() == null) {
-                        throw new IllegalArgumentException(
-                                "Each pricing tier must have a pricePerUnit");
-                    }
+                    if (dto.getCollectionName() == null || dto.getCollectionName().isBlank())
+                        throw new IllegalArgumentException("Each pricing tier must have a collectionName");
+                    if (dto.getQuantity() == null || dto.getQuantity() < 1)
+                        throw new IllegalArgumentException("Each pricing tier must have a quantity >= 1");
+                    if (dto.getPricePerUnit() == null)
+                        throw new IllegalArgumentException("Each pricing tier must have a pricePerUnit");
 
                     BigDecimal collectionPrice = dto.getPricePerUnit()
                             .multiply(BigDecimal.valueOf(dto.getQuantity()))
                             .setScale(2, RoundingMode.HALF_UP);
 
-                    int order = dto.getSortOrder() != null
-                            ? dto.getSortOrder()
-                            : autoOrder.getAndIncrement();
+                    int order = dto.getSortOrder() != null ? dto.getSortOrder() : autoOrder.getAndIncrement();
 
                     return ProductPricingTier.builder()
                             .product(product)
@@ -254,7 +230,6 @@ public class ProductService {
                             .pricePerUnit(dto.getPricePerUnit())
                             .collectionPrice(collectionPrice)
                             .sortOrder(order)
-                            // legacy fields — preserve if supplied
                             .minQuantity(dto.getMinQuantity())
                             .maxQuantity(dto.getMaxQuantity())
                             .build();
@@ -269,7 +244,7 @@ public class ProductService {
         String base = SlugUtil.toSlug(name);
         String slug = base;
         int counter = 1;
-        while (productRepository.existsBySlug(slug)) {
+        while (productRepository.existsBySlugAndDeletedFalse(slug)) {
             slug = base + "-" + counter++;
         }
         return slug;

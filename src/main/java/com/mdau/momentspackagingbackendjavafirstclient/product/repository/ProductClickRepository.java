@@ -30,4 +30,9 @@ public interface ProductClickRepository extends JpaRepository<ProductClick, UUID
     @Modifying
     @Query("DELETE FROM ProductClick pc WHERE pc.clickedAt < :before")
     void deleteOlderThan(Instant before);
+
+    /** Step 1 fix: delete all click records for a product before deleting the product */
+    @Modifying
+    @Query("DELETE FROM ProductClick pc WHERE pc.product.id = :productId")
+    void deleteByProductId(UUID productId);
 }
