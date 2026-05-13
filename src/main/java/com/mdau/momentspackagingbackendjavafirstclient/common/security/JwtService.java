@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.common.security;
 
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -15,6 +16,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,6 +35,16 @@ public class JwtService {
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("type", "access");
+
+        if (userDetails instanceof User user) {
+            claims.put("userId", user.getId().toString());
+            claims.put("firstName", user.getFirstName());
+            claims.put("lastName", user.getLastName());
+            claims.put("roles", user.getRoles().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toList()));
+        }
+
         return buildToken(claims, userDetails.getUsername(), accessTokenExpirationMs);
     }
 
