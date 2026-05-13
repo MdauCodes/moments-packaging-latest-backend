@@ -67,4 +67,15 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     @Query("SELECT COUNT(p) FROM Product p WHERE p.deleted = false")
     long countActive();
+
+    @Query("""
+    SELECT DISTINCT p FROM Product p
+    LEFT JOIN FETCH p.imageUrls
+    LEFT JOIN FETCH p.sizes
+    LEFT JOIN FETCH p.tags
+    LEFT JOIN FETCH p.keywords
+    LEFT JOIN FETCH p.industries
+    WHERE p.deleted = false
+    """)
+    List<Product> findAllActive();
 }

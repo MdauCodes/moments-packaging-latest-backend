@@ -1,10 +1,13 @@
 package com.mdau.momentspackagingbackendjavafirstclient.product.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductPricingTierDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductPricingTierRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +20,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductSearchService {
 
-    private final ProductRepository productRepository;
+    private final ProductRepository            productRepository;
+    private final ProductPricingTierRepository pricingTierRepository;
 
     private static final int W_NAME_EXACT        = 1000;
     private static final int W_NAME_STARTS       = 600;
@@ -48,15 +52,31 @@ public class ProductSearchService {
         String   q      = query.trim().toLowerCase();
         String[] tokens = q.split("\\s+");
 
-        List<Product> all = productRepository.findAll();
+        List<Product> all = productRepository.findAllActive();
 
         return all.stream()
                 .map(p -> new ScoredProduct(p, score(p, q, tokens)))
                 .filter(sp -> sp.score > 0)
                 .sorted(Comparator.comparingInt(ScoredProduct::getScore).reversed())
                 .limit(cappedLimit)
-                .map(sp -> new ProductDto(sp.product))
+                .map(sp -> toDto(sp.product))
                 .collect(Collectors.toList());
+    }
+
+    private ProductDto toDto(Product product) {
+        Hibernate.initialize(product.getSizes());
+        Hibernate.initialize(product.getTags());
+        Hibernate.initialize(product.getKeywords());
+        Hibernate.initialize(product.getImageUrls());
+        Hibernate.initialize(product.getIndustries());
+
+        List<ProductPricingTierDto> tiers = pricingTierRepository
+                .findByProductId(product.getId())
+                .stream()
+                .map(ProductPricingTierDto::new)
+                .collect(Collectors.toList());
+
+        return new ProductDto(product, tiers);
     }
 
     private int score(Product p, String q, String[] tokens) {
@@ -67,7 +87,6 @@ public class ProductSearchService {
         String material = lower(p.getMaterial());
         String finish   = lower(p.getFinish());
 
-        // ── Name ────────────────────────────────────────────────────────────
         if (name.equals(q))          score += W_NAME_EXACT;
         else if (name.startsWith(q)) score += W_NAME_STARTS;
         else if (name.contains(q))   score += W_NAME_CONTAINS;
@@ -77,7 +96,6 @@ public class ProductSearchService {
             }
         }
 
-        // ── Industry ────────────────────────────────────────────────────────
         for (var industry : p.getIndustries()) {
             String iName = lower(industry.getName());
             if (iName.equals(q))           score += W_INDUSTRY_EXACT;
@@ -89,7 +107,6 @@ public class ProductSearchService {
             }
         }
 
-        // ── Description ─────────────────────────────────────────────────────
         if (!desc.isEmpty()) {
             if (desc.contains(q)) score += W_DESC_PHRASE;
             else {
@@ -99,10 +116,8 @@ public class ProductSearchService {
             }
         }
 
-        // ── Category ────────────────────────────────────────────────────────
         if (!category.isEmpty() && category.contains(q)) score += W_CATEGORY;
 
-        // ── Keywords ────────────────────────────────────────────────────────
         for (String kw : p.getKeywords()) {
             String k = lower(kw);
             if (k.equals(q) || k.contains(q))   score += W_KEYWORD;
@@ -113,24 +128,18 @@ public class ProductSearchService {
             }
         }
 
-        // ── Tags ────────────────────────────────────────────────────────────
         for (String tag : p.getTags()) {
             String t = lower(tag);
             if (t.equals(q) || t.contains(q)) score += W_TAG;
         }
 
-        // ── Material ────────────────────────────────────────────────────────
         if (!material.isEmpty() && material.contains(q)) score += W_MATERIAL;
+        if (!finish.isEmpty()   && finish.contains(q))   score += W_FINISH;
 
-        // ── Finish ──────────────────────────────────────────────────────────
-        if (!finish.isEmpty() && finish.contains(q)) score += W_FINISH;
-
-        // ── Sizes (list) ────────────────────────────────────────────────────
         for (String sz : p.getSizes()) {
             if (lower(sz).contains(q)) score += W_SIZE;
         }
 
-        // ── Popularity boost ────────────────────────────────────────────────
         if (score > 0) {
             int boost = (int) Math.min(
                     p.getMonthlyClicks() / POPULARITY_DIVISOR,
