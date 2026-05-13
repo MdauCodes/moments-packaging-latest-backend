@@ -6,15 +6,19 @@ import com.mdau.momentspackagingbackendjavafirstclient.cart.entity.CartStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartItemRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.cart.service.CartService;
-import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
-import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.mdau.momentspackagingbackendjavafirstclient.notification.service.NotificationService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.dto.CheckoutRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.order.dto.OrderDto;
-import com.mdau.momentspackagingbackendjavafirstclient.order.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
-import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderItem;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatusHistory;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,17 +45,33 @@ public class CheckoutService {
     private final NotificationService     notificationService;
     private final PromoCodeService        promoCodeService;
     private final SettingsService         settingsService;
+    private final ProductRepository       productRepository;
 
     @Transactional
     public OrderDto checkout(User customer, String sessionId, CheckoutRequest request) {
+
         Cart cart = cartService.getOrCreateCart(customer, sessionId);
         List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
 
-        if (cartItems.isEmpty()) throw new IllegalArgumentException("Cart is empty");
+        final BigDecimal subtotal;
 
-        BigDecimal subtotal = cartItems.stream()
-                .map(CartItem::getLineTotalSnapshot)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (!cartItems.isEmpty()) {
+            subtotal = cartItems.stream()
+                    .map(CartItem::getLineTotalSnapshot)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        } else if (request.getItems() != null && !request.getItems().isEmpty()) {
+            log.info("Backend cart empty for session {}, falling back to {} inline items",
+                    sessionId, request.getItems().size());
+            subtotal = request.getItems().stream()
+                    .map(it -> {
+                        BigDecimal price = it.getUnitPrice() != null ? it.getUnitPrice() : BigDecimal.ZERO;
+                        int qty = it.getQuantity() != null ? it.getQuantity() : 1;
+                        return price.multiply(BigDecimal.valueOf(qty));
+                    })
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        } else {
+            throw new IllegalArgumentException("Cart is empty");
+        }
 
         FulfillmentType fulfillmentType = request.getFulfillmentType() != null
                 ? request.getFulfillmentType() : FulfillmentType.ZONE_DELIVERY;
@@ -102,30 +123,66 @@ public class CheckoutService {
                 .notes(request.getNotes()).promoCode(appliedPromo)
                 .build();
 
-        List<OrderItem> orderItems = cartItems.stream()
-                .map(ci -> {
-                    int totalUnits = ci.getTier() != null && ci.getCollectionQuantitySnapshot() != null
-                            ? ci.getQuantity() * ci.getCollectionQuantitySnapshot()
-                            : ci.getQuantity();
-                    return OrderItem.builder()
-                            .order(order)
-                            .productId(ci.getProduct().getId())
-                            .productNameSnapshot(ci.getProductNameSnapshot())
-                            .categorySnapshot(ci.getProduct().getCategory())
-                            .sizeSnapshot(ci.getSizeSnapshot())
-                            .materialSnapshot(ci.getMaterialSnapshot())
-                            .finishSnapshot(ci.getFinishSnapshot())
-                            .collectionNameSnapshot(ci.getCollectionNameSnapshot())
-                            .collectionQuantitySnapshot(ci.getCollectionQuantitySnapshot())
-                            .quantity(ci.getQuantity())
-                            .totalUnits(totalUnits)
-                            .unitPrice(ci.getUnitPriceSnapshot())
-                            .lineTotal(ci.getLineTotalSnapshot())
-                            .build();
-                })
-                .collect(Collectors.toList());
+        List<OrderItem> resolvedItems;
+        if (!cartItems.isEmpty()) {
+            resolvedItems = cartItems.stream()
+                    .map(ci -> {
+                        int totalUnits = ci.getTier() != null && ci.getCollectionQuantitySnapshot() != null
+                                ? ci.getQuantity() * ci.getCollectionQuantitySnapshot()
+                                : ci.getQuantity();
+                        return OrderItem.builder()
+                                .order(order)
+                                .productId(ci.getProduct().getId())
+                                .productNameSnapshot(ci.getProductNameSnapshot())
+                                .categorySnapshot(ci.getProduct().getCategory())
+                                .sizeSnapshot(ci.getSizeSnapshot())
+                                .materialSnapshot(ci.getMaterialSnapshot())
+                                .finishSnapshot(ci.getFinishSnapshot())
+                                .collectionNameSnapshot(ci.getCollectionNameSnapshot())
+                                .collectionQuantitySnapshot(ci.getCollectionQuantitySnapshot())
+                                .quantity(ci.getQuantity())
+                                .totalUnits(totalUnits)
+                                .unitPrice(ci.getUnitPriceSnapshot())
+                                .lineTotal(ci.getLineTotalSnapshot())
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            resolvedItems = request.getItems().stream()
+                    .map(it -> {
+                        UUID productId;
+                        String productName = "Product";
+                        String category = null;
+                        try {
+                            productId = UUID.fromString(it.getProductId());
+                            Product p = productRepository.findByIdAndDeletedFalse(productId).orElse(null);
+                            if (p != null) {
+                                productName = p.getName();
+                                category = p.getCategory();
+                            }
+                        } catch (IllegalArgumentException e) {
+                            productId = UUID.randomUUID();
+                        }
+                        int qty = it.getQuantity() != null ? it.getQuantity() : 1;
+                        BigDecimal unitPrice = it.getUnitPrice() != null ? it.getUnitPrice() : BigDecimal.ZERO;
+                        return OrderItem.builder()
+                                .order(order)
+                                .productId(productId)
+                                .productNameSnapshot(productName)
+                                .categorySnapshot(category)
+                                .sizeSnapshot(it.getSize())
+                                .materialSnapshot(it.getMaterial())
+                                .finishSnapshot(it.getFinish())
+                                .quantity(qty)
+                                .totalUnits(qty)
+                                .unitPrice(unitPrice)
+                                .lineTotal(unitPrice.multiply(BigDecimal.valueOf(qty)))
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+        }
 
-        order.getItems().addAll(orderItems);
+        order.getItems().addAll(resolvedItems);
         order.getStatusHistory().add(OrderStatusHistory.builder()
                 .order(order).toStatus(OrderStatus.PENDING_PAYMENT)
                 .note("Order created")
@@ -134,18 +191,13 @@ public class CheckoutService {
 
         Order saved = orderRepository.save(order);
 
-        cart.setStatus(CartStatus.CHECKED_OUT);
-        cartRepository.save(cart);
+        if (!cartItems.isEmpty()) {
+            cart.setStatus(CartStatus.CHECKED_OUT);
+            cartRepository.save(cart);
+        }
 
         notificationService.onOrderCreated(saved);
-
-        log.info("Order created: {}", reference);
+        log.info("Order created: {} (source: {})", reference, cartItems.isEmpty() ? "inline" : "cart");
         return new OrderDto(saved);
     }
 }
-
-
-
-
-
-

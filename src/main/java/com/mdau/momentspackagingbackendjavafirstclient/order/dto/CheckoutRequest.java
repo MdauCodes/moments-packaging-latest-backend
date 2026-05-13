@@ -9,6 +9,9 @@ import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 @Getter
 @Setter
 public class CheckoutRequest {
@@ -41,7 +44,18 @@ public class CheckoutRequest {
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
 
-    @NotNull(message = "Fulfillment type is required")
     private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
-}
 
+    private List<InlineItem> items;
+
+    @Getter
+    @Setter
+    public static class InlineItem {
+        private String productId;
+        private Integer quantity;
+        private String size;
+        private String material;
+        private String finish;
+        private BigDecimal unitPrice;
+    }
+}
