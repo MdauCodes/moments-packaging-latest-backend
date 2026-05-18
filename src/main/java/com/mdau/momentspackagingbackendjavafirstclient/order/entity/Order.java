@@ -45,13 +45,13 @@ public class Order {
     @Column(nullable = false, length = 30)
     private String phone;
 
-    @Column(name = "delivery_address", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "delivery_address", columnDefinition = "TEXT")
     private String deliveryAddress;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String city;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String county;
 
     @Column(name = "postal_code", length = 20)
@@ -75,6 +75,33 @@ public class Order {
     @Column(name = "fulfillment_type", nullable = false, length = 30)
     @Builder.Default
     private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
+
+    // ── OWN_COURIER fields (all optional — only populated when fulfillmentType=OWN_COURIER) ──
+
+    /**
+     * The courier service the customer intends to use.
+     * e.g. MATATU, PARCEL_SERVICE, BOLT_SEND, RIDER, OTHER
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "courier_type", length = 30)
+    private CourierType courierType;
+
+    /**
+     * Free-text courier service name — used when courierType=OTHER
+     * or to add extra detail (e.g. specific matatu route).
+     */
+    @Column(name = "courier_service_name", length = 255)
+    private String courierServiceName;
+
+    /**
+     * Courier stage or parcel office within Nairobi CBD.
+     * Optional but encouraged — helps the business know where to drop goods.
+     * e.g. "Machakos Country Bus Stage", "G4S Kimathi Street office"
+     */
+    @Column(name = "courier_stage_or_office", length = 500)
+    private String courierStageOrOffice;
+
+    // ── Financials ────────────────────────────────────────────────────────────
 
     @Column(precision = 12, scale = 2, nullable = false)
     private BigDecimal subtotal;

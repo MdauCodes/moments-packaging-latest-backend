@@ -82,16 +82,20 @@ public class CheckoutService {
             if (!pickupEnabled) throw new IllegalArgumentException(
                     "Pickup is currently unavailable. Please select delivery.");
         }
+
         if (fulfillmentType == FulfillmentType.OWN_COURIER) {
-            boolean ownCourierEnabled = Boolean.parseBoolean(
-                    settingsService.getValue("fulfillment.own-courier.enabled", "false"));
-            if (!ownCourierEnabled) throw new IllegalArgumentException(
-                    "Own courier option is currently unavailable. Please select delivery.");
+            if (request.getCourierType() == null && (
+                    request.getCourierServiceName() == null ||
+                    request.getCourierServiceName().isBlank())) {
+                throw new IllegalArgumentException(
+                        "Please select a courier service for your delivery.");
+            }
         }
 
-        BigDecimal deliveryFee = fulfillmentType == FulfillmentType.ZONE_DELIVERY
-                ? deliveryZoneService.getFeeForCounty(request.getCounty())
-                : BigDecimal.ZERO;
+        BigDecimal deliveryFee = BigDecimal.ZERO;
+        if (fulfillmentType == FulfillmentType.ZONE_DELIVERY && request.getCounty() != null) {
+            deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
+        }
 
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromo = null;
@@ -109,18 +113,28 @@ public class CheckoutService {
         String reference = referenceGenerator.generate();
 
         Order order = Order.builder()
-                .reference(reference).customer(customer)
-                .contactName(request.getContactName()).email(request.getEmail())
-                .phone(request.getPhone()).deliveryAddress(request.getDeliveryAddress())
-                .city(request.getCity()).county(request.getCounty())
+                .reference(reference)
+                .customer(customer)
+                .contactName(request.getContactName())
+                .email(request.getEmail())
+                .phone(request.getPhone())
+                .deliveryAddress(request.getDeliveryAddress())
+                .city(request.getCity())
+                .county(request.getCounty())
                 .postalCode(request.getPostalCode())
                 .status(OrderStatus.PENDING_PAYMENT)
                 .fulfillmentType(fulfillmentType)
                 .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(PaymentStatus.PENDING)
-                .subtotal(subtotal).deliveryFee(deliveryFee)
-                .discount(discount).totalAmount(total)
-                .notes(request.getNotes()).promoCode(appliedPromo)
+                .subtotal(subtotal)
+                .deliveryFee(deliveryFee)
+                .discount(discount)
+                .totalAmount(total)
+                .notes(request.getNotes())
+                .promoCode(appliedPromo)
+                .courierType(request.getCourierType())
+                .courierServiceName(request.getCourierServiceName())
+                .courierStageOrOffice(request.getCourierStageOrOffice())
                 .build();
 
         List<OrderItem> resolvedItems;
@@ -184,7 +198,8 @@ public class CheckoutService {
 
         order.getItems().addAll(resolvedItems);
         order.getStatusHistory().add(OrderStatusHistory.builder()
-                .order(order).toStatus(OrderStatus.PENDING_PAYMENT)
+                .order(order)
+                .toStatus(OrderStatus.PENDING_PAYMENT)
                 .note("Order created")
                 .changedBy(customer != null ? customer.getEmail() : "guest")
                 .build());
@@ -197,7 +212,8 @@ public class CheckoutService {
         }
 
         notificationService.onOrderCreated(saved);
-        log.info("Order created: {} (source: {})", reference, cartItems.isEmpty() ? "inline" : "cart");
+        log.info("Order created: {} fulfillment={} (source: {})",
+                reference, fulfillmentType, cartItems.isEmpty() ? "inline" : "cart");
         return new OrderDto(saved);
     }
 }

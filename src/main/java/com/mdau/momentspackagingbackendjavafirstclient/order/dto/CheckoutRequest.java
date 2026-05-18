@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.order.dto;
 
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.CourierType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentMethod;
 import jakarta.validation.constraints.Email;
@@ -27,15 +28,14 @@ public class CheckoutRequest {
     @Pattern(regexp = "^(07|\\+2547)\\d{8}$", message = "Phone must be a valid Kenyan number")
     private String phone;
 
-    @NotBlank(message = "Delivery address is required")
+    /**
+     * Required for ZONE_DELIVERY and OWN_COURIER.
+     * Optional (ignored) for PICKUP.
+     */
     private String deliveryAddress;
 
-    @NotBlank(message = "City is required")
     private String city;
-
-    @NotBlank(message = "County is required")
     private String county;
-
     private String postalCode;
     private String notes;
     private String promoCode;
@@ -46,16 +46,37 @@ public class CheckoutRequest {
 
     private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
 
+    // ── OWN_COURIER fields ────────────────────────────────────────────────────
+
+    /**
+     * Required when fulfillmentType = OWN_COURIER.
+     * The courier service the customer will use.
+     */
+    private CourierType courierType;
+
+    /**
+     * Free-text — used when courierType = OTHER, or to specify extra detail.
+     * e.g. "Crossroads matatu — route 111"
+     */
+    private String courierServiceName;
+
+    /**
+     * Optional but encouraged when fulfillmentType = OWN_COURIER.
+     * The specific stage or parcel office within Nairobi CBD.
+     * e.g. "Machakos Country Bus Stage", "G4S Kimathi Street office"
+     */
+    private String courierStageOrOffice;
+
     private List<InlineItem> items;
 
     @Getter
     @Setter
     public static class InlineItem {
-        private String productId;
-        private Integer quantity;
-        private String size;
-        private String material;
-        private String finish;
+        private String     productId;
+        private Integer    quantity;
+        private String     size;
+        private String     material;
+        private String     finish;
         private BigDecimal unitPrice;
     }
 }

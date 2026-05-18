@@ -33,40 +33,49 @@ public class OrderDto {
     private final String     assignedTo;
     private final String     promoCode;
     private final String     fulfillmentType;
+
+    // OWN_COURIER fields — null for other fulfillment types
+    private final String     courierType;
+    private final String     courierServiceName;
+    private final String     courierStageOrOffice;
+
     private final List<OrderItemDto>          items;
     private final List<OrderStatusHistoryDto> statusHistory;
     private final Instant    createdAt;
     private final Instant    updatedAt;
 
     public OrderDto(Order order) {
-        this.id             = order.getId();
-        this.reference      = order.getReference();
-        this.status         = order.getStatus().name();
-        this.paymentMethod  = order.getPaymentMethod().name();
-        this.paymentStatus  = order.getPaymentStatus().name();
-        this.contactName    = order.getContactName();
-        this.email          = order.getEmail();
-        this.phone          = order.getPhone();
-        this.deliveryAddress = order.getDeliveryAddress();
-        this.city           = order.getCity();
-        this.county         = order.getCounty();
-        this.postalCode     = order.getPostalCode();
-        this.subtotal       = order.getSubtotal();
-        this.deliveryFee    = order.getDeliveryFee();
-        this.discount       = order.getDiscount();
-        this.totalAmount    = order.getTotalAmount();
-        this.notes          = order.getNotes();
-        this.staffNotes     = order.getStaffNotes();
-        this.assignedTo     = order.getAssignedTo();
-        this.promoCode      = order.getPromoCode();
-        this.fulfillmentType = order.getFulfillmentType() != null
+        this.id                   = order.getId();
+        this.reference            = order.getReference();
+        this.status               = order.getStatus().name();
+        this.paymentMethod        = order.getPaymentMethod().name();
+        this.paymentStatus        = order.getPaymentStatus().name();
+        this.contactName          = order.getContactName();
+        this.email                = order.getEmail();
+        this.phone                = order.getPhone();
+        this.deliveryAddress      = order.getDeliveryAddress();
+        this.city                 = order.getCity();
+        this.county               = order.getCounty();
+        this.postalCode           = order.getPostalCode();
+        this.subtotal             = order.getSubtotal();
+        this.deliveryFee          = order.getDeliveryFee();
+        this.discount             = order.getDiscount();
+        this.totalAmount          = order.getTotalAmount();
+        this.notes                = order.getNotes();
+        this.staffNotes           = order.getStaffNotes();
+        this.assignedTo           = order.getAssignedTo();
+        this.promoCode            = order.getPromoCode();
+        this.fulfillmentType      = order.getFulfillmentType() != null
                 ? order.getFulfillmentType().name() : null;
-        this.createdAt      = order.getCreatedAt();
-        this.updatedAt      = order.getUpdatedAt();
-        this.items          = order.getItems().stream()
-                                .map(OrderItemDto::new).collect(Collectors.toList());
-        this.statusHistory  = order.getStatusHistory().stream()
-                                .map(OrderStatusHistoryDto::new).collect(Collectors.toList());
+        this.courierType          = order.getCourierType() != null
+                ? order.getCourierType().name() : null;
+        this.courierServiceName   = order.getCourierServiceName();
+        this.courierStageOrOffice = order.getCourierStageOrOffice();
+        this.createdAt            = order.getCreatedAt();
+        this.updatedAt            = order.getUpdatedAt();
+        this.items                = order.getItems().stream()
+                                        .map(OrderItemDto::new).collect(Collectors.toList());
+        this.statusHistory        = order.getStatusHistory().stream()
+                                        .map(OrderStatusHistoryDto::new).collect(Collectors.toList());
     }
 }
-
