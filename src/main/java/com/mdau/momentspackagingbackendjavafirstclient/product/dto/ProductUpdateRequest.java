@@ -44,6 +44,10 @@ public class ProductUpdateRequest {
     private Integer stockCount;
     private Integer lowStockThreshold;
 
+    // VAT — null means no change
+    private BigDecimal vatRate;
+    private Boolean   vatExempt;
+
     private List<UUID>                  industryIds;
     private List<ProductPricingTierDto> pricingTiers;
 }

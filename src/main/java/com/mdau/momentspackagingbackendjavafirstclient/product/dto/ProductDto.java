@@ -53,6 +53,10 @@ public class ProductDto {
     private final Boolean     customizable;
     private final Integer     stockCount;
 
+    // VAT
+    private final BigDecimal vatRate;
+    private final Boolean    vatExempt;
+
     /** Collections sorted by sortOrder ascending (smallest → largest) */
     private final List<ProductPricingTierDto> pricingTiers;
 
@@ -88,6 +92,8 @@ public class ProductDto {
         this.leadTimeDays           = product.getLeadTimeDays();
         this.customizable           = product.getCustomizable();
         this.stockCount             = product.getStockCount();
+        this.vatRate               = product.getVatRate();
+        this.vatExempt             = product.getVatExempt();
         this.pricingTiers           = pricingTiers != null
                 ? pricingTiers.stream()
                     .sorted(Comparator.comparingInt(t -> (t.getSortOrder() != null ? t.getSortOrder() : 0)))

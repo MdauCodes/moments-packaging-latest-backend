@@ -57,6 +57,10 @@ public class ProductCreateRequest {
     private Integer stockCount       = 0;
     private Integer lowStockThreshold = 10;
 
+    // VAT — optional; defaults applied in ProductService if null
+    private BigDecimal vatRate;
+    private Boolean   vatExempt = false;
+
     private List<UUID>                  industryIds  = new ArrayList<>();
     private List<ProductPricingTierDto> pricingTiers = new ArrayList<>();
 }

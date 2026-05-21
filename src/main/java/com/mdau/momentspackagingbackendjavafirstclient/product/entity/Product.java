@@ -153,7 +153,7 @@ public class Product extends BaseEntity {
      * When true, this product is VAT-exempt — no VAT is charged.
      * vatRate is ignored when this is true.
      */
-    @Column(name = "vat_exempt", nullable = false)
+    @Column(name = "vat_exempt", nullable = false, columnDefinition = "boolean not null default false")
     @Builder.Default
     private Boolean vatExempt = false;
 

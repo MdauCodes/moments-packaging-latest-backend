@@ -129,6 +129,8 @@ public class ProductService {
                 .stockCount(request.getStockCount() != null ? request.getStockCount() : 0)
                 .lowStockThreshold(request.getLowStockThreshold() != null
                         ? request.getLowStockThreshold() : 10)
+                .vatRate(request.getVatRate() != null ? request.getVatRate() : new BigDecimal("0.1600"))
+                .vatExempt(request.getVatExempt() != null ? request.getVatExempt() : false)
                 .deleted(false)
                 .industries(resolveIndustries(request.getIndustryIds()))
                 .build();
@@ -172,6 +174,8 @@ public class ProductService {
         if (request.getCustomizable()          != null) product.setCustomizable(request.getCustomizable());
         if (request.getStockCount()            != null) product.setStockCount(request.getStockCount());
         if (request.getLowStockThreshold()     != null) product.setLowStockThreshold(request.getLowStockThreshold());
+        if (request.getVatRate()             != null) product.setVatRate(request.getVatRate());
+        if (request.getVatExempt()           != null) product.setVatExempt(request.getVatExempt());
         if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
 
         Product saved = productRepository.save(product);
