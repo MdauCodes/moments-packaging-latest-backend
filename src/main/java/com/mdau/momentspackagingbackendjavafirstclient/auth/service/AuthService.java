@@ -1,6 +1,7 @@
 package com.mdau.momentspackagingbackendjavafirstclient.auth.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.AuthResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.ChangePasswordRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.AuthUserDto;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.LoginRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.RefreshRequest;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
@@ -78,6 +81,21 @@ public class AuthService {
                     rt.setRevoked(true);
                     refreshTokenRepository.save(rt);
                 });
+    }
+
+    @Transactional
+    public void changePassword(String userEmail, ChangePasswordRequest request) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
+        log.info("Password changed for user {}", userEmail);
     }
 
     private String createRefreshToken(User user) {

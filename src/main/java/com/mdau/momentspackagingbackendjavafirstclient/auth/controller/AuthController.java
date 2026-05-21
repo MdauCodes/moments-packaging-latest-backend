@@ -1,12 +1,14 @@
 package com.mdau.momentspackagingbackendjavafirstclient.auth.controller;
 
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.AuthResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.ChangePasswordRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.LoginRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.RefreshRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.TokenResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.service.AuthService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.config.RateLimitConfig;
 import jakarta.servlet.http.HttpServletRequest;
+import java.security.Principal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
