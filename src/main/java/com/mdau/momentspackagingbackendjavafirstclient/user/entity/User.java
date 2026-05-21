@@ -15,9 +15,10 @@ import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "users", indexes = {
-        @Index(name = "idx_users_email", columnList = "email"),
-        @Index(name = "idx_users_phone", columnList = "phone"),
-        @Index(name = "idx_users_deleted", columnList = "deleted")
+        @Index(name = "idx_users_email",   columnList = "email"),
+        @Index(name = "idx_users_phone",   columnList = "phone"),
+        @Index(name = "idx_users_deleted", columnList = "deleted"),
+        @Index(name = "idx_users_is_staff", columnList = "is_staff")
 })
 @Getter
 @Setter
@@ -71,6 +72,43 @@ public class User extends BaseEntity implements UserDetails {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    /**
+     * True for all staff/admin users created by SUPER_ADMIN.
+     * False for customer accounts (registered via storefront).
+     * Staff users never appear in customer contexts; customers never
+     * appear in admin user management.
+     */
+    @Column(name = "is_staff", nullable = false)
+    @Builder.Default
+    private Boolean isStaff = false;
+
+    /**
+     * The staff role assigned by SUPER_ADMIN.
+     * Null for customer accounts.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "staff_role_id")
+    private StaffRole staffRole;
+
+    /**
+     * True when user is logging in for the first time with a temp password.
+     * Frontend must force a password change before allowing further actions.
+     */
+    @Column(name = "must_change_password", nullable = false)
+    @Builder.Default
+    private Boolean mustChangePassword = false;
+
+    /**
+     * Expiry for the temporary password (48 hours after creation).
+     * If this instant passes without a first login, the account is auto-deleted
+     * by the TempPasswordExpiryJob.
+     */
+    @Column(name = "temp_password_expires_at")
+    private Instant tempPasswordExpiresAt;
+
+    // ── Legacy roles (kept for customer auth compatibility) ───────────────────
+    // Staff permissions are now derived from staffRole.permissions.
+    // Customer role is still stored here for the customer auth flow.
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Enumerated(EnumType.STRING)
@@ -78,11 +116,35 @@ public class User extends BaseEntity implements UserDetails {
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
+    // ── Spring Security ───────────────────────────────────────────────────────
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return roles.stream()
-                .map(role -> new SimpleGrantedAuthority(role.name()))
-                .collect(Collectors.toSet());
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        // Legacy role-based authorities (used for customer auth + backward compat)
+        roles.forEach(role ->
+                authorities.add(new SimpleGrantedAuthority(role.name())));
+
+        // Permission-based authorities from staffRole
+        if (staffRole != null && staffRole.getPermissions() != null) {
+            staffRole.getPermissions().forEach(permission ->
+                    authorities.add(new SimpleGrantedAuthority("PERM_" + permission.name())));
+        }
+
+        // Add SUPER_ADMIN authority if staffRole name matches
+        if (staffRole != null && "SUPER_ADMIN".equals(staffRole.getName())) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        }
+
+        return authorities;
+    }
+
+    /** Resolved permissions from staffRole — convenience method for JWT generation */
+    public Set<Permission> getResolvedPermissions() {
+        if (staffRole == null || staffRole.getPermissions() == null) return Set.of();
+        return staffRole.getPermissions();
     }
 
     @Override public String getUsername() { return email; }

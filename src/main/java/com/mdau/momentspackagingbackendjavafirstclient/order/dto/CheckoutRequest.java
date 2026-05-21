@@ -28,12 +28,7 @@ public class CheckoutRequest {
     @Pattern(regexp = "^(07|\\+2547)\\d{8}$", message = "Phone must be a valid Kenyan number")
     private String phone;
 
-    /**
-     * Required for ZONE_DELIVERY and OWN_COURIER.
-     * Optional (ignored) for PICKUP.
-     */
     private String deliveryAddress;
-
     private String city;
     private String county;
     private String postalCode;
@@ -48,24 +43,20 @@ public class CheckoutRequest {
 
     // ── OWN_COURIER fields ────────────────────────────────────────────────────
 
-    /**
-     * Required when fulfillmentType = OWN_COURIER.
-     * The courier service the customer will use.
-     */
     private CourierType courierType;
+    private String      courierServiceName;
+    private String      courierStageOrOffice;
+
+    // ── Idempotency ───────────────────────────────────────────────────────────
 
     /**
-     * Free-text — used when courierType = OTHER, or to specify extra detail.
-     * e.g. "Crossroads matatu — route 111"
+     * Client-generated UUID sent with every checkout attempt.
+     * If the same key is received within 5 minutes, the existing order
+     * is returned instead of creating a duplicate.
+     * Frontend must generate this once per checkout session and persist
+     * it until the order is confirmed.
      */
-    private String courierServiceName;
-
-    /**
-     * Optional but encouraged when fulfillmentType = OWN_COURIER.
-     * The specific stage or parcel office within Nairobi CBD.
-     * e.g. "Machakos Country Bus Stage", "G4S Kimathi Street office"
-     */
-    private String courierStageOrOffice;
+    private String idempotencyKey;
 
     private List<InlineItem> items;
 

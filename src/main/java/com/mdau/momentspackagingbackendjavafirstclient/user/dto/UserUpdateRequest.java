@@ -1,21 +1,19 @@
 package com.mdau.momentspackagingbackendjavafirstclient.user.dto;
 
-import com.mdau.momentspackagingbackendjavafirstclient.user.entity.Role;
-import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.Set;
+import java.util.UUID;
 
 @Getter
 @Setter
 public class UserUpdateRequest {
 
-    private String firstName;
-    private String lastName;
+    private String  firstName;
+    private String  lastName;
     private Boolean enabled;
-    private Set<Role> roles;
+    private UUID    staffRoleId;
 
-    @Size(min = 8, message = "Password must be at least 8 characters")
-    private String password;
+    /** Only used by SUPER_ADMIN for password reset — generates new temp password */
+    private Boolean resetPassword;
 }

@@ -40,7 +40,22 @@ public class JwtService {
             claims.put("userId", user.getId().toString());
             claims.put("firstName", user.getFirstName());
             claims.put("lastName", user.getLastName());
+            claims.put("isStaff", Boolean.TRUE.equals(user.getIsStaff()));
+            claims.put("mustChangePassword", Boolean.TRUE.equals(user.getMustChangePassword()));
+
+            // Legacy roles for backward compat
             claims.put("roles", user.getRoles().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toList()));
+
+            // Staff role name — frontend uses this for dashboard routing
+            if (user.getStaffRole() != null) {
+                claims.put("staffRole", user.getStaffRole().getName());
+                claims.put("staffRoleDisplay", user.getStaffRole().getDisplayName());
+            }
+
+            // Fine-grained permissions — frontend gates UI on these
+            claims.put("permissions", user.getResolvedPermissions().stream()
                     .map(Enum::name)
                     .collect(Collectors.toList()));
         }

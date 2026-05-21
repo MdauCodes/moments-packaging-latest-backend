@@ -12,11 +12,13 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "orders", indexes = {
-        @Index(name = "idx_orders_reference",      columnList = "reference",       unique = true),
-        @Index(name = "idx_orders_customer_id",    columnList = "customer_id"),
-        @Index(name = "idx_orders_status",         columnList = "status"),
-        @Index(name = "idx_orders_created_at",     columnList = "created_at"),
-        @Index(name = "idx_orders_payment_status", columnList = "payment_status")
+        @Index(name = "idx_orders_reference",       columnList = "reference",       unique = true),
+        @Index(name = "idx_orders_customer_id",     columnList = "customer_id"),
+        @Index(name = "idx_orders_status",          columnList = "status"),
+        @Index(name = "idx_orders_created_at",      columnList = "created_at"),
+        @Index(name = "idx_orders_payment_status",  columnList = "payment_status"),
+        @Index(name = "idx_orders_email",           columnList = "email"),
+        @Index(name = "idx_orders_idempotency_key", columnList = "idempotency_key", unique = true)
 })
 @Getter
 @Setter
@@ -31,6 +33,9 @@ public class Order {
 
     @Column(nullable = false, unique = true, length = 30)
     private String reference;
+
+    @Column(name = "idempotency_key", unique = true, length = 64)
+    private String idempotencyKey;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
@@ -76,35 +81,52 @@ public class Order {
     @Builder.Default
     private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
 
-    // ── OWN_COURIER fields (all optional — only populated when fulfillmentType=OWN_COURIER) ──
+    // ── OWN_COURIER fields ────────────────────────────────────────────────────
 
-    /**
-     * The courier service the customer intends to use.
-     * e.g. MATATU, PARCEL_SERVICE, BOLT_SEND, RIDER, OTHER
-     */
     @Enumerated(EnumType.STRING)
     @Column(name = "courier_type", length = 30)
     private CourierType courierType;
 
-    /**
-     * Free-text courier service name — used when courierType=OTHER
-     * or to add extra detail (e.g. specific matatu route).
-     */
     @Column(name = "courier_service_name", length = 255)
     private String courierServiceName;
 
-    /**
-     * Courier stage or parcel office within Nairobi CBD.
-     * Optional but encouraged — helps the business know where to drop goods.
-     * e.g. "Machakos Country Bus Stage", "G4S Kimathi Street office"
-     */
     @Column(name = "courier_stage_or_office", length = 500)
     private String courierStageOrOffice;
+
+    // ── Dispatcher fields ─────────────────────────────────────────────────────
+
+    /**
+     * Set to true by dispatcher after ticking all items in the checklist.
+     * Required before DISPATCHED status can be set.
+     */
+    @Column(name = "contents_verified", nullable = false)
+    @Builder.Default
+    private Boolean contentsVerified = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_confirmation_status", length = 30)
+    private DeliveryConfirmationStatus deliveryConfirmationStatus;
 
     // ── Financials ────────────────────────────────────────────────────────────
 
     @Column(precision = 12, scale = 2, nullable = false)
     private BigDecimal subtotal;
+
+    /**
+     * Sum of line totals for taxable items only.
+     * Used to compute vatAmount.
+     */
+    @Column(name = "taxable_amount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal taxableAmount = BigDecimal.ZERO;
+
+    /**
+     * VAT amount = taxableAmount * effective VAT rate.
+     * Computed at checkout based on vat.calculation.mode setting.
+     */
+    @Column(name = "vat_amount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal vatAmount = BigDecimal.ZERO;
 
     @Column(name = "delivery_fee", precision = 12, scale = 2, nullable = false)
     @Builder.Default
@@ -125,6 +147,9 @@ public class Order {
 
     @Column(name = "assigned_to", length = 255)
     private String assignedTo;
+
+    @Column(name = "assigned_to_id")
+    private UUID assignedToId;
 
     @Column(name = "promo_code", length = 50)
     private String promoCode;

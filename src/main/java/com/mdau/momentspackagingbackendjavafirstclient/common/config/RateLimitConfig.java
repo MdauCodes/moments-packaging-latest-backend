@@ -13,13 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimitConfig {
 
-    private final Map<String, Bucket> loginBuckets    = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> leadBuckets     = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> enquiryBuckets  = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> clickBuckets    = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> cartBuckets     = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> checkoutBuckets = new ConcurrentHashMap<>();
-    private final Map<String, Bucket> paymentBuckets  = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> loginBuckets       = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> leadBuckets        = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> enquiryBuckets     = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> clickBuckets       = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> cartBuckets        = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> checkoutBuckets    = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> paymentBuckets     = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> emailLookupBuckets = new ConcurrentHashMap<>();
 
     private Bucket newBucket(int capacity, int refillMinutes) {
         Bandwidth limit = Bandwidth.builder()
@@ -76,5 +77,15 @@ public class RateLimitConfig {
         String ip = getClientIp(request);
         if (!paymentBuckets.computeIfAbsent(ip, k -> newBucket(3, 1)).tryConsume(1))
             throw new RateLimitException("Too many payment attempts. Please try again in a minute.");
+    }
+
+    /**
+     * Rate limit for public email-based order lookup.
+     * 10 requests per minute per IP — prevents email enumeration.
+     */
+    public void checkEmailLookup(HttpServletRequest request) {
+        String ip = getClientIp(request);
+        if (!emailLookupBuckets.computeIfAbsent(ip, k -> newBucket(10, 1)).tryConsume(1))
+            throw new RateLimitException("Too many lookup attempts. Please try again in a minute.");
     }
 }

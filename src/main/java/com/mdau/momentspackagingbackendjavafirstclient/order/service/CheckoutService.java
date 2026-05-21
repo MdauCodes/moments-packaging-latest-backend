@@ -22,6 +22,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.settings.service.Settings
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,10 +48,30 @@ public class CheckoutService {
     private final PromoCodeService        promoCodeService;
     private final SettingsService         settingsService;
     private final ProductRepository       productRepository;
+    private final CacheManager            cacheManager;
 
     @Transactional
     public OrderDto checkout(User customer, String sessionId, CheckoutRequest request) {
 
+        // ── Idempotency check ─────────────────────────────────────────────────
+        // If client sends a key and we already processed it, return existing order.
+        if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+            Cache idempCache = cacheManager.getCache("checkout-idempotency");
+            if (idempCache != null) {
+                Cache.ValueWrapper cached = idempCache.get(request.getIdempotencyKey());
+                if (cached != null) {
+                    String existingReference = (String) cached.get();
+                    log.info("Idempotent checkout hit for key={} → returning order {}",
+                            request.getIdempotencyKey(), existingReference);
+                    return orderRepository.findByReference(existingReference)
+                            .map(OrderDto::new)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Idempotency cache points to missing order: " + existingReference));
+                }
+            }
+        }
+
+        // ── Cart resolution ───────────────────────────────────────────────────
         Cart cart = cartService.getOrCreateCart(customer, sessionId);
         List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
 
@@ -73,6 +95,7 @@ public class CheckoutService {
             throw new IllegalArgumentException("Cart is empty");
         }
 
+        // ── Fulfillment validation ────────────────────────────────────────────
         FulfillmentType fulfillmentType = request.getFulfillmentType() != null
                 ? request.getFulfillmentType() : FulfillmentType.ZONE_DELIVERY;
 
@@ -92,11 +115,13 @@ public class CheckoutService {
             }
         }
 
+        // ── Delivery fee ──────────────────────────────────────────────────────
         BigDecimal deliveryFee = BigDecimal.ZERO;
         if (fulfillmentType == FulfillmentType.ZONE_DELIVERY && request.getCounty() != null) {
             deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
         }
 
+        // ── Promo code ────────────────────────────────────────────────────────
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromo = null;
         if (request.getPromoCode() != null && !request.getPromoCode().isBlank()) {
@@ -112,8 +137,10 @@ public class CheckoutService {
         BigDecimal total = subtotal.add(deliveryFee).subtract(discount);
         String reference = referenceGenerator.generate();
 
+        // ── Build order ───────────────────────────────────────────────────────
         Order order = Order.builder()
                 .reference(reference)
+                .idempotencyKey(request.getIdempotencyKey())
                 .customer(customer)
                 .contactName(request.getContactName())
                 .email(request.getEmail())
@@ -137,6 +164,7 @@ public class CheckoutService {
                 .courierStageOrOffice(request.getCourierStageOrOffice())
                 .build();
 
+        // ── Resolve items ─────────────────────────────────────────────────────
         List<OrderItem> resolvedItems;
         if (!cartItems.isEmpty()) {
             resolvedItems = cartItems.stream()
@@ -205,6 +233,14 @@ public class CheckoutService {
                 .build());
 
         Order saved = orderRepository.save(order);
+
+        // ── Store idempotency key → reference ────────────────────────────────
+        if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+            Cache idempCache = cacheManager.getCache("checkout-idempotency");
+            if (idempCache != null) {
+                idempCache.put(request.getIdempotencyKey(), saved.getReference());
+            }
+        }
 
         if (!cartItems.isEmpty()) {
             cart.setStatus(CartStatus.CHECKED_OUT);

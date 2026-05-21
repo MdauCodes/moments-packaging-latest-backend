@@ -1,14 +1,12 @@
 package com.mdau.momentspackagingbackendjavafirstclient.user.dto;
 
-import com.mdau.momentspackagingbackendjavafirstclient.user.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.Set;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -24,10 +22,6 @@ public class UserCreateRequest {
     @NotBlank(message = "Last name is required")
     private String lastName;
 
-    @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters")
-    private String password;
-
-    @NotEmpty(message = "At least one role is required")
-    private Set<Role> roles;
+    @NotNull(message = "Staff role is required")
+    private UUID staffRoleId;
 }

@@ -10,9 +10,13 @@ import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,8 +29,9 @@ public class PaymentService {
     private final OrderRepository         orderRepository;
     private final PayHeroService          payHeroService;
     private final NotificationService     notificationService;
+    private final CacheManager            cacheManager;
 
-    // -- Initiate ---------------------------------------------------
+    // ── Initiate ──────────────────────────────────────────────────────────────
 
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) {
@@ -38,16 +43,51 @@ public class PaymentService {
             throw new IllegalArgumentException("Order is not in PENDING_PAYMENT status");
         }
 
-        // Cancel any previous in-flight payment records
+        // ── Payment idempotency: block duplicate STK pushes ───────────────────
+        // Check cache first (fast path — within 2 minutes of first attempt).
+        Cache paymentCache = cacheManager.getCache("payment-idempotency");
+        if (paymentCache != null) {
+            Cache.ValueWrapper cached = paymentCache.get(order.getId().toString());
+            if (cached != null) {
+                String cachedStatus = (String) cached.get();
+                log.info("Idempotent payment hit for order {} — status: {}",
+                        order.getReference(), cachedStatus);
+                // Return current payment status without initiating a new STK push
+                return buildStatusResponse(order, cachedStatus);
+            }
+        }
+
+        // Also check DB: if a PROCESSING record exists in the last 2 minutes, block.
         List<PaymentRecord> existing = paymentRecordRepository
                 .findByOrderIdOrderByCreatedAtDesc(order.getId());
+        Instant twoMinutesAgo = Instant.now().minus(2, ChronoUnit.MINUTES);
+        for (PaymentRecord prev : existing) {
+            if ((prev.getStatus() == PaymentRecordStatus.PROCESSING ||
+                 prev.getStatus() == PaymentRecordStatus.INITIATED) &&
+                prev.getCreatedAt().isAfter(twoMinutesAgo)) {
+                log.info("Blocking duplicate STK push for order {} — existing record {} still PROCESSING",
+                        order.getReference(), prev.getId());
+                if (paymentCache != null) {
+                    paymentCache.put(order.getId().toString(), "PROCESSING");
+                }
+                return PaymentInitiateResponse.builder()
+                        .orderId(order.getId())
+                        .reference(order.getReference())
+                        .status("STK_PUSH_SENT")
+                        .message("A payment prompt was already sent to your phone. Please check and enter your PIN.")
+                        .amount(order.getTotalAmount())
+                        .build();
+            }
+        }
+
+        // Cancel any older stale in-flight records
         for (PaymentRecord prev : existing) {
             if (prev.getStatus() == PaymentRecordStatus.INITIATED
                     || prev.getStatus() == PaymentRecordStatus.PROCESSING) {
                 prev.setStatus(PaymentRecordStatus.CANCELLED);
                 prev.setFailureReason("Superseded by new payment attempt");
                 paymentRecordRepository.save(prev);
-                log.info("Cancelled previous payment record {} for order {}",
+                log.info("Cancelled stale payment record {} for order {}",
                         prev.getId(), order.getReference());
             }
         }
@@ -72,6 +112,11 @@ public class PaymentService {
                 record.setStatus(PaymentRecordStatus.PROCESSING);
                 paymentRecordRepository.save(record);
 
+                // Cache the in-progress state to block duplicates for 2 minutes
+                if (paymentCache != null) {
+                    paymentCache.put(order.getId().toString(), "PROCESSING");
+                }
+
                 return PaymentInitiateResponse.builder()
                         .orderId(order.getId())
                         .reference(order.getReference())
@@ -81,14 +126,11 @@ public class PaymentService {
                         .build();
 
             } catch (PaymentGatewayException e) {
-                // Typed gateway error - record it and re-throw for GlobalExceptionHandler (502)
                 record.setStatus(PaymentRecordStatus.FAILED);
                 record.setFailureReason(e.getMessage());
                 paymentRecordRepository.save(record);
                 throw e;
-
             } catch (Exception e) {
-                // Unexpected error - record it and wrap
                 record.setStatus(PaymentRecordStatus.FAILED);
                 record.setFailureReason(e.getMessage());
                 paymentRecordRepository.save(record);
@@ -118,7 +160,7 @@ public class PaymentService {
                 .amount(order.getTotalAmount()).build();
     }
 
-    // -- Callback ---------------------------------------------------
+    // ── Callback ──────────────────────────────────────────────────────────────
 
     @Transactional
     public void handleCallback(PayHeroCallbackDto callback) {
@@ -165,6 +207,10 @@ public class PaymentService {
                     .changedBy("payhero-callback").build());
             orderRepository.save(order);
 
+            // Evict payment idempotency cache so future attempts are not blocked
+            Cache paymentCache = cacheManager.getCache("payment-idempotency");
+            if (paymentCache != null) paymentCache.evict(order.getId().toString());
+
             notificationService.onOrderPaid(order);
             log.info("Payment SUCCESS for order {}, receipt={}",
                     order.getReference(), response.getMpesaReceiptNumber());
@@ -177,13 +223,18 @@ public class PaymentService {
             Order order = record.getOrder();
             order.setPaymentStatus(PaymentStatus.FAILED);
             orderRepository.save(order);
+
+            // Evict cache on failure so customer can retry
+            Cache paymentCache = cacheManager.getCache("payment-idempotency");
+            if (paymentCache != null) paymentCache.evict(order.getId().toString());
+
             notificationService.onPaymentFailed(order, response.getResultDesc());
             log.info("Payment FAILED for order {}: {}",
                     order.getReference(), response.getResultDesc());
         }
     }
 
-    // -- Status -----------------------------------------------------
+    // ── Status ────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public PaymentStatusResponse getPaymentStatus(UUID orderId) {
@@ -217,7 +268,20 @@ public class PaymentService {
                 .build();
     }
 
-    // -- Private helpers --------------------------------------------
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private PaymentInitiateResponse buildStatusResponse(Order order, String cachedStatus) {
+        String message = "PROCESSING".equals(cachedStatus)
+                ? "A payment prompt was already sent to your phone. Please check and enter your PIN."
+                : "Payment already completed for this order.";
+        return PaymentInitiateResponse.builder()
+                .orderId(order.getId())
+                .reference(order.getReference())
+                .status("STK_PUSH_SENT")
+                .message(message)
+                .amount(order.getTotalAmount())
+                .build();
+    }
 
     private String normalizeStatus(PaymentRecordStatus status) {
         return switch (status) {

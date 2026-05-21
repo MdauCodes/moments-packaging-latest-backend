@@ -114,13 +114,14 @@ app:
 
     sales-address: pkihara2008@gmail.com
 
-    notify-addresses: pkihara2008@gmail.com,mdaucodes@gmail.com
+    notify-addresses: pkihara2008@gmail.com,mdaucodes@gmail.com,info@momentspackaging.com
     brevo-api-key: ${BREVO_API_KEY:}
     brevo-api-url: https://api.brevo.com/v3/smtp/email
     use-brevo-api: ${USE_BREVO_API:true}
   company:
     whatsapp-number: "+254733797412"
-    email: pkihara2008@gmail.com
+#    email: pkihara2008@gmail.com
+    email: info@momentspackaging.com
     phone: "+254733797412"
   features:
     blogs-enabled: true

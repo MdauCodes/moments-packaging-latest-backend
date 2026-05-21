@@ -36,6 +36,26 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("customerId") UUID customerId,
             Pageable pageable);
 
+    /**
+     * Public email-based order lookup — no auth required.
+     * Returns all orders placed with this email, newest first.
+     * Used by the track-by-email feature.
+     */
+    @Query("""
+        SELECT o FROM Order o
+        WHERE LOWER(o.email) = LOWER(:email)
+        ORDER BY o.createdAt DESC
+        """)
+    Page<Order> findByEmailIgnoreCaseOrderByCreatedAtDesc(
+            @Param("email") String email,
+            Pageable pageable);
+
+    /**
+     * Idempotency check — find existing order by idempotency key.
+     * The key is stored in the notes field prefixed with "idem:" during checkout.
+     */
+    Optional<Order> findByIdempotencyKey(String idempotencyKey);
+
     @Query("""
         SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
         WHERE o.paymentStatus = 'PAID'

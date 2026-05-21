@@ -41,6 +41,30 @@ public class CacheConfig {
                         .maximumSize(200)
                         .build());
 
+        /**
+         * Idempotency cache for checkout.
+         * Key: idempotencyKey from client (UUID).
+         * Value: order reference string.
+         * TTL: 5 minutes — wide enough to absorb double-taps and slow connections.
+         */
+        manager.registerCustomCache("checkout-idempotency",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(5000)
+                        .build());
+
+        /**
+         * Idempotency cache for payment initiation.
+         * Key: orderId string.
+         * Value: "PROCESSING" or "SUCCESS" — blocks duplicate STK pushes.
+         * TTL: 2 minutes — enough for M-Pesa STK to resolve.
+         */
+        manager.registerCustomCache("payment-idempotency",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(2, TimeUnit.MINUTES)
+                        .maximumSize(2000)
+                        .build());
+
         return manager;
     }
 }

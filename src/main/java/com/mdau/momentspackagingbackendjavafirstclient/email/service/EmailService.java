@@ -54,7 +54,78 @@ public class EmailService {
     @Value("${app.email.use-brevo-api:true}")
     private boolean useBrevoApi;
 
-    // Auth
+    // ── Staff invite & password reset ─────────────────────────────────────────
+
+    @Async
+    public void sendStaffInviteEmail(User user, String tempPassword) {
+        try {
+            String roleName = user.getStaffRole() != null
+                    ? user.getStaffRole().getDisplayName() : "Staff";
+            String body = """
+                    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+                      <h2 style="color:#1a472a">Welcome to Moments Packaging Kenya</h2>
+                      <p>Hi %s,</p>
+                      <p>You have been added to the Moments Packaging team as <strong>%s</strong>.</p>
+                      <p>Your login details:</p>
+                      <table style="border-collapse:collapse;width:100%%">
+                        <tr><td style="padding:8px;font-weight:bold">Email:</td>
+                            <td style="padding:8px;font-family:monospace">%s</td></tr>
+                        <tr style="background:#f5f5f5">
+                            <td style="padding:8px;font-weight:bold">Temporary password:</td>
+                            <td style="padding:8px;font-family:monospace;font-size:18px;color:#1a472a">
+                              <strong>%s</strong></td></tr>
+                      </table>
+                      <p style="color:#dc2626;margin-top:16px">
+                        <strong>⚠ This password expires in 48 hours.</strong>
+                        You will be prompted to change it on first login.
+                      </p>
+                      <p>If you do not log in within 48 hours, your account will be removed
+                         and you will need to be re-invited by the administrator.</p>
+                      <p style="margin-top:24px;color:#666;font-size:12px">
+                        Moments Packaging Kenya — Internal staff access only.
+                      </p>
+                    </div>
+                    """.formatted(
+                    user.getFirstName(), roleName, user.getEmail(), tempPassword);
+
+            sendHtml(user.getEmail(),
+                    "You have been invited to Moments Packaging — " + roleName, body);
+            log.info("Staff invite email sent to {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send staff invite email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    @Async
+    public void sendStaffPasswordResetEmail(User user, String tempPassword) {
+        try {
+            String body = """
+                    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+                      <h2 style="color:#1a472a">Password Reset — Moments Packaging</h2>
+                      <p>Hi %s,</p>
+                      <p>Your password has been reset by the administrator.</p>
+                      <p>Your new temporary password:</p>
+                      <p style="font-family:monospace;font-size:24px;color:#1a472a;
+                                background:#f0fdf4;padding:16px;border-radius:8px;
+                                text-align:center">
+                        <strong>%s</strong>
+                      </p>
+                      <p style="color:#dc2626">
+                        <strong>⚠ This password expires in 48 hours.</strong>
+                        You will be prompted to set a new password on login.
+                      </p>
+                    </div>
+                    """.formatted(user.getFirstName(), tempPassword);
+
+            sendHtml(user.getEmail(), "Your Moments Packaging password has been reset", body);
+            log.info("Staff password reset email sent to {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send staff password reset email to {}: {}",
+                    user.getEmail(), e.getMessage());
+        }
+    }
+
+    // ── Auth ──────────────────────────────────────────────────────────────────
 
     @Async
     public void sendOtpEmail(User user, String otp) {
@@ -64,7 +135,6 @@ public class EmailService {
             ctx.setVariable("otp", otp);
             String html = templateEngine.process("email/otp-verification", ctx);
             sendHtml(user.getEmail(), "Your Moments Packaging verification code", html);
-            log.info("OTP email sent to {}", user.getEmail());
         } catch (Exception e) {
             log.error("Failed to send OTP email to {}: {}", user.getEmail(), e.getMessage());
         }
@@ -78,9 +148,8 @@ public class EmailService {
             ctx.setVariable("otp", otp);
             String html = templateEngine.process("email/password-reset", ctx);
             sendHtml(user.getEmail(), "Your Moments Packaging password reset code", html);
-            log.info("Password reset OTP email sent to {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send password reset OTP email to {}: {}", user.getEmail(), e.getMessage());
+            log.error("Failed to send password reset OTP to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 
@@ -91,13 +160,12 @@ public class EmailService {
             ctx.setVariable("firstName", user.getFirstName());
             String html = templateEngine.process("email/welcome", ctx);
             sendHtml(user.getEmail(), "Welcome to Moments Packaging Kenya!", html);
-            log.info("Welcome email sent to {}", user.getEmail());
         } catch (Exception e) {
             log.error("Failed to send welcome email to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 
-    // Enquiry
+    // ── Enquiry ───────────────────────────────────────────────────────────────
 
     @Async
     public void sendEnterpriseQuoteToSales(Enquiry enquiry) {
@@ -116,11 +184,11 @@ public class EmailService {
                     enquiry.getCompany() != null ? enquiry.getCompany() : "-",
                     enquiry.getMessage() != null ? enquiry.getMessage() : "-");
             for (String addr : notifyAddresses.split(",")) {
-                String trimmed = addr.trim();
-                if (!trimmed.isBlank()) sendHtml(trimmed, subject, body);
+                String t = addr.trim();
+                if (!t.isBlank()) sendHtml(t, subject, body);
             }
         } catch (Exception e) {
-            log.error("Failed to send enquiry notification email: {}", e.getMessage());
+            log.error("Failed to send enquiry notification: {}", e.getMessage());
         }
     }
 
@@ -130,14 +198,14 @@ public class EmailService {
             Context ctx = new Context(Locale.ENGLISH);
             ctx.setVariable("name", enquiry.getContactName());
             String html = templateEngine.process("email/enquiry-received", ctx);
-            sendHtml(enquiry.getEmail(), "We received your enquiry - Moments Packaging Kenya", html);
-            log.info("Enquiry acknowledgement sent to {}", enquiry.getEmail());
+            sendHtml(enquiry.getEmail(),
+                    "We received your enquiry - Moments Packaging Kenya", html);
         } catch (Exception e) {
-            log.error("Failed to send enquiry acknowledgement to {}: {}", enquiry.getEmail(), e.getMessage());
+            log.error("Failed to send enquiry acknowledgement: {}", e.getMessage());
         }
     }
 
-    // Lead digest
+    // ── Lead digest ───────────────────────────────────────────────────────────
 
     @Async
     public void sendLeadDigest(List<Lead> leads, String digestPeriod) {
@@ -148,15 +216,16 @@ public class EmailService {
             ctx.setVariable("count", leads.size());
             String html = templateEngine.process("email/lead-digest", ctx);
             for (String addr : notifyAddresses.split(",")) {
-                String trimmed = addr.trim();
-                if (!trimmed.isBlank()) sendHtml(trimmed, "Lead Digest - " + digestPeriod + " (" + leads.size() + " new)", html);
+                String t = addr.trim();
+                if (!t.isBlank()) sendHtml(t,
+                        "Lead Digest - " + digestPeriod + " (" + leads.size() + " new)", html);
             }
         } catch (Exception e) {
-            log.error("Failed to send lead digest email: {}", e.getMessage());
+            log.error("Failed to send lead digest: {}", e.getMessage());
         }
     }
 
-    // Low stock alert
+    // ── Low stock ─────────────────────────────────────────────────────────────
 
     @Async
     public void sendLowStockAlert(List<Product> products) {
@@ -168,121 +237,59 @@ public class EmailService {
                         .append("<td>").append(p.getLowStockThreshold()).append("</td></tr>");
             }
             String body = """
-                    <h2>Low Stock Alert - Moments Packaging</h2>
-                    <p>The following products are running low on stock:</p>
-                    <table border="1" cellpadding="8" cellspacing="0"
-                           style="border-collapse:collapse;width:100%%">
+                    <h2>Low Stock Alert</h2>
+                    <table border="1" cellpadding="8" style="border-collapse:collapse">
                       <tr style="background:#2d5016;color:#fff">
-                        <th>Product</th><th>Stock</th><th>Threshold</th>
-                      </tr>
+                        <th>Product</th><th>Stock</th><th>Threshold</th></tr>
                       %s
                     </table>
-                    <p>Please restock soon.</p>
                     """.formatted(rows.toString());
             for (String addr : notifyAddresses.split(",")) {
-                String trimmed = addr.trim();
-                if (!trimmed.isBlank()) sendHtml(trimmed, "Low Stock Alert - " + products.size() + " product(s)", body);
+                String t = addr.trim();
+                if (!t.isBlank()) sendHtml(t,
+                        "Low Stock Alert - " + products.size() + " product(s)", body);
             }
-            log.info("Low stock alert sent for {} products", products.size());
         } catch (Exception e) {
             log.error("Failed to send low stock alert: {}", e.getMessage());
         }
     }
 
-    // Order notifications
+    // ── Order notifications ───────────────────────────────────────────────────
 
-    @Async
-    public void sendOrderConfirmedEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            String html = templateEngine.process("email/order-confirmed", ctx);
-            sendHtml(order.getEmail(), "Order Confirmed - " + order.getReference(), html);
-            log.info("Order confirmed email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order confirmed email: {}", e.getMessage());
-        }
+    @Async public void sendOrderConfirmedEmail(Order order) {
+        sendOrderEmail(order, "email/order-confirmed",
+                "Order Confirmed - " + order.getReference());
     }
 
-    @Async
-    public void sendOrderPaidEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            ctx.setVariable("receiptNumber", null);
-            String html = templateEngine.process("email/order-paid", ctx);
-            sendHtml(order.getEmail(), "Payment Received - " + order.getReference(), html);
-            log.info("Order paid email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order paid email: {}", e.getMessage());
-        }
+    @Async public void sendOrderPaidEmail(Order order) {
+        sendOrderEmail(order, "email/order-paid",
+                "Payment Received - " + order.getReference());
     }
 
-    @Async
-    public void sendOrderInProductionEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            String html = templateEngine.process("email/order-in-production", ctx);
-            sendHtml(order.getEmail(), "Your Order is In Production - " + order.getReference(), html);
-            log.info("Order in production email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order in production email: {}", e.getMessage());
-        }
+    @Async public void sendOrderInProductionEmail(Order order) {
+        sendOrderEmail(order, "email/order-in-production",
+                "Your Order is In Production - " + order.getReference());
     }
 
-    @Async
-    public void sendOrderDispatchedEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            String html = templateEngine.process("email/order-dispatched", ctx);
-            sendHtml(order.getEmail(), "Your Order is On Its Way - " + order.getReference(), html);
-            log.info("Order dispatched email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order dispatched email: {}", e.getMessage());
-        }
+    @Async public void sendOrderDispatchedEmail(Order order) {
+        sendOrderEmail(order, "email/order-dispatched",
+                "Your Order is On Its Way - " + order.getReference());
     }
 
-    @Async
-    public void sendOrderDeliveredEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            String html = templateEngine.process("email/order-delivered", ctx);
-            sendHtml(order.getEmail(), "Order Delivered - " + order.getReference(), html);
-            log.info("Order delivered email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order delivered email: {}", e.getMessage());
-        }
+    @Async public void sendOrderDeliveredEmail(Order order) {
+        sendOrderEmail(order, "email/order-delivered",
+                "Order Delivered - " + order.getReference());
     }
 
-    @Async
-    public void sendOrderReadyForDispatchEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            String html = templateEngine.process("email/order-ready-for-dispatch", ctx);
-            sendHtml(order.getEmail(), "Your Order is Ready for Dispatch - " + order.getReference(), html);
-            log.info("Order ready for dispatch email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order ready for dispatch email: {}", e.getMessage());
-        }
+    @Async public void sendOrderReadyForDispatchEmail(Order order) {
+        sendOrderEmail(order, "email/order-ready-for-dispatch",
+                "Your Order is Ready for Dispatch - " + order.getReference());
     }
 
-    @Async
-    public void sendOrderCancelledEmail(Order order) {
-        try {
-            Context ctx = new Context(Locale.ENGLISH);
-            ctx.setVariable("order", order);
-            String html = templateEngine.process("email/order-cancelled", ctx);
-            sendHtml(order.getEmail(), "Order Cancelled - " + order.getReference(), html);
-            log.info("Order cancelled email sent for {}", order.getReference());
-        } catch (Exception e) {
-            log.error("Failed to send order cancelled email: {}", e.getMessage());
-        }
+    @Async public void sendOrderCancelledEmail(Order order) {
+        sendOrderEmail(order, "email/order-cancelled",
+                "Order Cancelled - " + order.getReference());
     }
-
 
     @Async
     public void sendPaymentFailedEmail(Order order, String failureReason) {
@@ -291,14 +298,28 @@ public class EmailService {
             ctx.setVariable("order", order);
             ctx.setVariable("failureReason", failureReason);
             String html = templateEngine.process("email/payment-failed", ctx);
-            sendHtml(order.getEmail(), "Payment unsuccessful - " + order.getReference(), html);
-            log.info("Payment failed email sent for {}", order.getReference());
+            sendHtml(order.getEmail(),
+                    "Payment unsuccessful - " + order.getReference(), html);
         } catch (Exception e) {
-            log.error("Failed to send payment failed email for {}: {}", order.getReference(), e.getMessage());
+            log.error("Failed to send payment failed email for {}: {}",
+                    order.getReference(), e.getMessage());
         }
     }
 
-    // Core sender - Brevo API primary, SMTP fallback
+    private void sendOrderEmail(Order order, String template, String subject) {
+        try {
+            Context ctx = new Context(Locale.ENGLISH);
+            ctx.setVariable("order", order);
+            String html = templateEngine.process(template, ctx);
+            sendHtml(order.getEmail(), subject, html);
+            log.info("Order email [{}] sent for {}", template, order.getReference());
+        } catch (Exception e) {
+            log.error("Failed to send order email [{}] for {}: {}",
+                    template, order.getReference(), e.getMessage());
+        }
+    }
+
+    // ── Core sender ───────────────────────────────────────────────────────────
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
         if (useBrevoApi && brevoApiKey != null && !brevoApiKey.isBlank()) {
@@ -318,28 +339,22 @@ public class EmailService {
         Map<String, Object> sender = new HashMap<>();
         sender.put("name", fromName);
         sender.put("email", fromAddress);
-
         Map<String, Object> recipient = new HashMap<>();
         recipient.put("email", to);
-
         Map<String, Object> payload = new HashMap<>();
         payload.put("sender", sender);
         payload.put("to", List.of(recipient));
         payload.put("subject", subject);
         payload.put("htmlContent", htmlBody);
-
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("api-key", brevoApiKey);
-
         String json = objectMapper.writeValueAsString(payload);
         HttpEntity<String> entity = new HttpEntity<>(json, headers);
-
         RestTemplate restTemplate = new RestTemplate();
         ResponseEntity<String> response = restTemplate.postForEntity(brevoApiUrl, entity, String.class);
-
         if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("Brevo API error " + response.getStatusCode() + ": " + response.getBody());
+            throw new RuntimeException("Brevo API error " + response.getStatusCode());
         }
     }
 

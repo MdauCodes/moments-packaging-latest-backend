@@ -1,7 +1,9 @@
 package com.mdau.momentspackagingbackendjavafirstclient.user.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.Role;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.StaffRole;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
+import com.mdau.momentspackagingbackendjavafirstclient.user.repository.StaffRoleRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,12 +19,13 @@ import java.util.Set;
 
 @Slf4j
 @Component
-@Order(1)
+@Order(2) // runs after StaffRoleSeeder (order 1)
 @RequiredArgsConstructor
 public class AdminSeeder implements ApplicationRunner {
 
-    private final UserRepository  userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final UserRepository      userRepository;
+    private final StaffRoleRepository roleRepository;
+    private final PasswordEncoder     passwordEncoder;
 
     @Value("${app.admin.superadmin-password}")
     private String superadminPassword;
@@ -33,13 +36,25 @@ public class AdminSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        seedAdmin("pkihara2008@gmail.com", "Peter",  "Kihara",    superadminPassword);
-        seedAdmin("mdaucodes@gmail.com",   "Mdau",   "Developer", devAdminPassword);
+        StaffRole superAdminRole = roleRepository
+                .findByNameAndDeletedFalse("SUPER_ADMIN").orElse(null);
+
+        seedAdmin("pkihara2008@gmail.com", "Peter",  "Kihara",    superadminPassword, superAdminRole);
+        seedAdmin("mdaucodes@gmail.com",   "Mdau",   "Developer", devAdminPassword,   superAdminRole);
     }
 
-    private void seedAdmin(String email, String firstName, String lastName, String rawPassword) {
+    private void seedAdmin(String email, String firstName, String lastName,
+                           String rawPassword, StaffRole role) {
         if (userRepository.existsByEmail(email)) {
-            log.info("Admin account already exists, skipping: {}", email);
+            // Ensure existing admin has staffRole set
+            userRepository.findByEmail(email).ifPresent(u -> {
+                if (u.getStaffRole() == null && role != null) {
+                    u.setStaffRole(role);
+                    u.setIsStaff(true);
+                    userRepository.save(u);
+                    log.info("Updated staffRole for existing admin: {}", email);
+                }
+            });
             return;
         }
         if (rawPassword == null || rawPassword.isBlank()) {
@@ -52,9 +67,13 @@ public class AdminSeeder implements ApplicationRunner {
                 .lastName(lastName)
                 .password(passwordEncoder.encode(rawPassword))
                 .enabled(true)
-                .roles(Set.of(Role.ROLE_ADMIN, Role.ROLE_STAFF))
+                .isStaff(true)
+                .staffRole(role)
+                .mustChangePassword(false)
+                .roles(Set.of(Role.ROLE_ADMIN))
+                .deleted(false)
                 .build();
         userRepository.save(admin);
-        log.info("Seeded admin account: {}", email);
+        log.info("Seeded super admin account: {}", email);
     }
 }
