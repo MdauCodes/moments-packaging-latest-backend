@@ -55,6 +55,8 @@ public class SecurityConfig {
                     "/api/v1/cart/**",
                     "/api/v1/checkout",
                     "/api/v1/orders/track/**",
+                    "/api/v1/auth/staff/forgot-password",
+                    "/api/v1/auth/staff/reset-password",
                     "/api/v1/payments/payhero/callback",
                     "/api/v1/payments/status/**",
                     "/api/v1/payments/initiate",
