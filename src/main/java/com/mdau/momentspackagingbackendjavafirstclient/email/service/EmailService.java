@@ -319,6 +319,32 @@ public class EmailService {
         }
     }
 
+    
+    @Async
+    public void sendStaffPasswordResetTokenEmail(User user, String token) {
+        try {
+            String resetUrl = "https://preview--moments-connect-hub.lovable.app/admin/reset-password?token=" + token;
+            String body = """
+                    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+                      <h2 style="color:#1a472a">Password Reset — Moments Packaging</h2>
+                      <p>Hi %s,</p>
+                      <p>Click the button below to reset your password. This link expires in <strong>1 hour</strong>.</p>
+                      <div style="text-align:center;margin:32px 0">
+                        <a href="%s" style="background:#1a472a;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
+                          Reset my password
+                        </a>
+                      </div>
+                      <p style="font-size:12px;color:#666">Or copy this link: %s</p>
+                      <p style="color:#dc2626;font-size:12px">If you did not request this, ignore this email.</p>
+                    </div>
+                    """.formatted(user.getFirstName(), resetUrl, resetUrl);
+            sendHtml(user.getEmail(), "Reset your Moments Packaging password", body);
+            log.info("Password reset token email sent to {}", user.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send password reset token email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
     // ── Core sender ───────────────────────────────────────────────────────────
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
