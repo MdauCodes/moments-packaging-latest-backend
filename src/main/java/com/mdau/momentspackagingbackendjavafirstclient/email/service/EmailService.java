@@ -321,27 +321,27 @@ public class EmailService {
 
     
     @Async
-    public void sendStaffPasswordResetTokenEmail(User user, String token) {
+    public void sendStaffPasswordResetOtpEmail(User user, String otp) {
         try {
-            String resetUrl = "https://preview--moments-connect-hub.lovable.app/admin/reset-password?token=" + token;
             String body = """
                     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
                       <h2 style="color:#1a472a">Password Reset — Moments Packaging</h2>
                       <p>Hi %s,</p>
-                      <p>Click the button below to reset your password. This link expires in <strong>1 hour</strong>.</p>
+                      <p>Use the 6-digit code below to reset your password.
+                         It expires in <strong>15 minutes</strong>.</p>
                       <div style="text-align:center;margin:32px 0">
-                        <a href="%s" style="background:#1a472a;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">
-                          Reset my password
-                        </a>
+                        <p style="font-size:40px;font-weight:bold;letter-spacing:10px;color:#1a472a;
+                                  background:#f0fdf4;padding:20px;border-radius:8px">%s</p>
                       </div>
-                      <p style="font-size:12px;color:#666">Or copy this link: %s</p>
-                      <p style="color:#dc2626;font-size:12px">If you did not request this, ignore this email.</p>
+                      <p style="color:#dc2626;font-size:12px">
+                        If you did not request this, ignore this email — your password will not change.
+                      </p>
                     </div>
-                    """.formatted(user.getFirstName(), resetUrl, resetUrl);
+                    """.formatted(user.getFirstName(), otp);
             sendHtml(user.getEmail(), "Reset your Moments Packaging password", body);
-            log.info("Password reset token email sent to {}", user.getEmail());
+            log.info("Password reset OTP email sent to {}", user.getEmail());
         } catch (Exception e) {
-            log.error("Failed to send password reset token email to {}: {}", user.getEmail(), e.getMessage());
+            log.error("Failed to send password reset OTP email to {}: {}", user.getEmail(), e.getMessage());
         }
     }
 

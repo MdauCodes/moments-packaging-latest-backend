@@ -15,21 +15,12 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Handles staff-specific auth actions:
- * - PATCH /api/v1/auth/change-password  (authenticated — first-login forced change)
- * - POST  /api/v1/auth/staff/forgot-password  (public — staff forgot password)
- * - POST  /api/v1/auth/staff/reset-password   (public — staff reset with token)
- *
- * Note: customer forgot/reset password uses OTP via PublicCustomerAuthController.
- * Staff use a token-link flow via email instead.
- */
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/api/v1/auth/staff")
 @RequiredArgsConstructor
 public class StaffPasswordResetController {
 
@@ -38,65 +29,65 @@ public class StaffPasswordResetController {
     private final EmailService    emailService;
     private final RateLimitConfig rateLimitConfig;
 
-    // In-memory token store: token -> {email, expiry}
+    // token store: 6-digit code -> {email, expiry}
     private final Map<String, TokenEntry> tokenStore = new ConcurrentHashMap<>();
-
     record TokenEntry(String email, Instant expiry) {}
 
     /**
      * POST /api/v1/auth/staff/forgot-password
      * Body: { "email": "staff@example.com" }
-     * Always returns 200 regardless of whether email exists.
+     * Sends a 6-digit OTP to the staff email. Always returns 200.
      */
-    @PostMapping("/staff/forgot-password")
+    @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> staffForgotPassword(
             @RequestBody Map<String, String> body,
             HttpServletRequest request) {
 
         rateLimitConfig.checkLogin(request);
-
         String email = body.getOrDefault("email", "").trim().toLowerCase();
 
         userRepository.findByEmailAndDeletedFalse(email).ifPresent(user -> {
             if (!Boolean.TRUE.equals(user.getIsStaff())) return;
 
-            String token = UUID.randomUUID().toString().replace("-", "");
-            Instant expiry = Instant.now().plus(1, ChronoUnit.HOURS);
-            tokenStore.put(token, new TokenEntry(email, expiry));
+            // Generate 6-digit OTP
+            String otp = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+            Instant expiry = Instant.now().plus(15, ChronoUnit.MINUTES);
+            tokenStore.put(otp, new TokenEntry(email, expiry));
+            // Clean expired tokens
             tokenStore.entrySet().removeIf(e -> e.getValue().expiry().isBefore(Instant.now()));
 
-            emailService.sendStaffPasswordResetTokenEmail(user, token);
-            log.info("Password reset token sent to staff: {}", email);
+            emailService.sendStaffPasswordResetOtpEmail(user, otp);
+            log.info("Password reset OTP sent to staff: {}", email);
         });
 
         return ResponseEntity.ok(Map.of(
-            "message", "If that email belongs to a staff account, a reset link has been sent."));
+            "message", "If that email belongs to a staff account, a reset code has been sent."));
     }
 
     /**
      * POST /api/v1/auth/staff/reset-password
-     * Body: { "token": "abc123...", "newPassword": "NewPass123!" }
+     * Body: { "otp": "123456", "newPassword": "NewPass123!" }
      */
-    @PostMapping("/staff/reset-password")
+    @PostMapping("/reset-password")
     public ResponseEntity<Map<String, String>> staffResetPassword(
             @RequestBody Map<String, String> body) {
 
-        String token       = body.getOrDefault("token", "").trim();
+        String otp         = body.getOrDefault("otp", "").trim();
         String newPassword = body.getOrDefault("newPassword", "").trim();
 
-        if (token.isBlank() || newPassword.isBlank()) {
+        if (otp.isBlank() || newPassword.isBlank()) {
             return ResponseEntity.badRequest()
-                .body(Map.of("error", "Token and new password are required."));
+                .body(Map.of("error", "OTP and new password are required."));
         }
         if (newPassword.length() < 8) {
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Password must be at least 8 characters."));
         }
 
-        TokenEntry entry = tokenStore.get(token);
+        TokenEntry entry = tokenStore.get(otp);
         if (entry == null || entry.expiry().isBefore(Instant.now())) {
             return ResponseEntity.badRequest()
-                .body(Map.of("error", "Reset token is invalid or has expired."));
+                .body(Map.of("error", "Reset code is invalid or has expired."));
         }
 
         userRepository.findByEmailAndDeletedFalse(entry.email()).ifPresent(user -> {
@@ -104,7 +95,7 @@ public class StaffPasswordResetController {
             user.setMustChangePassword(false);
             user.setTempPasswordExpiresAt(null);
             userRepository.save(user);
-            tokenStore.remove(token);
+            tokenStore.remove(otp);
             log.info("Password reset completed for: {}", entry.email());
         });
 
