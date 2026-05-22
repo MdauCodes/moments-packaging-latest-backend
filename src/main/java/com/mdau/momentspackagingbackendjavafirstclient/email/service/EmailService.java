@@ -308,6 +308,10 @@ public class EmailService {
 
     private void sendOrderEmail(Order order, String template, String subject) {
         try {
+            // Eagerly initialize lazy collections before Thymeleaf accesses them
+            if (order.getItems() != null) {
+                org.hibernate.Hibernate.initialize(order.getItems());
+            }
             Context ctx = new Context(Locale.ENGLISH);
             ctx.setVariable("order", order);
             String html = templateEngine.process(template, ctx);

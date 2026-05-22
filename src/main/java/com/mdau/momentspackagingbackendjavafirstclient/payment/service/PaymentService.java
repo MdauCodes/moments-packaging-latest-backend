@@ -211,6 +211,11 @@ public class PaymentService {
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
+            // Force-initialize lazy collections within this transaction
+            // so @Async email threads can access them after session closes
+            if (order.getItems() != null) order.getItems().size();
+            if (order.getStatusHistory() != null) order.getStatusHistory().size();
+
             notificationService.onOrderPaid(order);
             log.info("Payment SUCCESS for order {}, receipt={}",
                     order.getReference(), response.getMpesaReceiptNumber());
@@ -228,6 +233,7 @@ public class PaymentService {
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
+            if (order.getItems() != null) order.getItems().size();
             notificationService.onPaymentFailed(order, response.getResultDesc());
             log.info("Payment FAILED for order {}: {}",
                     order.getReference(), response.getResultDesc());
