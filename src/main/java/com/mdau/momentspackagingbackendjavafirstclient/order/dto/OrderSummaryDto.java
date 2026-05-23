@@ -69,10 +69,10 @@ public class OrderSummaryDto {
                 ? order.getCourierType().name() : null;
         this.courierServiceName   = order.getCourierServiceName();
         this.courierStageOrOffice = order.getCourierStageOrOffice();
-        this.items                = order.getItems().stream()
-                .map(OrderItemDto::new).collect(Collectors.toList());
-        this.statusHistory        = order.getStatusHistory().stream()
-                .map(OrderStatusHistoryDto::new).collect(Collectors.toList());
+        // Items and status history are not loaded here (lazy) —
+        // the frontend fetches full detail via /orders/track/{reference}
+        this.items         = List.of();
+        this.statusHistory = List.of();
         this.createdAt            = order.getCreatedAt();
         this.updatedAt            = order.getUpdatedAt();
     }
