@@ -41,10 +41,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      * Returns all orders placed with this email, newest first.
      * Used by the track-by-email feature.
      */
-    @Query("""
-        SELECT o FROM Order o
+    @Query(value = """
+        SELECT DISTINCT o FROM Order o
+        LEFT JOIN FETCH o.items
+        LEFT JOIN FETCH o.statusHistory
         WHERE LOWER(o.email) = LOWER(:email)
         ORDER BY o.createdAt DESC
+        """,
+        countQuery = """
+        SELECT COUNT(o) FROM Order o
+        WHERE LOWER(o.email) = LOWER(:email)
         """)
     Page<Order> findByEmailIgnoreCaseOrderByCreatedAtDesc(
             @Param("email") String email,
