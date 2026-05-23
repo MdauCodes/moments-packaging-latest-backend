@@ -224,7 +224,9 @@ public class CheckoutService {
                     .collect(Collectors.toList());
         }
 
+        resolvedItems.forEach(item -> item.setOrder(order));
         order.getItems().addAll(resolvedItems);
+        log.info("Saving order {} with {} items", reference, order.getItems().size());
         order.getStatusHistory().add(OrderStatusHistory.builder()
                 .order(order)
                 .toStatus(OrderStatus.PENDING_PAYMENT)
