@@ -31,6 +31,7 @@ public class OrderService {
 
     private final OrderRepository              orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
+    private final OrderReader                  orderReader;
     private final CartService                  cartService;
     private final CartRepository               cartRepository;
     private final CartItemRepository           cartItemRepository;
@@ -57,7 +58,6 @@ public class OrderService {
     public OrderTrackingDto getTrackingInfo(String reference) {
         Order order = orderRepository.findByReference(reference)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + reference));
-
         return new OrderTrackingDto(
                 order.getId(),
                 order.getReference(),
@@ -107,11 +107,8 @@ public class OrderService {
 
         order.setStatus(newStatus);
         if (staffNotes != null) order.setStaffNotes(staffNotes);
-
-        // Save order first — no collection mutation
         orderRepository.save(order);
 
-        // Save history entry independently to avoid Hibernate queued-ops conflict
         historyRepository.save(OrderStatusHistory.builder()
                 .order(order)
                 .fromStatus(oldStatus)
@@ -120,21 +117,20 @@ public class OrderService {
                 .changedBy(changedBy)
                 .build());
 
-        // Flush and reload clean so collections are fully initialised for DTO + notification
-        orderRepository.flush();
-        Order saved = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        // Transaction commits here — orderReader.loadFresh opens a new transaction
+        // so the entity is loaded from DB, not L1 cache, with all collections initialized
+        Order fresh = orderReader.loadFresh(id);
 
         switch (newStatus) {
-            case IN_PRODUCTION      -> notificationService.onOrderInProduction(saved);
-            case READY_FOR_DISPATCH -> notificationService.onOrderReadyForDispatch(saved);
-            case DISPATCHED         -> notificationService.onOrderDispatched(saved);
-            case DELIVERED          -> notificationService.onOrderDelivered(saved);
-            case CANCELLED          -> notificationService.onOrderCancelled(saved);
+            case IN_PRODUCTION      -> notificationService.onOrderInProduction(fresh);
+            case READY_FOR_DISPATCH -> notificationService.onOrderReadyForDispatch(fresh);
+            case DISPATCHED         -> notificationService.onOrderDispatched(fresh);
+            case DELIVERED          -> notificationService.onOrderDelivered(fresh);
+            case CANCELLED          -> notificationService.onOrderCancelled(fresh);
             default -> {}
         }
 
-        return new OrderDto(saved);
+        return new OrderDto(fresh);
     }
 
     @Transactional
@@ -146,7 +142,6 @@ public class OrderService {
         order.setStatus(OrderStatus.REFUNDED);
         order.setPaymentStatus(PaymentStatus.REFUNDED);
         order.setStaffNotes(reason);
-
         orderRepository.save(order);
 
         historyRepository.save(OrderStatusHistory.builder()
@@ -166,12 +161,9 @@ public class OrderService {
             paymentRecordRepository.save(latest);
         }
 
-        orderRepository.flush();
-        Order saved = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-
-        notificationService.onOrderCancelled(saved);
-        return new OrderDto(saved);
+        Order fresh = orderReader.loadFresh(id);
+        notificationService.onOrderCancelled(fresh);
+        return new OrderDto(fresh);
     }
 
     @Transactional
@@ -192,7 +184,6 @@ public class OrderService {
         OrderStatus old = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
         if (old == OrderStatus.PAID) order.setPaymentStatus(PaymentStatus.REFUNDED);
-
         orderRepository.save(order);
 
         historyRepository.save(OrderStatusHistory.builder()
@@ -203,12 +194,9 @@ public class OrderService {
                 .changedBy(customer.getEmail())
                 .build());
 
-        orderRepository.flush();
-        Order saved = orderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-
-        notificationService.onOrderCancelled(saved);
-        return new OrderDto(saved);
+        Order fresh = orderReader.loadFresh(id);
+        notificationService.onOrderCancelled(fresh);
+        return new OrderDto(fresh);
     }
 
     @Transactional
@@ -216,7 +204,8 @@ public class OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
         order.setAssignedTo(assignedTo);
-        return new OrderDto(orderRepository.save(order));
+        orderRepository.save(order);
+        return orderReader.loadFreshDto(id);
     }
 
     @Transactional
