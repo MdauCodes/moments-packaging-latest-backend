@@ -308,9 +308,16 @@ public class EmailService {
 
     private void sendOrderEmail(Order order, String template, String subject) {
         try {
-            // Eagerly initialize lazy collections before Thymeleaf accesses them
+            // Eagerly initialize ALL lazy collections before Thymeleaf accesses them
+            // Must be done here — async thread has no active Hibernate session
             if (order.getItems() != null) {
                 org.hibernate.Hibernate.initialize(order.getItems());
+            }
+            if (order.getStatusHistory() != null) {
+                org.hibernate.Hibernate.initialize(order.getStatusHistory());
+            }
+            if (order.getCustomer() != null) {
+                org.hibernate.Hibernate.initialize(order.getCustomer());
             }
             Context ctx = new Context(Locale.ENGLISH);
             ctx.setVariable("order", order);
