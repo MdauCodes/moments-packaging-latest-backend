@@ -20,10 +20,11 @@ public class Enquiry extends BaseEntity {
     @Column(length = 50)
     private String persona;
 
-    @Column(nullable = false, length = 255)
+    // Explicit varchar so Hibernate does not create/leave these as bytea
+    @Column(nullable = false, columnDefinition = "varchar(255)")
     private String contactName;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false, columnDefinition = "varchar(255)")
     private String email;
 
     @Column(length = 30)

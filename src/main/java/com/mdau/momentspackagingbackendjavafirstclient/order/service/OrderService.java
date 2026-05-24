@@ -37,6 +37,8 @@ public class OrderService {
     private final NotificationService          notificationService;
     private final PaymentRecordRepository      paymentRecordRepository;
 
+    // ── Queries ───────────────────────────────────────────────────────────────
+
     @Transactional(readOnly = true)
     public OrderDto getByReference(String reference) {
         return orderRepository.findByReference(reference)
@@ -76,6 +78,7 @@ public class OrderService {
                 order.getDeliveryFee(),
                 order.getFulfillmentType() != null ? order.getFulfillmentType().name() : null);
     }
+
     @Transactional(readOnly = true)
     public PageResponse<OrderDto> getMyOrders(User customer, Pageable pageable) {
         return new PageResponse<>(
@@ -91,6 +94,8 @@ public class OrderService {
                         .map(OrderDto::new));
     }
 
+    // ── Commands ──────────────────────────────────────────────────────────────
+
     @Transactional
     public OrderDto updateStatus(UUID id, String newStatusStr,
                                  String staffNotes, String changedBy) {
@@ -103,18 +108,29 @@ public class OrderService {
         order.setStatus(newStatus);
         if (staffNotes != null) order.setStaffNotes(staffNotes);
 
-        order.getStatusHistory().add(OrderStatusHistory.builder()
-                .order(order).fromStatus(oldStatus).toStatus(newStatus)
-                .note(staffNotes).changedBy(changedBy).build());
+        // Save order first — no collection mutation
+        orderRepository.save(order);
 
-        Order saved = orderRepository.save(order);
+        // Save history entry independently to avoid Hibernate queued-ops conflict
+        historyRepository.save(OrderStatusHistory.builder()
+                .order(order)
+                .fromStatus(oldStatus)
+                .toStatus(newStatus)
+                .note(staffNotes)
+                .changedBy(changedBy)
+                .build());
+
+        // Flush and reload clean so collections are fully initialised for DTO + notification
+        orderRepository.flush();
+        Order saved = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
         switch (newStatus) {
-            case IN_PRODUCTION     -> notificationService.onOrderInProduction(saved);
+            case IN_PRODUCTION      -> notificationService.onOrderInProduction(saved);
             case READY_FOR_DISPATCH -> notificationService.onOrderReadyForDispatch(saved);
-            case DISPATCHED        -> notificationService.onOrderDispatched(saved);
-            case DELIVERED         -> notificationService.onOrderDelivered(saved);
-            case CANCELLED         -> notificationService.onOrderCancelled(saved);
+            case DISPATCHED         -> notificationService.onOrderDispatched(saved);
+            case DELIVERED          -> notificationService.onOrderDelivered(saved);
+            case CANCELLED          -> notificationService.onOrderCancelled(saved);
             default -> {}
         }
 
@@ -131,9 +147,15 @@ public class OrderService {
         order.setPaymentStatus(PaymentStatus.REFUNDED);
         order.setStaffNotes(reason);
 
-        order.getStatusHistory().add(OrderStatusHistory.builder()
-                .order(order).fromStatus(old).toStatus(OrderStatus.REFUNDED)
-                .note(reason).changedBy(changedBy).build());
+        orderRepository.save(order);
+
+        historyRepository.save(OrderStatusHistory.builder()
+                .order(order)
+                .fromStatus(old)
+                .toStatus(OrderStatus.REFUNDED)
+                .note(reason)
+                .changedBy(changedBy)
+                .build());
 
         List<PaymentRecord> records = paymentRecordRepository
                 .findByOrderIdOrderByCreatedAtDesc(id);
@@ -144,7 +166,10 @@ public class OrderService {
             paymentRecordRepository.save(latest);
         }
 
-        Order saved = orderRepository.save(order);
+        orderRepository.flush();
+        Order saved = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
         notificationService.onOrderCancelled(saved);
         return new OrderDto(saved);
     }
@@ -168,11 +193,20 @@ public class OrderService {
         order.setStatus(OrderStatus.CANCELLED);
         if (old == OrderStatus.PAID) order.setPaymentStatus(PaymentStatus.REFUNDED);
 
-        order.getStatusHistory().add(OrderStatusHistory.builder()
-                .order(order).fromStatus(old).toStatus(OrderStatus.CANCELLED)
-                .note("Cancelled by customer").changedBy(customer.getEmail()).build());
+        orderRepository.save(order);
 
-        Order saved = orderRepository.save(order);
+        historyRepository.save(OrderStatusHistory.builder()
+                .order(order)
+                .fromStatus(old)
+                .toStatus(OrderStatus.CANCELLED)
+                .note("Cancelled by customer")
+                .changedBy(customer.getEmail())
+                .build());
+
+        orderRepository.flush();
+        Order saved = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
         notificationService.onOrderCancelled(saved);
         return new OrderDto(saved);
     }
@@ -204,6 +238,8 @@ public class OrderService {
         return cartService.getCart(customer, null);
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) return "***";
         String[] parts  = email.split("@");
@@ -212,4 +248,3 @@ public class OrderService {
         return visible + "***@" + parts[1];
     }
 }
-
