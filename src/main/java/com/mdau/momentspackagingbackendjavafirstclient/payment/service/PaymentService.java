@@ -5,6 +5,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.exception.Resource
 import com.mdau.momentspackagingbackendjavafirstclient.notification.service.NotificationService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderStatusHistoryRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.order.service.OrderReader;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
@@ -25,11 +27,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentService {
 
-    private final PaymentRecordRepository paymentRecordRepository;
-    private final OrderRepository         orderRepository;
-    private final PayHeroService          payHeroService;
-    private final NotificationService     notificationService;
-    private final CacheManager            cacheManager;
+    private final PaymentRecordRepository    paymentRecordRepository;
+    private final OrderRepository             orderRepository;
+    private final OrderStatusHistoryRepository historyRepository;
+    private final PayHeroService              payHeroService;
+    private final NotificationService         notificationService;
+    private final OrderReader                 orderReader;
+    private final CacheManager                cacheManager;
 
     // ── Initiate ──────────────────────────────────────────────────────────────
 
@@ -200,23 +204,21 @@ public class PaymentService {
             Order order = record.getOrder();
             order.setPaymentStatus(PaymentStatus.PAID);
             order.setStatus(OrderStatus.PAID);
-            order.getStatusHistory().add(OrderStatusHistory.builder()
+            orderRepository.save(order);
+
+            historyRepository.save(OrderStatusHistory.builder()
                     .order(order).fromStatus(OrderStatus.PENDING_PAYMENT)
                     .toStatus(OrderStatus.PAID)
                     .note("Payment received. Receipt: " + response.getMpesaReceiptNumber())
                     .changedBy("payhero-callback").build());
-            orderRepository.save(order);
 
             // Evict payment idempotency cache so future attempts are not blocked
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
-            // Force-initialize lazy collections within this transaction
-            // so @Async email threads can access them after session closes
-            if (order.getItems() != null) order.getItems().size();
-            if (order.getStatusHistory() != null) order.getStatusHistory().size();
-
-            notificationService.onOrderPaid(order);
+            // Load fresh in new transaction — collections fully initialized for async notification
+            Order paidOrder = orderReader.loadFresh(order.getId());
+            notificationService.onOrderPaid(paidOrder);
             log.info("Payment SUCCESS for order {}, receipt={}",
                     order.getReference(), response.getMpesaReceiptNumber());
 
@@ -233,8 +235,7 @@ public class PaymentService {
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
-            if (order.getItems() != null) order.getItems().size();
-            notificationService.onPaymentFailed(order, response.getResultDesc());
+            notificationService.onPaymentFailed(orderReader.loadFresh(order.getId()), response.getResultDesc());
             log.info("Payment FAILED for order {}: {}",
                     order.getReference(), response.getResultDesc());
         }
