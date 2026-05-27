@@ -45,7 +45,7 @@ public class ProductSeederHelper {
     public boolean shouldSeed() {
         if (seedingEnabled == null) {
             long count = productRepository.countActive();
-            seedingEnabled = (count < 10);
+            seedingEnabled = (count == 0);
 
             if (!seedingEnabled) {
                 log.info("ProductSeederHelper: {} active products exist, seeders will skip.", count);
