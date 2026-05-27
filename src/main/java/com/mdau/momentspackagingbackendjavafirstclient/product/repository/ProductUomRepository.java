@@ -13,7 +13,14 @@ public interface ProductUomRepository extends JpaRepository<ProductUom, UUID> {
 
     List<ProductUom> findByDeletedFalseOrderBySortOrderAsc();
 
-    Optional<ProductUom> findByCodeAndDeletedFalse(String code);
+    //Optional<ProductUom> findByCodeAndDeletedFalse(String code);
 
     boolean existsByCodeAndDeletedFalse(String code);
+
+    /**
+     * Look up a UOM by code (case-sensitive) excluding soft-deleted records.
+     * Used by ProductSeederHelper to resolve PACKET / CARTON / BALE UOM entities.
+     */
+    Optional<ProductUom> findByCodeAndDeletedFalse(String code);
+
 }
