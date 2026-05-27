@@ -161,9 +161,8 @@ public class ProductSeederHelper {
         String base = SlugUtil.toSlug(name);
         String slug = base;
         int counter = 1;
-        String finalSlug = slug;
-        while (productRepository.existsBySlugAndDeletedFalse(slug)
-                || pendingBatch.stream().anyMatch(p -> finalSlug.equals(p.getSlug()))) {
+        while (productRepository.existsBySlug(slug)  // ← check ALL slugs, not just active
+                || pendingBatch.stream().anyMatch(p -> slug.equals(p.getSlug()))) {
             slug = base + "-" + counter++;
         }
         return slug;

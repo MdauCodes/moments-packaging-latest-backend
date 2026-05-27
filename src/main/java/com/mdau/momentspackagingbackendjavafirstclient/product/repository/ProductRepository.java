@@ -117,4 +117,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     void setStockCount(@Param("productId") UUID productId, @Param("newCount") int newCount);
 
     List<Product> findByStockStatusAndDeletedFalse(StockStatus stockStatus);
+
+    boolean existsBySlug(String slug);
 }
