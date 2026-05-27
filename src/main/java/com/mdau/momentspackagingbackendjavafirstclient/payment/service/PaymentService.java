@@ -10,6 +10,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.service.OrderReader
 import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.product.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
@@ -27,15 +28,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentService {
 
-    private final PaymentRecordRepository    paymentRecordRepository;
-    private final OrderRepository             orderRepository;
+    private final PaymentRecordRepository      paymentRecordRepository;
+    private final OrderRepository              orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
-    private final PayHeroService              payHeroService;
-    private final NotificationService         notificationService;
-    private final OrderReader                 orderReader;
-    private final CacheManager                cacheManager;
+    private final PayHeroService               payHeroService;
+    private final NotificationService          notificationService;
+    private final OrderReader                  orderReader;
+    private final CacheManager                 cacheManager;
+    private final InventoryService             inventoryService;
 
-    // ── Initiate ──────────────────────────────────────────────────────────────
+    // -- Initiate ---------------------------------------------------------------
 
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) {
@@ -47,21 +49,17 @@ public class PaymentService {
             throw new IllegalArgumentException("Order is not in PENDING_PAYMENT status");
         }
 
-        // ── Payment idempotency: block duplicate STK pushes ───────────────────
-        // Check cache first (fast path — within 2 minutes of first attempt).
         Cache paymentCache = cacheManager.getCache("payment-idempotency");
         if (paymentCache != null) {
             Cache.ValueWrapper cached = paymentCache.get(order.getId().toString());
             if (cached != null) {
                 String cachedStatus = (String) cached.get();
-                log.info("Idempotent payment hit for order {} — status: {}",
+                log.info("Idempotent payment hit for order {} -- status: {}",
                         order.getReference(), cachedStatus);
-                // Return current payment status without initiating a new STK push
                 return buildStatusResponse(order, cachedStatus);
             }
         }
 
-        // Also check DB: if a PROCESSING record exists in the last 2 minutes, block.
         List<PaymentRecord> existing = paymentRecordRepository
                 .findByOrderIdOrderByCreatedAtDesc(order.getId());
         Instant twoMinutesAgo = Instant.now().minus(2, ChronoUnit.MINUTES);
@@ -69,7 +67,7 @@ public class PaymentService {
             if ((prev.getStatus() == PaymentRecordStatus.PROCESSING ||
                  prev.getStatus() == PaymentRecordStatus.INITIATED) &&
                 prev.getCreatedAt().isAfter(twoMinutesAgo)) {
-                log.info("Blocking duplicate STK push for order {} — existing record {} still PROCESSING",
+                log.info("Blocking duplicate STK push for order {} -- existing record {} still PROCESSING",
                         order.getReference(), prev.getId());
                 if (paymentCache != null) {
                     paymentCache.put(order.getId().toString(), "PROCESSING");
@@ -84,7 +82,6 @@ public class PaymentService {
             }
         }
 
-        // Cancel any older stale in-flight records
         for (PaymentRecord prev : existing) {
             if (prev.getStatus() == PaymentRecordStatus.INITIATED
                     || prev.getStatus() == PaymentRecordStatus.PROCESSING) {
@@ -116,7 +113,6 @@ public class PaymentService {
                 record.setStatus(PaymentRecordStatus.PROCESSING);
                 paymentRecordRepository.save(record);
 
-                // Cache the in-progress state to block duplicates for 2 minutes
                 if (paymentCache != null) {
                     paymentCache.put(order.getId().toString(), "PROCESSING");
                 }
@@ -164,7 +160,7 @@ public class PaymentService {
                 .amount(order.getTotalAmount()).build();
     }
 
-    // ── Callback ──────────────────────────────────────────────────────────────
+    // -- Callback ---------------------------------------------------------------
 
     @Transactional
     public void handleCallback(PayHeroCallbackDto callback) {
@@ -212,11 +208,16 @@ public class PaymentService {
                     .note("Payment received. Receipt: " + response.getMpesaReceiptNumber())
                     .changedBy("payhero-callback").build());
 
-            // Evict payment idempotency cache so future attempts are not blocked
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
-            // Load fresh in new transaction — collections fully initialized for async notification
+            try {
+                inventoryService.deductForOrder(order);
+            } catch (Exception e) {
+                log.error("Stock deduction failed for order {} after payment: {}",
+                        order.getReference(), e.getMessage(), e);
+            }
+
             Order paidOrder = orderReader.loadFresh(order.getId());
             notificationService.onOrderPaid(paidOrder);
             log.info("Payment SUCCESS for order {}, receipt={}",
@@ -231,7 +232,6 @@ public class PaymentService {
             order.setPaymentStatus(PaymentStatus.FAILED);
             orderRepository.save(order);
 
-            // Evict cache on failure so customer can retry
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
@@ -241,7 +241,7 @@ public class PaymentService {
         }
     }
 
-    // ── Status ────────────────────────────────────────────────────────────────
+    // -- Status -----------------------------------------------------------------
 
     @Transactional(readOnly = true)
     public PaymentStatusResponse getPaymentStatus(UUID orderId) {
@@ -275,7 +275,7 @@ public class PaymentService {
                 .build();
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // -- Private helpers --------------------------------------------------------
 
     private PaymentInitiateResponse buildStatusResponse(Order order, String cachedStatus) {
         String message = "PROCESSING".equals(cachedStatus)

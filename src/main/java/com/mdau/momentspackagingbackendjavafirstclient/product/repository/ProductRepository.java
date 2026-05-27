@@ -1,6 +1,7 @@
 package com.mdau.momentspackagingbackendjavafirstclient.product.repository;
 
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -74,4 +75,46 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     WHERE p.deleted = false
     """)
     List<Product> findAllActive();
+
+    @Modifying
+    @Query("""
+        UPDATE Product p
+        SET p.stockCount = p.stockCount - :units,
+            p.stockStatus = CASE
+                WHEN (p.stockCount - :units) <= 0 THEN com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.OUT_OF_STOCK
+                WHEN (p.stockCount - :units) <= p.lowStockThreshold THEN com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.LOW_STOCK
+                ELSE com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.IN_STOCK
+            END
+        WHERE p.id = :productId
+        AND p.stockCount >= :units
+        """)
+    int deductStock(@Param("productId") UUID productId, @Param("units") int units);
+
+    @Modifying
+    @Query("""
+        UPDATE Product p
+        SET p.stockCount = p.stockCount + :units,
+            p.stockStatus = CASE
+                WHEN (p.stockCount + :units) <= 0 THEN com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.OUT_OF_STOCK
+                WHEN (p.stockCount + :units) <= p.lowStockThreshold THEN com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.LOW_STOCK
+                ELSE com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.IN_STOCK
+            END
+        WHERE p.id = :productId
+        """)
+    void restoreStock(@Param("productId") UUID productId, @Param("units") int units);
+
+    @Modifying
+    @Query("""
+        UPDATE Product p
+        SET p.stockCount = :newCount,
+            p.stockStatus = CASE
+                WHEN :newCount <= 0 THEN com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.OUT_OF_STOCK
+                WHEN :newCount <= p.lowStockThreshold THEN com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.LOW_STOCK
+                ELSE com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus.IN_STOCK
+            END
+        WHERE p.id = :productId
+        """)
+    void setStockCount(@Param("productId") UUID productId, @Param("newCount") int newCount);
+
+    List<Product> findByStockStatusAndDeletedFalse(StockStatus stockStatus);
 }

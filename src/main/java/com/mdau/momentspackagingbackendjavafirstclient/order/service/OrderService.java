@@ -14,6 +14,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderSta
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecord;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecordStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.product.service.InventoryService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,8 +38,9 @@ public class OrderService {
     private final CartItemRepository           cartItemRepository;
     private final NotificationService          notificationService;
     private final PaymentRecordRepository      paymentRecordRepository;
+    private final InventoryService             inventoryService;
 
-    // ── Queries ───────────────────────────────────────────────────────────────
+    // -- Queries ----------------------------------------------------------------
 
     @Transactional(readOnly = true)
     public OrderDto getByReference(String reference) {
@@ -94,7 +96,7 @@ public class OrderService {
                         .map(OrderDto::new));
     }
 
-    // ── Commands ──────────────────────────────────────────────────────────────
+    // -- Commands ---------------------------------------------------------------
 
     @Transactional
     public OrderDto updateStatus(UUID id, String newStatusStr,
@@ -117,8 +119,6 @@ public class OrderService {
                 .changedBy(changedBy)
                 .build());
 
-        // Transaction commits here — orderReader.loadFresh opens a new transaction
-        // so the entity is loaded from DB, not L1 cache, with all collections initialized
         Order fresh = orderReader.loadFresh(id);
 
         switch (newStatus) {
@@ -161,6 +161,13 @@ public class OrderService {
             paymentRecordRepository.save(latest);
         }
 
+        try {
+            inventoryService.restoreForOrder(order);
+        } catch (Exception e) {
+            log.error("Stock restore failed for refunded order {}: {}",
+                    order.getReference(), e.getMessage(), e);
+        }
+
         Order fresh = orderReader.loadFresh(id);
         notificationService.onOrderCancelled(fresh);
         return new OrderDto(fresh);
@@ -183,7 +190,15 @@ public class OrderService {
 
         OrderStatus old = order.getStatus();
         order.setStatus(OrderStatus.CANCELLED);
-        if (old == OrderStatus.PAID) order.setPaymentStatus(PaymentStatus.REFUNDED);
+        if (old == OrderStatus.PAID) {
+            order.setPaymentStatus(PaymentStatus.REFUNDED);
+            try {
+                inventoryService.restoreForOrder(order);
+            } catch (Exception e) {
+                log.error("Stock restore failed for cancelled order {}: {}",
+                        order.getReference(), e.getMessage(), e);
+            }
+        }
         orderRepository.save(order);
 
         historyRepository.save(OrderStatusHistory.builder()
@@ -227,7 +242,7 @@ public class OrderService {
         return cartService.getCart(customer, null);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // -- Helpers ----------------------------------------------------------------
 
     private String maskEmail(String email) {
         if (email == null || !email.contains("@")) return "***";

@@ -6,6 +6,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductUpdateRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.StockAdjustRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.product.service.InventoryService;
 import com.mdau.momentspackagingbackendjavafirstclient.product.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,7 +27,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminProductController {
 
-    private final ProductService productService;
+    private final ProductService   productService;
+    private final InventoryService inventoryService;
 
     @IsStaffOrAdmin
     @GetMapping
@@ -72,5 +76,36 @@ public class AdminProductController {
     public ResponseEntity<Void> deleteProduct(@PathVariable UUID id) {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // -- Inventory endpoints ----------------------------------------------------
+
+    @IsStaffOrAdmin
+    @PostMapping("/{id}/stock/adjust")
+    public ResponseEntity<ProductDto> adjustStock(
+            @PathVariable UUID id,
+            @Valid @RequestBody StockAdjustRequest request) {
+        return ResponseEntity.ok(inventoryService.adjustStock(id, request));
+    }
+
+    @IsStaffOrAdmin
+    @PutMapping("/{id}/stock/set")
+    public ResponseEntity<ProductDto> setStock(
+            @PathVariable UUID id,
+            @RequestParam int count,
+            @RequestParam(required = false) String reason) {
+        return ResponseEntity.ok(inventoryService.setStock(id, count, reason));
+    }
+
+    @IsStaffOrAdmin
+    @GetMapping("/inventory/low-stock")
+    public ResponseEntity<List<ProductDto>> getLowStock() {
+        return ResponseEntity.ok(inventoryService.getLowStockProducts());
+    }
+
+    @IsStaffOrAdmin
+    @GetMapping("/inventory/out-of-stock")
+    public ResponseEntity<List<ProductDto>> getOutOfStock() {
+        return ResponseEntity.ok(inventoryService.getOutOfStockProducts());
     }
 }
