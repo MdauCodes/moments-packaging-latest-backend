@@ -134,6 +134,42 @@ public class OrderService {
     }
 
     @Transactional
+    public OrderDto dispatchConfirm(UUID id, String deliveryConfirmationStatusStr,
+                                    Boolean contentsVerified, String changedBy) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        if (order.getStatus() == OrderStatus.DISPATCHED) {
+            throw new IllegalArgumentException("Order has already been dispatched");
+        }
+
+        if (contentsVerified != null) {
+            order.setContentsVerified(contentsVerified);
+        }
+
+        if (deliveryConfirmationStatusStr != null) {
+            order.setDeliveryConfirmationStatus(
+                    DeliveryConfirmationStatus.valueOf(deliveryConfirmationStatusStr));
+        }
+
+        OrderStatus oldStatus = order.getStatus();
+        order.setStatus(OrderStatus.DISPATCHED);
+        orderRepository.save(order);
+
+        historyRepository.save(OrderStatusHistory.builder()
+                .order(order)
+                .fromStatus(oldStatus)
+                .toStatus(OrderStatus.DISPATCHED)
+                .note("Dispatch confirmed — contents verified: " + Boolean.TRUE.equals(contentsVerified))
+                .changedBy(changedBy)
+                .build());
+
+        Order fresh = orderReader.loadFresh(id);
+        notificationService.onOrderDispatched(fresh);
+        return new OrderDto(fresh);
+    }
+
+    @Transactional
     public OrderDto processRefund(UUID id, String reason, String changedBy) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));

@@ -59,6 +59,19 @@ public class AdminOrderController {
         return ResponseEntity.ok(orderService.assignOrder(id, request.getAssignedTo()));
     }
 
+    @IsStaffOrAdmin
+    @PatchMapping("/{id}/dispatch-confirm")
+    public ResponseEntity<OrderDto> dispatchConfirm(
+            @PathVariable UUID id,
+            @RequestBody DispatchConfirmRequest request,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(orderService.dispatchConfirm(
+                id,
+                request.getDeliveryConfirmationStatus(),
+                request.getContentsVerified(),
+                user.getEmail()));
+    }
+
     @IsAdmin
     @PatchMapping("/{id}/refund")
     public ResponseEntity<OrderDto> refund(

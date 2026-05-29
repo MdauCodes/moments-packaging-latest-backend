@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -56,6 +57,33 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiError.of(404, "Not Found", "NOT_FOUND", ex.getMessage(), traceId()));
+    }
+
+    /**
+     * Handles requests to URLs that don't match any controller mapping.
+     * Without this, Spring falls through to the static resource handler
+     * and your generic Exception handler turns it into a misleading 500.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> handleNoResourceFound(NoResourceFoundException ex,
+                                                          HttpServletRequest request) {
+        log.debug("No handler found for {} {}", request.getMethod(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of(404, "Not Found", "NOT_FOUND",
+                        "No endpoint found for " + request.getMethod()
+                                + " " + request.getRequestURI(),
+                        traceId()));
+    }
+
+    /**
+     * Handles bad enum values (e.g. invalid OrderStatus string) and
+     * business-rule violations (e.g. dispatching an already-dispatched order).
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiError.of(400, "Bad Request", "INVALID_ARGUMENT",
+                        ex.getMessage(), traceId()));
     }
 
     @ExceptionHandler(ConflictException.class)
