@@ -36,13 +36,13 @@ public class AdminUserController {
     private final UserService         userService;
     private final StaffRoleRepository roleRepository;
 
-    // ── User management (USER_MANAGE_ROLES permission required) ──────────────
+    // ── User management ───────────────────────────────────────────────────────
 
     @PreAuthorize("hasAuthority('PERM_USER_VIEW') or hasRole('ROLE_SUPER_ADMIN')")
     @GetMapping("/users")
     public ResponseEntity<PageResponse<UserDto>> getAllStaffUsers(
             @PageableDefault(size = 20, sort = "createdAt",
-                             direction = Sort.Direction.DESC) Pageable pageable) {
+                    direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(new PageResponse<>(
                 userService.getAllStaffUsers(pageable)));
     }
@@ -106,9 +106,7 @@ public class AdminUserController {
 
         @SuppressWarnings("unchecked")
         List<String> permList = (List<String>) body.getOrDefault("permissions", List.of());
-        Set<Permission> permissions = permList.stream()
-                .map(Permission::valueOf)
-                .collect(Collectors.toSet());
+        Set<Permission> permissions = parsePermissions(permList);
 
         if (roleRepository.existsByNameAndDeletedFalse(name)) {
             throw new IllegalArgumentException("Role '" + name + "' already exists.");
@@ -138,8 +136,7 @@ public class AdminUserController {
         if (body.containsKey("permissions")) {
             @SuppressWarnings("unchecked")
             List<String> permList = (List<String>) body.get("permissions");
-            role.setPermissions(permList.stream()
-                    .map(Permission::valueOf).collect(Collectors.toSet()));
+            role.setPermissions(parsePermissions(permList));
         }
 
         return ResponseEntity.ok(new StaffRoleDto(roleRepository.save(role)));
@@ -158,7 +155,11 @@ public class AdminUserController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Returns all available permissions — frontend uses this to build role editor UI */
+    /**
+     * Returns all available permissions — frontend uses this to build the role-editor UI.
+     * Values are returned WITHOUT the "PERM_" prefix — they match the Permission enum names
+     * exactly and must be sent back to POST/PATCH /roles in the same format.
+     */
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
     @GetMapping("/permissions")
     public ResponseEntity<List<String>> getAllPermissions() {
@@ -166,5 +167,34 @@ public class AdminUserController {
                 Arrays.stream(Permission.values())
                         .map(Enum::name)
                         .collect(Collectors.toList()));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Converts a list of permission strings from the frontend into Permission enum values.
+     * Tolerates both formats the frontend might send:
+     *   - Prefixed:   "PERM_ORDER_VIEW"  → strips prefix → ORDER_VIEW
+     *   - Unprefixed: "ORDER_VIEW"        → used as-is
+     *
+     * Throws IllegalArgumentException (→ 400) on unrecognised values instead of
+     * letting valueOf() bubble up as an unhandled 500.
+     */
+    private Set<Permission> parsePermissions(List<String> raw) {
+        return raw.stream()
+                .map(p -> {
+                    // Normalise: strip the "PERM_" prefix if present
+                    String normalised = p.startsWith("PERM_") ? p.substring(5) : p;
+                    try {
+                        return Permission.valueOf(normalised);
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalArgumentException(
+                                "Unknown permission: '" + p + "'. Valid values: "
+                                        + Arrays.stream(Permission.values())
+                                        .map(Enum::name)
+                                        .collect(Collectors.joining(", ")));
+                    }
+                })
+                .collect(Collectors.toSet());
     }
 }

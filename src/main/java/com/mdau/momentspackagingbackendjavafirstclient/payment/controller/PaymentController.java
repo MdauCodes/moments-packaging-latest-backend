@@ -25,10 +25,6 @@ public class PaymentController {
     private final RateLimitConfig rateLimitConfig;
     private final ObjectMapper    objectMapper;
 
-    /**
-     * POST /api/v1/payments/initiate
-     * Initiates a payment (STK push, bank transfer, or COD).
-     */
     @PostMapping("/initiate")
     public ResponseEntity<PaymentInitiateResponse> initiatePayment(
             @Valid @RequestBody PaymentInitiateRequest request,
@@ -37,29 +33,20 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.initiatePayment(request));
     }
 
-    /**
-     * GET /api/v1/payments/status/{orderId}
-     *
-     * Returns a normalized PaymentStatusResponse. Frontend polls this.
-     * Status is always one of: PROCESSING | SUCCESS | FAILED | NO_PAYMENT
-     */
     @GetMapping("/status/{orderId}")
-    public ResponseEntity<PaymentStatusResponse> getStatus(
-            @PathVariable UUID orderId) {
+    public ResponseEntity<PaymentStatusResponse> getStatus(@PathVariable UUID orderId) {
         return ResponseEntity.ok(paymentService.getPaymentStatus(orderId));
     }
 
     /**
-     * POST /api/v1/payments/payhero/callback
-     * Receives async result from PayHero after user enters PIN.
-     * Must return 200 OK regardless — PayHero retries on non-2xx.
+     * PayHero async callback — must return 200 regardless.
      */
     @PostMapping("/payhero/callback")
-    public ResponseEntity<String> handleCallback(
+    public ResponseEntity<String> handlePayHeroCallback(
             @RequestBody String rawJson,
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         log.info("PayHero callback received. Auth header present: {}", authHeader != null);
-        log.info("PayHero callback raw payload: {}", rawJson);  // ADD THIS
+        log.debug("PayHero callback raw payload: {}", rawJson);
         try {
             PayHeroCallbackDto callback = objectMapper.readValue(rawJson, PayHeroCallbackDto.class);
             paymentService.handleCallback(callback);
@@ -67,6 +54,24 @@ public class PaymentController {
         } catch (Exception e) {
             log.error("Failed to process PayHero callback: {}", e.getMessage());
             return ResponseEntity.ok("Callback received");
+        }
+    }
+
+    /**
+     * Daraja (M-Pesa direct) async callback — must return 200 regardless.
+     * Safaricom retries on non-2xx for up to 3 minutes.
+     */
+    @PostMapping("/daraja/callback")
+    public ResponseEntity<String> handleDarajaCallback(@RequestBody String rawJson) {
+        log.info("Daraja callback received");
+        log.debug("Daraja callback raw payload: {}", rawJson);
+        try {
+            DarajaCallbackDto callback = objectMapper.readValue(rawJson, DarajaCallbackDto.class);
+            paymentService.handleDarajaCallback(callback);
+            return ResponseEntity.ok("{\"ResultCode\":0,\"ResultDesc\":\"Success\"}");
+        } catch (Exception e) {
+            log.error("Failed to process Daraja callback: {}", e.getMessage());
+            return ResponseEntity.ok("{\"ResultCode\":0,\"ResultDesc\":\"Received\"}");
         }
     }
 }

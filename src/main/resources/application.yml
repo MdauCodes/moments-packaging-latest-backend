@@ -132,6 +132,16 @@ app:
     channel-id: ${PAYHERO_CHANNEL_ID:4260}
     base-url: ${PAYHERO_BASE_URL:https://backend.payhero.co.ke/api/v2/payments}
     callback-url: ${PAYHERO_CALLBACK_URL:https://your-domain.com/api/v1/payments/payhero/callback}
+  daraja:
+    consumer-key: ${DARAJA_CONSUMER_KEY:}
+    consumer-secret: ${DARAJA_CONSUMER_SECRET:}
+    shortcode: ${DARAJA_SHORTCODE:174379}
+    passkey: ${DARAJA_PASSKEY:}
+    callback-url: ${DARAJA_CALLBACK_URL:https://moments-packaging-latest-backend-production.up.railway.app/api/v1/payments/daraja/callback}
+    base-url: ${DARAJA_BASE_URL:https://sandbox.safaricom.co.ke}
+    transaction-type: ${DARAJA_TRANSACTION_TYPE:CustomerPayBillOnline}
+    account-reference: ${DARAJA_ACCOUNT_REFERENCE:MomentsPackaging}
+    transaction-desc: ${DARAJA_TRANSACTION_DESC:Payment for order}
   africastalking:
     username: ${AT_USERNAME:sandbox}
     api-key: ${AT_API_KEY:sandbox_key}

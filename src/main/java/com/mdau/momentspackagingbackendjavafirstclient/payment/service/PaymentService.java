@@ -32,12 +32,13 @@ public class PaymentService {
     private final OrderRepository              orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final PayHeroService               payHeroService;
+    private final DarajaService                darajaService;
     private final NotificationService          notificationService;
     private final OrderReader                  orderReader;
     private final CacheManager                 cacheManager;
     private final InventoryService             inventoryService;
 
-    // -- Initiate ---------------------------------------------------------------
+    // -- Initiate ---------------------------------------------------------
 
     @Transactional
     public PaymentInitiateResponse initiatePayment(PaymentInitiateRequest request) {
@@ -67,8 +68,8 @@ public class PaymentService {
             if ((prev.getStatus() == PaymentRecordStatus.PROCESSING ||
                  prev.getStatus() == PaymentRecordStatus.INITIATED) &&
                 prev.getCreatedAt().isAfter(twoMinutesAgo)) {
-                log.info("Blocking duplicate STK push for order {} -- existing record {} still PROCESSING",
-                        order.getReference(), prev.getId());
+                log.info("Blocking duplicate STK push for order {} -- existing record still PROCESSING",
+                        order.getReference());
                 if (paymentCache != null) {
                     paymentCache.put(order.getId().toString(), "PROCESSING");
                 }
@@ -88,14 +89,55 @@ public class PaymentService {
                 prev.setStatus(PaymentRecordStatus.CANCELLED);
                 prev.setFailureReason("Superseded by new payment attempt");
                 paymentRecordRepository.save(prev);
-                log.info("Cancelled stale payment record {} for order {}",
-                        prev.getId(), order.getReference());
             }
         }
 
         PaymentMethod method = request.getPaymentMethod();
 
-        if (method == PaymentMethod.PAYHERO || method == PaymentMethod.MPESA) {
+        // -- M-Pesa via Daraja --------------------------------------------
+        if (method == PaymentMethod.MPESA) {
+            if (request.getPhone() == null || request.getPhone().isBlank())
+                throw new IllegalArgumentException("Phone is required for M-Pesa payment");
+
+            String externalRef = UUID.randomUUID().toString();
+            PaymentRecord record = PaymentRecord.builder()
+                    .order(order).amount(order.getTotalAmount())
+                    .method(method).status(PaymentRecordStatus.INITIATED)
+                    .phone(request.getPhone()).externalReference(externalRef).build();
+            paymentRecordRepository.save(record);
+
+            try {
+                String checkoutRequestId = darajaService.initiateSTKPush(
+                        request.getPhone(), order.getTotalAmount(), externalRef);
+                record.setCheckoutRequestId(checkoutRequestId);
+                record.setStatus(PaymentRecordStatus.PROCESSING);
+                paymentRecordRepository.save(record);
+
+                if (paymentCache != null) {
+                    paymentCache.put(order.getId().toString(), "PROCESSING");
+                }
+                return PaymentInitiateResponse.builder()
+                        .orderId(order.getId())
+                        .reference(order.getReference())
+                        .status("STK_PUSH_SENT")
+                        .message("Check your phone for M-Pesa prompt")
+                        .amount(order.getTotalAmount())
+                        .build();
+            } catch (PaymentGatewayException e) {
+                record.setStatus(PaymentRecordStatus.FAILED);
+                record.setFailureReason(e.getMessage());
+                paymentRecordRepository.save(record);
+                throw e;
+            } catch (Exception e) {
+                record.setStatus(PaymentRecordStatus.FAILED);
+                record.setFailureReason(e.getMessage());
+                paymentRecordRepository.save(record);
+                throw new RuntimeException("M-Pesa payment initiation failed: " + e.getMessage());
+            }
+        }
+
+        // -- M-Pesa via PayHero -------------------------------------------
+        if (method == PaymentMethod.PAYHERO) {
             if (request.getPhone() == null || request.getPhone().isBlank())
                 throw new IllegalArgumentException("Phone is required for M-Pesa payment");
 
@@ -116,7 +158,6 @@ public class PaymentService {
                 if (paymentCache != null) {
                     paymentCache.put(order.getId().toString(), "PROCESSING");
                 }
-
                 return PaymentInitiateResponse.builder()
                         .orderId(order.getId())
                         .reference(order.getReference())
@@ -124,7 +165,6 @@ public class PaymentService {
                         .message("Check your phone for M-Pesa prompt")
                         .amount(order.getTotalAmount())
                         .build();
-
             } catch (PaymentGatewayException e) {
                 record.setStatus(PaymentRecordStatus.FAILED);
                 record.setFailureReason(e.getMessage());
@@ -160,7 +200,7 @@ public class PaymentService {
                 .amount(order.getTotalAmount()).build();
     }
 
-    // -- Callback ---------------------------------------------------------------
+    // -- PayHero Callback -------------------------------------------------
 
     @Transactional
     public void handleCallback(PayHeroCallbackDto callback) {
@@ -168,33 +208,64 @@ public class PaymentService {
             log.error("PayHero callback has no response data");
             return;
         }
-
         PayHeroCallbackDto.PayHeroCallbackResponse response = callback.getResponse();
-        String checkoutRequestId = response.getCheckoutRequestId();
+        processPaymentResult(
+                response.getCheckoutRequestId(),
+                response.getMerchantRequestId(),
+                response.getResultCode(),
+                response.getResultDesc(),
+                response.getMpesaReceiptNumber(),
+                "payhero-callback"
+        );
+    }
 
+    // -- Daraja Callback --------------------------------------------------
+
+    @Transactional
+    public void handleDarajaCallback(DarajaCallbackDto callback) {
+        if (callback.getBody() == null || callback.getBody().getStkCallback() == null) {
+            log.error("Daraja callback has no stkCallback data");
+            return;
+        }
+        DarajaCallbackDto.StkCallback stk = callback.getBody().getStkCallback();
+        String receiptNumber = callback.getMetadataValue("MpesaReceiptNumber");
+
+        processPaymentResult(
+                stk.getCheckoutRequestId(),
+                stk.getMerchantRequestId(),
+                stk.getResultCode(),
+                stk.getResultDesc(),
+                receiptNumber,
+                "daraja-callback"
+        );
+    }
+
+    // -- Shared result processor ------------------------------------------
+
+    private void processPaymentResult(String checkoutRequestId, String merchantRequestId,
+                                      Integer resultCode, String resultDesc,
+                                      String receiptNumber, String changedBy) {
         PaymentRecord record = paymentRecordRepository
                 .findByCheckoutRequestId(checkoutRequestId).orElse(null);
         if (record == null) {
             log.warn("No payment record found for checkoutRequestId: {}", checkoutRequestId);
             return;
         }
-
         if (record.getStatus() == PaymentRecordStatus.SUCCESS) {
             log.warn("Duplicate callback for already-completed payment {}. Ignoring.", record.getId());
             return;
         }
-
         if (record.getStatus() == PaymentRecordStatus.CANCELLED) {
             log.warn("Callback for cancelled record {}. Ignoring.", record.getId());
             return;
         }
 
-        record.setMerchantRequestId(response.getMerchantRequestId());
-        boolean isSuccess = response.getResultCode() != null && response.getResultCode() == 0;
+        record.setMerchantRequestId(merchantRequestId);
+        boolean isSuccess = resultCode != null && resultCode == 0;
 
         if (isSuccess) {
             record.setStatus(PaymentRecordStatus.SUCCESS);
-            record.setReceiptNumber(response.getMpesaReceiptNumber());
+            record.setReceiptNumber(receiptNumber);
             paymentRecordRepository.save(record);
 
             Order order = record.getOrder();
@@ -205,8 +276,8 @@ public class PaymentService {
             historyRepository.save(OrderStatusHistory.builder()
                     .order(order).fromStatus(OrderStatus.PENDING_PAYMENT)
                     .toStatus(OrderStatus.PAID)
-                    .note("Payment received. Receipt: " + response.getMpesaReceiptNumber())
-                    .changedBy("payhero-callback").build());
+                    .note("Payment received. Receipt: " + receiptNumber)
+                    .changedBy(changedBy).build());
 
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
@@ -220,12 +291,12 @@ public class PaymentService {
 
             Order paidOrder = orderReader.loadFresh(order.getId());
             notificationService.onOrderPaid(paidOrder);
-            log.info("Payment SUCCESS for order {}, receipt={}",
-                    order.getReference(), response.getMpesaReceiptNumber());
+            log.info("Payment SUCCESS [{}] for order {}, receipt={}",
+                    changedBy, order.getReference(), receiptNumber);
 
         } else {
             record.setStatus(PaymentRecordStatus.FAILED);
-            record.setFailureReason(response.getResultDesc());
+            record.setFailureReason(resultDesc);
             paymentRecordRepository.save(record);
 
             Order order = record.getOrder();
@@ -235,13 +306,14 @@ public class PaymentService {
             Cache paymentCache = cacheManager.getCache("payment-idempotency");
             if (paymentCache != null) paymentCache.evict(order.getId().toString());
 
-            notificationService.onPaymentFailed(orderReader.loadFresh(order.getId()), response.getResultDesc());
-            log.info("Payment FAILED for order {}: {}",
-                    order.getReference(), response.getResultDesc());
+            notificationService.onPaymentFailed(
+                    orderReader.loadFresh(order.getId()), resultDesc);
+            log.info("Payment FAILED [{}] for order {}: {}",
+                    changedBy, order.getReference(), resultDesc);
         }
     }
 
-    // -- Status -----------------------------------------------------------------
+    // -- Status -----------------------------------------------------------
 
     @Transactional(readOnly = true)
     public PaymentStatusResponse getPaymentStatus(UUID orderId) {
@@ -275,7 +347,7 @@ public class PaymentService {
                 .build();
     }
 
-    // -- Private helpers --------------------------------------------------------
+    // -- Private helpers --------------------------------------------------
 
     private PaymentInitiateResponse buildStatusResponse(Order order, String cachedStatus) {
         String message = "PROCESSING".equals(cachedStatus)
@@ -302,8 +374,7 @@ public class PaymentService {
         return switch (normalizedStatus) {
             case "SUCCESS"    -> "Payment confirmed. Receipt: " + record.getReceiptNumber();
             case "FAILED"     -> record.getFailureReason() != null
-                    ? record.getFailureReason()
-                    : "Payment was not completed.";
+                    ? record.getFailureReason() : "Payment was not completed.";
             case "PROCESSING" -> "Waiting for M-Pesa confirmation. Enter your PIN on your phone.";
             default           -> "No payment initiated yet.";
         };
