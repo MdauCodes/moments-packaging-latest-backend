@@ -36,8 +36,10 @@ public class Lead extends BaseEntity {
     /**
      * True when this lead was captured while mock mode was active.
      * Excluded from real lead analytics by default.
+     * Nullable so ALTER TABLE on existing rows with nulls succeeds.
+     * Application always writes false (or true in mock mode) — never null.
      */
-    @Column(name = "is_mock", nullable = false)
+    @Column(name = "is_mock", columnDefinition = "boolean default false")
     @Builder.Default
     private Boolean isMock = false;
 }
