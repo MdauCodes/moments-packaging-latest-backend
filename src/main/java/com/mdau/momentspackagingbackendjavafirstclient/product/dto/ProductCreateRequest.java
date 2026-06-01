@@ -27,10 +27,6 @@ public class ProductCreateRequest {
     @Min(value = 1, message = "MOQ must be at least 1")
     private Integer moq = 1;
 
-    /**
-     * false = collections-only product (e.g. carrier bags — must buy in packs).
-     * true  = individual units purchasable (default).
-     */
     private Boolean individualSalesEnabled = true;
 
     private List<String> sizes    = new ArrayList<>();
@@ -48,8 +44,15 @@ public class ProductCreateRequest {
     private String material;
     private String finish;
 
-    /** Internal reference price per unit. Not shown to buyers when individualSalesEnabled=false */
+    /** Current active price. */
     private BigDecimal basePrice;
+
+    /**
+     * Optional compare-at price (shown struck-through).
+     * Should be higher than basePrice. Null = not shown.
+     */
+    private BigDecimal originalBasePrice;
+
     private PriceUnit  priceUnit     = PriceUnit.PER_UNIT;
     private StockStatus stockStatus  = StockStatus.IN_STOCK;
     private Integer leadTimeDays     = 14;
@@ -57,7 +60,6 @@ public class ProductCreateRequest {
     private Integer stockCount       = 0;
     private Integer lowStockThreshold = 10;
 
-    // VAT — optional; defaults applied in ProductService if null
     private BigDecimal vatRate;
     private Boolean   vatExempt = false;
 

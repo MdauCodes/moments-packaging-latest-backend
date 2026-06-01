@@ -22,13 +22,7 @@ public class ProductDto {
     private final String category;
     private final String description;
     private final Integer moq;
-
-    /**
-     * true  → individual unit purchase allowed (basePrice is shown to buyers).
-     * false → collections only (basePrice hidden from buyers).
-     */
     private final Boolean individualSalesEnabled;
-
     private final List<String> sizes;
     private final List<String> tags;
     private final List<String> keywords;
@@ -41,25 +35,25 @@ public class ProductDto {
     private final String       material;
     private final String       finish;
 
-    /**
-     * Internal reference price per unit.
-     * Only populate this in responses to admins/staff.
-     * For public responses, ProductService masks this when individualSalesEnabled=false.
-     */
+    /** Current active base price per unit. */
     private final BigDecimal  basePrice;
+
+    /**
+     * Previous/original base price — shown struck-through on frontend.
+     * Null when no compare-at price is configured.
+     */
+    private final BigDecimal  originalBasePrice;
+
     private final PriceUnit   priceUnit;
     private final StockStatus stockStatus;
     private final Integer     leadTimeDays;
     private final Boolean     customizable;
     private final Integer     stockCount;
 
-    // VAT
     private final BigDecimal vatRate;
     private final Boolean    vatExempt;
 
-    /** Collections sorted by sortOrder ascending (smallest → largest) */
     private final List<ProductPricingTierDto> pricingTiers;
-
     private final List<IndustryDto> industries;
     private final List<UUID>        industryIds;
     private final Long              monthlyClicks;
@@ -87,13 +81,14 @@ public class ProductDto {
         this.material               = product.getMaterial();
         this.finish                 = product.getFinish();
         this.basePrice              = product.getBasePrice();
+        this.originalBasePrice      = product.getOriginalBasePrice();
         this.priceUnit              = product.getPriceUnit();
         this.stockStatus            = product.getStockStatus();
         this.leadTimeDays           = product.getLeadTimeDays();
         this.customizable           = product.getCustomizable();
         this.stockCount             = product.getStockCount();
-        this.vatRate               = product.getVatRate();
-        this.vatExempt             = product.getVatExempt();
+        this.vatRate                = product.getVatRate();
+        this.vatExempt              = product.getVatExempt();
         this.pricingTiers           = pricingTiers != null
                 ? pricingTiers.stream()
                     .sorted(Comparator.comparingInt(t -> (t.getSortOrder() != null ? t.getSortOrder() : 0)))

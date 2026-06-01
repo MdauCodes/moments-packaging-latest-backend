@@ -24,6 +24,7 @@ import org.hibernate.Hibernate;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
@@ -32,10 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -50,6 +48,8 @@ public class ProductService {
     private final IndustryRepository           industryRepository;
     private final ProductUomRepository         uomRepository;
 
+    // ── Standard paginated listing ────────────────────────────────────────────
+
     @Transactional(readOnly = true)
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
                                         Boolean isNewArrival, Boolean isFastMoving,
@@ -59,6 +59,73 @@ public class ProductService {
         return productRepository
                 .findAllWithFilters(industryId, isDiscount, isNewArrival, isFastMoving, category, capped)
                 .map(p -> toDtoPublic(p));
+    }
+
+    /**
+     * Diversified product listing for the public storefront.
+     *
+     * Algorithm:
+     *  1. Fetch all active products (uses existing findAllActive — already loaded).
+     *  2. Group by category.
+     *  3. Round-robin across categories so each page shows a mix.
+     *  4. Within each category, sort by: new arrivals first, then fast-moving,
+     *     then monthly clicks desc, then random seed so order changes across requests.
+     *
+     * This maximises the chance a visitor sees something relevant regardless of
+     * which category they came for, driving conversions.
+     */
+    @Transactional(readOnly = true)
+    public Page<ProductDto> getDiversifiedProducts(int page, int size) {
+        int cappedSize = Math.min(size, 100);
+
+        List<Product> all = productRepository.findAllActive();
+        if (all.isEmpty()) return Page.empty();
+
+        // Group by category (null category → "OTHER")
+        Map<String, List<Product>> byCategory = all.stream()
+                .collect(Collectors.groupingBy(
+                        p -> p.getCategory() != null ? p.getCategory().toUpperCase() : "OTHER"));
+
+        // Sort within each category: new arrivals → fast moving → monthly clicks
+        byCategory.forEach((cat, products) ->
+                products.sort(Comparator
+                        .comparing(Product::getIsNewArrival, Comparator.reverseOrder())
+                        .thenComparing(Product::getIsFastMoving, Comparator.reverseOrder())
+                        .thenComparing(Product::getMonthlyClicks, Comparator.reverseOrder())));
+
+        // Round-robin interleave across categories
+        List<String> categories = new ArrayList<>(byCategory.keySet());
+        Collections.sort(categories); // deterministic order
+        List<Product> interleaved = new ArrayList<>(all.size());
+        Map<String, Integer> cursors = new HashMap<>();
+        categories.forEach(c -> cursors.put(c, 0));
+
+        boolean added = true;
+        while (added) {
+            added = false;
+            for (String cat : categories) {
+                int idx = cursors.get(cat);
+                List<Product> catList = byCategory.get(cat);
+                if (idx < catList.size()) {
+                    interleaved.add(catList.get(idx));
+                    cursors.put(cat, idx + 1);
+                    added = true;
+                }
+            }
+        }
+
+        // Manual pagination
+        int fromIndex = page * cappedSize;
+        if (fromIndex >= interleaved.size()) {
+            return new PageImpl<>(List.of(), PageRequest.of(page, cappedSize), interleaved.size());
+        }
+        int toIndex = Math.min(fromIndex + cappedSize, interleaved.size());
+        List<ProductDto> pageContent = interleaved.subList(fromIndex, toIndex)
+                .stream()
+                .map(this::toDtoPublic)
+                .collect(Collectors.toList());
+
+        return new PageImpl<>(pageContent, PageRequest.of(page, cappedSize), interleaved.size());
     }
 
     @Cacheable("recommended-products")
@@ -82,7 +149,6 @@ public class ProductService {
     public ProductDto getById(UUID id) {
         Product product = productRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
-        // Admin endpoint — return all tiers including disabled
         return toDtoAdmin(product);
     }
 
@@ -95,6 +161,8 @@ public class ProductService {
             productClickRepository.save(click);
         });
     }
+
+    // ── Create / Update / Delete ──────────────────────────────────────────────
 
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
@@ -121,6 +189,7 @@ public class ProductService {
                 .material(request.getMaterial())
                 .finish(request.getFinish())
                 .basePrice(request.getBasePrice())
+                .originalBasePrice(request.getOriginalBasePrice())
                 .priceUnit(request.getPriceUnit() != null ? request.getPriceUnit() : PriceUnit.PER_UNIT)
                 .stockStatus(request.getStockStatus() != null
                         ? request.getStockStatus() : StockStatus.IN_STOCK)
@@ -168,15 +237,22 @@ public class ProductService {
         if (request.getMaterial()              != null) product.setMaterial(request.getMaterial());
         if (request.getFinish()                != null) product.setFinish(request.getFinish());
         if (request.getBasePrice()             != null) product.setBasePrice(request.getBasePrice());
-        if (request.getPriceUnit()             != null) product.setPriceUnit(request.getPriceUnit());
         if (request.getStockStatus()           != null) product.setStockStatus(request.getStockStatus());
         if (request.getLeadTimeDays()          != null) product.setLeadTimeDays(request.getLeadTimeDays());
         if (request.getCustomizable()          != null) product.setCustomizable(request.getCustomizable());
         if (request.getStockCount()            != null) product.setStockCount(request.getStockCount());
         if (request.getLowStockThreshold()     != null) product.setLowStockThreshold(request.getLowStockThreshold());
-        if (request.getVatRate()             != null) product.setVatRate(request.getVatRate());
-        if (request.getVatExempt()           != null) product.setVatExempt(request.getVatExempt());
+        if (request.getVatRate()               != null) product.setVatRate(request.getVatRate());
+        if (request.getVatExempt()             != null) product.setVatExempt(request.getVatExempt());
         if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
+        if (request.getPriceUnit()             != null) product.setPriceUnit(request.getPriceUnit());
+
+        // Compare-at price: explicit clear takes priority, then value update
+        if (Boolean.TRUE.equals(request.getClearOriginalBasePrice())) {
+            product.setOriginalBasePrice(null);
+        } else if (request.getOriginalBasePrice() != null) {
+            product.setOriginalBasePrice(request.getOriginalBasePrice());
+        }
 
         Product saved = productRepository.save(product);
 
@@ -198,12 +274,8 @@ public class ProductService {
         log.info("Product {} soft-deleted", id);
     }
 
-    // ── DTO builders ────────────────────────────────────────────────────────
+    // ── DTO builders ──────────────────────────────────────────────────────────
 
-    /**
-     * Public DTO — only enabled tiers are included.
-     * Disabled UOMs are completely absent from the response.
-     */
     private ProductDto toDtoPublic(Product product) {
         initCollections(product);
         List<ProductPricingTierDto> tiers = pricingTierRepository
@@ -215,10 +287,6 @@ public class ProductService {
         return new ProductDto(product, tiers);
     }
 
-    /**
-     * Admin DTO — all tiers included (enabled and disabled)
-     * so staff can see and toggle them in the product editor.
-     */
     private ProductDto toDtoAdmin(Product product) {
         initCollections(product);
         List<ProductPricingTierDto> tiers = pricingTierRepository
@@ -237,7 +305,7 @@ public class ProductService {
         Hibernate.initialize(product.getIndustries());
     }
 
-    // ── Pricing tier persistence ─────────────────────────────────────────────
+    // ── Pricing tier persistence ───────────────────────────────────────────────
 
     private void savePricingTiers(Product product, List<ProductPricingTierDto> tierDtos) {
         if (tierDtos == null || tierDtos.isEmpty()) return;
@@ -247,23 +315,28 @@ public class ProductService {
         List<ProductPricingTier> tiers = tierDtos.stream()
                 .map(dto -> {
                     if (dto.getCollectionName() == null || dto.getCollectionName().isBlank())
-                        throw new IllegalArgumentException(
-                                "Each UOM tier must have a collectionName");
+                        throw new IllegalArgumentException("Each UOM tier must have a collectionName");
                     if (dto.getQuantity() == null || dto.getQuantity() < 1)
-                        throw new IllegalArgumentException(
-                                "Each UOM tier must have a quantity (pieces) >= 1");
+                        throw new IllegalArgumentException("Each UOM tier must have a quantity >= 1");
                     if (dto.getPricePerUnit() == null)
-                        throw new IllegalArgumentException(
-                                "Each UOM tier must have a pricePerUnit (price per piece)");
+                        throw new IllegalArgumentException("Each UOM tier must have a pricePerUnit");
 
                     BigDecimal collectionPrice = dto.getPricePerUnit()
                             .multiply(BigDecimal.valueOf(dto.getQuantity()))
                             .setScale(2, RoundingMode.HALF_UP);
 
+                    // Compute compare-at collection price if original price provided
+                    BigDecimal originalCollectionPrice = null;
+                    if (dto.getOriginalPricePerUnit() != null
+                            && dto.getOriginalPricePerUnit().compareTo(dto.getPricePerUnit()) > 0) {
+                        originalCollectionPrice = dto.getOriginalPricePerUnit()
+                                .multiply(BigDecimal.valueOf(dto.getQuantity()))
+                                .setScale(2, RoundingMode.HALF_UP);
+                    }
+
                     int order = dto.getSortOrder() != null
                             ? dto.getSortOrder() : autoOrder.getAndIncrement();
 
-                    // Resolve UOM if uomId provided
                     ProductUom uom = null;
                     if (dto.getUomId() != null) {
                         uom = uomRepository.findById(dto.getUomId()).orElse(null);
@@ -276,7 +349,12 @@ public class ProductService {
                             .uomDescription(dto.getUomDescription())
                             .quantity(dto.getQuantity())
                             .pricePerUnit(dto.getPricePerUnit())
+                            .originalPricePerUnit(
+                                    dto.getOriginalPricePerUnit() != null
+                                    && dto.getOriginalPricePerUnit().compareTo(dto.getPricePerUnit()) > 0
+                                            ? dto.getOriginalPricePerUnit() : null)
                             .collectionPrice(collectionPrice)
+                            .originalCollectionPrice(originalCollectionPrice)
                             .sortOrder(order)
                             .enabled(dto.getEnabled() != null ? dto.getEnabled() : true)
                             .minQuantity(dto.getMinQuantity())

@@ -29,6 +29,7 @@ public class PublicProductController {
     private final ReviewService        reviewService;
     private final RateLimitConfig      rateLimitConfig;
 
+    /** Standard filtered listing. */
     @GetMapping
     public ResponseEntity<PageResponse<ProductDto>> getProducts(
             @RequestParam(required = false) UUID    industryId,
@@ -41,6 +42,19 @@ public class PublicProductController {
         return ResponseEntity.ok(new PageResponse<>(
                 productService.getProducts(industryId, isDiscount, isNewArrival,
                         isFastMoving, category, pageable)));
+    }
+
+    /**
+     * Diversified listing — interleaves categories so customers see variety.
+     * Used as the default storefront grid. Replaces a pure date-sorted feed.
+     * GET /api/v1/public/products/diversified?page=0&size=20
+     */
+    @GetMapping("/diversified")
+    public ResponseEntity<PageResponse<ProductDto>> getDiversified(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(new PageResponse<>(
+                productService.getDiversifiedProducts(page, size)));
     }
 
     @GetMapping("/recommended")

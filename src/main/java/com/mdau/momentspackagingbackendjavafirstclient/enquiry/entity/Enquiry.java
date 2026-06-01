@@ -4,10 +4,15 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
+import java.util.UUID;
+
 @Entity
 @Table(name = "enquiries", indexes = {
         @Index(name = "idx_enquiries_email",      columnList = "email"),
         @Index(name = "idx_enquiries_source",     columnList = "source"),
+        @Index(name = "idx_enquiries_status",     columnList = "status"),
+        @Index(name = "idx_enquiries_assigned_to",columnList = "assigned_to_id"),
         @Index(name = "idx_enquiries_created_at", columnList = "created_at")
 })
 @Getter
@@ -20,7 +25,6 @@ public class Enquiry extends BaseEntity {
     @Column(length = 50)
     private String persona;
 
-    // Explicit varchar so Hibernate does not create/leave these as bytea
     @Column(nullable = false, columnDefinition = "varchar(255)")
     private String contactName;
 
@@ -38,4 +42,38 @@ public class Enquiry extends BaseEntity {
 
     @Column(length = 100)
     private String source;
+
+    // ── CRM fields ────────────────────────────────────────────────────────────
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 30, nullable = false)
+    @Builder.Default
+    private EnquiryStatus status = EnquiryStatus.NEW;
+
+    /** Staff member assigned to follow up on this enquiry. */
+    @Column(name = "assigned_to_id")
+    private UUID assignedToId;
+
+    @Column(name = "assigned_to_name", length = 255)
+    private String assignedToName;
+
+    /** Internal notes added by staff over time (appended, not replaced). */
+    @Column(name = "internal_notes", columnDefinition = "TEXT")
+    private String internalNotes;
+
+    /** Scheduled follow-up date/time. */
+    @Column(name = "follow_up_at")
+    private Instant followUpAt;
+
+    /** When the enquiry was first responded to. */
+    @Column(name = "first_contacted_at")
+    private Instant firstContactedAt;
+
+    /** Value estimate for this enquiry (KES). */
+    @Column(name = "estimated_value", precision = 14, scale = 2)
+    private java.math.BigDecimal estimatedValue;
+
+    /** Products the customer is interested in (free text or comma-separated). */
+    @Column(name = "product_interest", length = 500)
+    private String productInterest;
 }

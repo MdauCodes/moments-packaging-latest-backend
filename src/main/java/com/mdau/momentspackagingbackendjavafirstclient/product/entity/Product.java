@@ -105,8 +105,17 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Long totalClicks = 0L;
 
+    /** Current active base price per unit. */
     @Column(name = "base_price", precision = 12, scale = 2)
     private BigDecimal basePrice;
+
+    /**
+     * Previous/original base price shown struck-through on the frontend.
+     * Null = no compare-at price displayed.
+     * Must be higher than basePrice to be displayed.
+     */
+    @Column(name = "original_base_price", precision = 12, scale = 2)
+    private BigDecimal originalBasePrice;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "price_unit", length = 20)
@@ -138,21 +147,10 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Integer lowStockThreshold = 10;
 
-    // ── VAT fields ────────────────────────────────────────────────────────────
-
-    /**
-     * VAT rate for this product as a decimal e.g. 0.16 = 16%.
-     * Default is 16% (Kenya standard VAT rate).
-     * Overridden per product by admin.
-     */
     @Column(name = "vat_rate", precision = 5, scale = 4)
     @Builder.Default
     private BigDecimal vatRate = new BigDecimal("0.1600");
 
-    /**
-     * When true, this product is VAT-exempt — no VAT is charged.
-     * vatRate is ignored when this is true.
-     */
     @Column(name = "vat_exempt", nullable = false, columnDefinition = "boolean not null default false")
     @Builder.Default
     private Boolean vatExempt = false;

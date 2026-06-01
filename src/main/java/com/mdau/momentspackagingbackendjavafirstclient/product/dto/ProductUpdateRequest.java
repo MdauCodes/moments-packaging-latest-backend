@@ -17,34 +17,37 @@ public class ProductUpdateRequest {
     private String category;
     private String description;
     private Integer moq;
-
-    /** null = no change. false = collections-only. true = individual units allowed. */
     private Boolean individualSalesEnabled;
-
     private List<String> sizes;
     private List<String> tags;
     private List<String> keywords;
-
     private String primaryImageUrl;
     private List<String> imageUrls;
-
     private Boolean isDiscount;
     private Integer discountPercent;
     private Boolean isNewArrival;
     private Boolean isFastMoving;
-
     private String material;
     private String finish;
 
+    /** Current active price. Null = no change. */
     private BigDecimal basePrice;
+
+    /**
+     * Compare-at price (shown struck-through on frontend).
+     * Pass null to clear. Pass a value higher than basePrice to show a sale price.
+     */
+    private BigDecimal originalBasePrice;
+
+    /** Pass Boolean.FALSE to explicitly clear the compare-at price. */
+    private Boolean clearOriginalBasePrice;
+
     private PriceUnit  priceUnit;
     private StockStatus stockStatus;
     private Integer leadTimeDays;
     private Boolean customizable;
     private Integer stockCount;
     private Integer lowStockThreshold;
-
-    // VAT — null means no change
     private BigDecimal vatRate;
     private Boolean   vatExempt;
 

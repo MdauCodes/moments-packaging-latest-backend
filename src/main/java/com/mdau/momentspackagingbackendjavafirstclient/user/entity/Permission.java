@@ -1,34 +1,34 @@
 package com.mdau.momentspackagingbackendjavafirstclient.user.entity;
 
-/**
- * Fine-grained permissions that drive both backend access control
- * and frontend UI gating. JWT carries the full permissions list so
- * the frontend never needs a separate API call to determine what a
- * user can see or do.
- */
 public enum Permission {
 
-    // ── Order permissions ─────────────────────────────────────────
-    ORDER_VIEW,              // see orders (all roles that touch orders)
-    ORDER_VERIFY_PAYMENT,    // PAID → PAYMENT_VERIFIED
-    ORDER_PREPARE,           // PAYMENT_VERIFIED → IN_PRODUCTION → READY_FOR_DISPATCH
-    ORDER_DISPATCH,          // READY_FOR_DISPATCH → DISPATCHED + item checklist
-    ORDER_ASSIGN,            // assign orders to staff (supervisor)
-    ORDER_MANAGE_ALL,        // override any status, refund, cancel
+    // Order permissions
+    ORDER_VIEW,
+    ORDER_VERIFY_PAYMENT,
+    ORDER_PREPARE,
+    ORDER_DISPATCH,
+    ORDER_ASSIGN,
+    ORDER_MANAGE_ALL,
 
-    // ── Product permissions ───────────────────────────────────────
+    // Product permissions
     PRODUCT_VIEW,
-    PRODUCT_MANAGE,          // create / edit / delete
+    PRODUCT_MANAGE,
 
-    // ── Payment permissions ───────────────────────────────────────
+    // Payment permissions
     PAYMENT_VIEW,
 
-    // ── User / role management ────────────────────────────────────
+    // User / role management
     USER_VIEW,
-    USER_CREATE,             // create staff accounts
-    USER_MANAGE_ROLES,       // assign roles / permissions (SUPER_ADMIN only)
+    USER_CREATE,
+    USER_MANAGE_ROLES,
 
-    // ── Analytics & settings ──────────────────────────────────────
+    // Analytics & settings
     ANALYTICS_VIEW,
-    SETTINGS_MANAGE
+    SETTINGS_MANAGE,
+
+    // Audit log
+    AUDIT_VIEW,
+
+    // Enquiry / CRM
+    ENQUIRY_MANAGE
 }
