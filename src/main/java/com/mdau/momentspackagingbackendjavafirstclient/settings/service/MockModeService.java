@@ -6,18 +6,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Mock Mode — controlled by SUPER_ADMIN only.
+ * Mock / Test Mode — controlled by SUPER_ADMIN only.
  *
- * When mock mode is ON:
- *   - All orders, payments, enquiries, leads created carry is_mock = true.
- *   - Emails and SMS are suppressed (no real messages sent).
- *   - M-Pesa / PayHero STK pushes are skipped; payment is auto-confirmed.
- *   - Mock data is fully stored in the database so all flows can be tested.
- *   - Admin dashboards, audit logs, and analytics exclude mock records by default
- *     (pass includeMock=true to include them for QA review).
+ * When mock mode is ON, the system behaves EXACTLY like production:
+ *   - Real M-Pesa / PayHero STK pushes are sent.
+ *   - Real emails and SMS are delivered.
+ *   - All order, payment, checkout, and notification flows run normally.
+ *   - Staff experience the full live customer journey end-to-end.
+ *
+ * The ONLY difference is a flag on the data:
+ *   - Orders, enquiries, and leads created during mock mode carry is_mock = true.
+ *   - Revenue reports, analytics, and dashboards exclude is_mock = true records
+ *     by default so test transactions don't pollute real metrics.
+ *   - SUPER_ADMIN can pass includeMock=true to any analytics endpoint to
+ *     review test data for QA purposes.
  *
  * Backed by AppSetting key "mock.mode.enabled" (value "true"/"false").
- * The flag is read from the DB on every request — no restart needed.
+ * Read from DB on every request — no restart needed to toggle.
  */
 @Slf4j
 @Service
@@ -37,7 +42,10 @@ public class MockModeService {
         SettingUpdateRequest req = new SettingUpdateRequest();
         req.setKey(SETTING_KEY);
         req.setValue(String.valueOf(enabled));
-        req.setDescription("Mock / test mode — excludes data from real analytics when true");
+        req.setDescription(
+                "Test / mock mode. When true all new orders, enquiries, and leads " +
+                "are flagged is_mock=true and excluded from real analytics. " +
+                "All system flows (payments, emails, SMS) run normally.");
         settingsService.upsertSetting(req);
         log.info("Mock mode {} by {}", enabled ? "ENABLED" : "DISABLED", actorEmail);
     }

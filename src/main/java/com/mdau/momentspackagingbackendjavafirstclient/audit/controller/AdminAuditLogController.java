@@ -21,13 +21,6 @@ public class AdminAuditLogController {
 
     private final AuditLogRepository auditLogRepository;
 
-    /**
-     * GET /api/v1/admin/audit-logs
-     * Query params: entityType, action, actorId, entityId, from, to, page, size
-     *
-     * SUPER_ADMIN sees everything.
-     * Staff with AUDIT_VIEW permission can see logs.
-     */
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN') or hasAuthority('PERM_AUDIT_VIEW')")
     @GetMapping
     public ResponseEntity<PageResponse<AuditLogDto>> search(
@@ -35,16 +28,26 @@ public class AdminAuditLogController {
             @RequestParam(required = false) String  action,
             @RequestParam(required = false) UUID    actorId,
             @RequestParam(required = false) String  entityId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(defaultValue = "0")  int page,
             @RequestParam(defaultValue = "50") int size) {
 
         int cappedSize = Math.min(size, 200);
-        var pageable = PageRequest.of(page, cappedSize, Sort.by("createdAt").descending());
+        var pageable = PageRequest.of(page, cappedSize,
+                Sort.by("created_at").descending());
+
+        // Convert to String for native query — null stays null
+        String actorIdStr = actorId != null ? actorId.toString() : null;
+        String fromStr    = from    != null ? from.toString()    : null;
+        String toStr      = to      != null ? to.toString()      : null;
 
         return ResponseEntity.ok(new PageResponse<>(
-                auditLogRepository.search(entityType, action, actorId, entityId, from, to, pageable)
+                auditLogRepository.search(
+                        entityType, action, actorIdStr, entityId,
+                        fromStr, toStr, pageable)
                         .map(AuditLogDto::new)));
     }
 }

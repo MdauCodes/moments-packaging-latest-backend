@@ -26,8 +26,10 @@ public class AdminMockModeController {
         boolean enabled = mockModeService.isMockModeEnabled();
         return ResponseEntity.ok(new MockModeStatusDto(enabled,
                 enabled
-                ? "Mock mode ON — test data flagged, emails/payments suppressed"
-                : "Mock mode OFF — live customer mode"));
+                ? "Test mode ON — all new data flagged as test. " +
+                  "Payments, emails, and SMS run normally. " +
+                  "Test data excluded from real analytics."
+                : "Live mode — all data is real customer data."));
     }
 
     /** PUT /api/v1/admin/mock-mode?enabled=true|false */
@@ -42,13 +44,14 @@ public class AdminMockModeController {
 
         auditLogService.log(actor, "SETTING", "mock.mode.enabled", "Mock Mode",
                 enabled ? "MOCK_MODE_ON" : "MOCK_MODE_OFF",
-                "SUPER_ADMIN toggled mock mode",
+                "SUPER_ADMIN toggled test mode",
                 "{\"enabled\":" + enabled + "}",
                 httpRequest);
 
         return ResponseEntity.ok(new MockModeStatusDto(enabled,
                 enabled
-                ? "Mock mode ENABLED — all new data flagged as test"
-                : "Mock mode DISABLED — live mode restored"));
+                ? "Test mode ENABLED — new orders/enquiries/leads flagged as test. " +
+                  "Full payment and email flows active."
+                : "Live mode RESTORED — all new data is real."));
     }
 }

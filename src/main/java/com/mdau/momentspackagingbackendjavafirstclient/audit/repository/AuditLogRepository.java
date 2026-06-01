@@ -15,31 +15,40 @@ import java.util.UUID;
 public interface AuditLogRepository extends JpaRepository<AuditLog, UUID> {
 
     /**
-     * Flexible search with all-nullable filters.
+     * Native SQL search — avoids Hibernate 6 nullable UUID/Instant
+     * JPQL binding issues entirely. COALESCE pattern lets each param
+     * act as "ignore this filter when null".
      *
-     * Hibernate 6 + PostgreSQL: nullable UUID params must use the
-     * "param IS NULL OR col = param" pattern — Spring Data cannot
-     * bind null directly into "col = :param" for UUID columns.
+     * countQuery required alongside nativeQuery paged queries in Spring Data.
      */
-    @Query("""
-        SELECT a FROM AuditLog a
-        WHERE (:entityType IS NULL OR a.entityType = :entityType)
-        AND   (:action     IS NULL OR a.action     = :action)
-        AND   (CAST(:actorId AS java.util.UUID) IS NULL
-               OR a.actorId = :actorId)
-        AND   (:entityId   IS NULL OR a.entityId   = :entityId)
-        AND   (CAST(:from AS java.time.Instant) IS NULL
-               OR a.createdAt >= :from)
-        AND   (CAST(:to AS java.time.Instant) IS NULL
-               OR a.createdAt <= :to)
-        ORDER BY a.createdAt DESC
-        """)
+    @Query(
+        value = """
+            SELECT * FROM audit_logs a
+            WHERE (:entityType IS NULL OR a.entity_type = :entityType)
+            AND   (:action     IS NULL OR a.action      = :action)
+            AND   (:actorId    IS NULL OR a.actor_id    = CAST(:actorId AS uuid))
+            AND   (:entityId   IS NULL OR a.entity_id   = :entityId)
+            AND   (:fromTs     IS NULL OR a.created_at >= CAST(:fromTs AS timestamptz))
+            AND   (:toTs       IS NULL OR a.created_at <= CAST(:toTs   AS timestamptz))
+            ORDER BY a.created_at DESC
+            """,
+        countQuery = """
+            SELECT COUNT(*) FROM audit_logs a
+            WHERE (:entityType IS NULL OR a.entity_type = :entityType)
+            AND   (:action     IS NULL OR a.action      = :action)
+            AND   (:actorId    IS NULL OR a.actor_id    = CAST(:actorId AS uuid))
+            AND   (:entityId   IS NULL OR a.entity_id   = :entityId)
+            AND   (:fromTs     IS NULL OR a.created_at >= CAST(:fromTs AS timestamptz))
+            AND   (:toTs       IS NULL OR a.created_at <= CAST(:toTs   AS timestamptz))
+            """,
+        nativeQuery = true
+    )
     Page<AuditLog> search(
             @Param("entityType") String  entityType,
             @Param("action")     String  action,
-            @Param("actorId")    UUID    actorId,
+            @Param("actorId")    String  actorId,
             @Param("entityId")   String  entityId,
-            @Param("from")       Instant from,
-            @Param("to")         Instant to,
-            Pageable pageable);
+            @Param("fromTs")     String  fromTs,
+            @Param("toTs")       String  toTs,
+            Pageable             pageable);
 }
