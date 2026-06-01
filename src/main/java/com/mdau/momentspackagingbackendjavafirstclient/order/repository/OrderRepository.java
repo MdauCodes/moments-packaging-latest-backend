@@ -37,7 +37,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             Pageable pageable);
 
     /**
-     * Public email-based order lookup — no auth required.
+     * Public email-based order lookup â€” no auth required.
      * Returns all orders placed with this email, newest first.
      * Used by the track-by-email feature.
      */
@@ -51,7 +51,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             Pageable pageable);
 
     /**
-     * Idempotency check — find existing order by idempotency key.
+     * Idempotency check â€” find existing order by idempotency key.
      * The key is stored in the notes field prefixed with "idem:" during checkout.
      */
     Optional<Order> findByIdempotencyKey(String idempotencyKey);

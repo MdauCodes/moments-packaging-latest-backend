@@ -81,7 +81,7 @@ public class Order {
     @Builder.Default
     private FulfillmentType fulfillmentType = FulfillmentType.ZONE_DELIVERY;
 
-    // ── OWN_COURIER fields ────────────────────────────────────────────────────
+    // â”€â”€ OWN_COURIER fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Enumerated(EnumType.STRING)
     @Column(name = "courier_type", length = 30)
@@ -93,7 +93,7 @@ public class Order {
     @Column(name = "courier_stage_or_office", length = 500)
     private String courierStageOrOffice;
 
-    // ── Dispatcher fields ─────────────────────────────────────────────────────
+    // â”€â”€ Dispatcher fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Set to true by dispatcher after ticking all items in the checklist.
@@ -107,7 +107,7 @@ public class Order {
     @Column(name = "delivery_confirmation_status", length = 30)
     private DeliveryConfirmationStatus deliveryConfirmationStatus;
 
-    // ── Financials ────────────────────────────────────────────────────────────
+    // â”€â”€ Financials â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Column(precision = 12, scale = 2, nullable = false)
     private BigDecimal subtotal;

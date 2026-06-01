@@ -19,6 +19,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRep
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderStatusHistoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.MockModeService;
 import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +55,7 @@ public class CheckoutService {
     @Transactional
     public OrderDto checkout(User customer, String sessionId, CheckoutRequest request) {
 
-        // ── Idempotency check ─────────────────────────────────────────────────
+        // â”€â”€ Idempotency check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // If client sends a key and we already processed it, return existing order.
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
             Cache idempCache = cacheManager.getCache("checkout-idempotency");
@@ -62,7 +63,7 @@ public class CheckoutService {
                 Cache.ValueWrapper cached = idempCache.get(request.getIdempotencyKey());
                 if (cached != null) {
                     String existingReference = (String) cached.get();
-                    log.info("Idempotent checkout hit for key={} → returning order {}",
+                    log.info("Idempotent checkout hit for key={} â†’ returning order {}",
                             request.getIdempotencyKey(), existingReference);
                     return orderRepository.findByReference(existingReference)
                             .map(OrderDto::new)
@@ -72,7 +73,7 @@ public class CheckoutService {
             }
         }
 
-        // ── Cart resolution ───────────────────────────────────────────────────
+        // â”€â”€ Cart resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Cart cart = cartService.getOrCreateCart(customer, sessionId);
         List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
 
@@ -96,7 +97,7 @@ public class CheckoutService {
             throw new IllegalArgumentException("Cart is empty");
         }
 
-        // ── Fulfillment validation ────────────────────────────────────────────
+        // â”€â”€ Fulfillment validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         FulfillmentType fulfillmentType = request.getFulfillmentType() != null
                 ? request.getFulfillmentType() : FulfillmentType.ZONE_DELIVERY;
 
@@ -116,13 +117,13 @@ public class CheckoutService {
             }
         }
 
-        // ── Delivery fee ──────────────────────────────────────────────────────
+        // â”€â”€ Delivery fee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         BigDecimal deliveryFee = BigDecimal.ZERO;
         if (fulfillmentType == FulfillmentType.ZONE_DELIVERY && request.getCounty() != null) {
             deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
         }
 
-        // ── Promo code ────────────────────────────────────────────────────────
+        // â”€â”€ Promo code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromo = null;
         if (request.getPromoCode() != null && !request.getPromoCode().isBlank()) {
@@ -138,7 +139,7 @@ public class CheckoutService {
         BigDecimal total = subtotal.add(deliveryFee).subtract(discount);
         String reference = referenceGenerator.generate();
 
-        // ── Build order ───────────────────────────────────────────────────────
+        // â”€â”€ Build order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Order order = Order.builder()
                 .reference(reference)
                 .idempotencyKey(request.getIdempotencyKey())
@@ -165,7 +166,7 @@ public class CheckoutService {
                 .courierStageOrOffice(request.getCourierStageOrOffice())
                 .build();
 
-        // ── Resolve items ─────────────────────────────────────────────────────
+        // â”€â”€ Resolve items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         List<OrderItem> resolvedItems;
         if (!cartItems.isEmpty()) {
             resolvedItems = cartItems.stream()
@@ -237,7 +238,7 @@ public class CheckoutService {
 
         Order saved = orderRepository.save(order);
 
-        // ── Store idempotency key → reference ────────────────────────────────
+        // â”€â”€ Store idempotency key â†’ reference â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
             Cache idempCache = cacheManager.getCache("checkout-idempotency");
             if (idempCache != null) {

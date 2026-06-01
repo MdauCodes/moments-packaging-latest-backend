@@ -9,6 +9,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.enquiry.dto.EnquiryUpdate
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.entity.Enquiry;
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.entity.EnquiryStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.repository.EnquiryRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.MockModeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class EnquiryService {
 
     private final EnquiryRepository enquiryRepository;
     private final EmailService      emailService;
+    private final MockModeService   mockModeService;
 
     private static final DateTimeFormatter NOTE_TS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -42,6 +44,7 @@ public class EnquiryService {
                 .message(request.getMessage())
                 .source(request.getSource())
                 .status(EnquiryStatus.NEW)
+                .isMock(mockModeService.isMockModeEnabled())
                 .build();
 
         Enquiry saved = enquiryRepository.save(enquiry);
@@ -87,7 +90,7 @@ public class EnquiryService {
 
         // Append note with timestamp + author
         if (request.getNote() != null && !request.getNote().isBlank()) {
-            String stamp = "[" + NOTE_TS.format(Instant.now()) + " – " + updatedByEmail + "] ";
+            String stamp = "[" + NOTE_TS.format(Instant.now()) + " â€“ " + updatedByEmail + "] ";
             String existing = enquiry.getInternalNotes();
             enquiry.setInternalNotes(
                     existing == null || existing.isBlank()

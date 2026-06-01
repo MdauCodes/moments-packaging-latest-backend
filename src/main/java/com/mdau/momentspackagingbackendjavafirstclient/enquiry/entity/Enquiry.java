@@ -43,7 +43,7 @@ public class Enquiry extends BaseEntity {
     @Column(length = 100)
     private String source;
 
-    // ── CRM fields ────────────────────────────────────────────────────────────
+    // â”€â”€ CRM fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 30, nullable = false)
@@ -76,4 +76,12 @@ public class Enquiry extends BaseEntity {
     /** Products the customer is interested in (free text or comma-separated). */
     @Column(name = "product_interest", length = 500)
     private String productInterest;
+
+    /**
+     * True when this enquiry was created while mock mode was active.
+     * Excluded from CRM pipeline metrics and real analytics by default.
+     */
+    @Column(name = "is_mock", nullable = false)
+    @Builder.Default
+    private Boolean isMock = false;
 }

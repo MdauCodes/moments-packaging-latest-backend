@@ -32,4 +32,12 @@ public class Lead extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private Boolean contacted = false;
+
+    /**
+     * True when this lead was captured while mock mode was active.
+     * Excluded from real lead analytics by default.
+     */
+    @Column(name = "is_mock", nullable = false)
+    @Builder.Default
+    private Boolean isMock = false;
 }
