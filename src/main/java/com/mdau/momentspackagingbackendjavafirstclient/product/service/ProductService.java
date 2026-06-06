@@ -48,7 +48,7 @@ public class ProductService {
     private final IndustryRepository           industryRepository;
     private final ProductUomRepository         uomRepository;
 
-    // ── Standard paginated listing ────────────────────────────────────────────
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Standard paginated listing Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     @Transactional(readOnly = true)
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
@@ -65,7 +65,7 @@ public class ProductService {
      * Diversified product listing for the public storefront.
      *
      * Algorithm:
-     *  1. Fetch all active products (uses existing findAllActive — already loaded).
+     *  1. Fetch all active products (uses existing findAllActive Ã¢â‚¬â€ already loaded).
      *  2. Group by category.
      *  3. Round-robin across categories so each page shows a mix.
      *  4. Within each category, sort by: new arrivals first, then fast-moving,
@@ -81,12 +81,12 @@ public class ProductService {
         List<Product> all = productRepository.findAllActive();
         if (all.isEmpty()) return Page.empty();
 
-        // Group by category (null category → "OTHER")
+        // Group by category (null category Ã¢â€ â€™ "OTHER")
         Map<String, List<Product>> byCategory = all.stream()
                 .collect(Collectors.groupingBy(
                         p -> p.getCategory() != null ? p.getCategory().toUpperCase() : "OTHER"));
 
-        // Sort within each category: new arrivals → fast moving → monthly clicks
+        // Sort within each category: new arrivals Ã¢â€ â€™ fast moving Ã¢â€ â€™ monthly clicks
         byCategory.forEach((cat, products) ->
                 products.sort(Comparator
                         .comparing(Product::getIsNewArrival, Comparator.reverseOrder())
@@ -162,7 +162,7 @@ public class ProductService {
         });
     }
 
-    // ── Create / Update / Delete ──────────────────────────────────────────────
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Create / Update / Delete Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
@@ -274,7 +274,7 @@ public class ProductService {
         log.info("Product {} soft-deleted", id);
     }
 
-    // ── DTO builders ──────────────────────────────────────────────────────────
+    // Ã¢â€â‚¬Ã¢â€â‚¬ DTO builders Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     private ProductDto toDtoPublic(Product product) {
         initCollections(product);
@@ -305,7 +305,7 @@ public class ProductService {
         Hibernate.initialize(product.getIndustries());
     }
 
-    // ── Pricing tier persistence ───────────────────────────────────────────────
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Pricing tier persistence Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     private void savePricingTiers(Product product, List<ProductPricingTierDto> tierDtos) {
         if (tierDtos == null || tierDtos.isEmpty()) return;

@@ -135,6 +135,10 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Boolean customizable = false;
 
+
+    @Column(name = "riseller_item_id", unique = true, length = 100)
+    private String risellerItemId;
+
     @Column(name = "stock_count")
     @Builder.Default
     private Integer stockCount = 0;

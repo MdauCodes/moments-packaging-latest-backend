@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.order.controller;
 
+import com.mdau.momentspackagingbackendjavafirstclient.audit.service.AuditLogService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
@@ -7,6 +8,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.order.service.OrderService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -23,7 +25,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminOrderController {
 
-    private final OrderService orderService;
+    private final OrderService    orderService;
+    private final AuditLogService auditLogService;
 
     @IsStaffOrAdmin
     @GetMapping
@@ -46,17 +49,31 @@ public class AdminOrderController {
     public ResponseEntity<OrderDto> updateStatus(
             @PathVariable UUID id,
             @RequestBody OrderStatusUpdateRequest request,
-            @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(orderService.updateStatus(
-                id, request.getStatus(), request.getStaffNotes(), user.getEmail()));
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
+        OrderDto before = orderService.getById(id);
+        OrderDto updated = orderService.updateStatus(
+                id, request.getStatus(), request.getStaffNotes(), user.getEmail());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "STATUS_CHANGE", request.getStaffNotes(),
+                "{\"from\":\"" + before.getStatus() + "\",\"to\":\"" + updated.getStatus() + "\"}",
+                httpRequest);
+        return ResponseEntity.ok(updated);
     }
 
     @IsStaffOrAdmin
     @PatchMapping("/{id}/assign")
     public ResponseEntity<OrderDto> assign(
             @PathVariable UUID id,
-            @RequestBody OrderAssignRequest request) {
-        return ResponseEntity.ok(orderService.assignOrder(id, request.getAssignedTo()));
+            @RequestBody OrderAssignRequest request,
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
+        OrderDto updated = orderService.assignOrder(id, request.getAssignedTo());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "ASSIGN", null,
+                "{\"assignedTo\":\"" + request.getAssignedTo() + "\"}",
+                httpRequest);
+        return ResponseEntity.ok(updated);
     }
 
     @IsStaffOrAdmin
@@ -64,12 +81,18 @@ public class AdminOrderController {
     public ResponseEntity<OrderDto> dispatchConfirm(
             @PathVariable UUID id,
             @RequestBody DispatchConfirmRequest request,
-            @AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(orderService.dispatchConfirm(
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
+        OrderDto updated = orderService.dispatchConfirm(
                 id,
                 request.getDeliveryConfirmationStatus(),
                 request.getContentsVerified(),
-                user.getEmail()));
+                user.getEmail());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "DISPATCH_CONFIRM", null,
+                "{\"contentsVerified\":" + request.getContentsVerified() + "}",
+                httpRequest);
+        return ResponseEntity.ok(updated);
     }
 
     @IsAdmin
@@ -77,9 +100,12 @@ public class AdminOrderController {
     public ResponseEntity<OrderDto> refund(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
-            @AuthenticationPrincipal User user) {
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
         String reason = body.getOrDefault("reason", "Refund processed");
-        return ResponseEntity.ok(
-                orderService.processRefund(id, reason, user.getEmail()));
+        OrderDto updated = orderService.processRefund(id, reason, user.getEmail());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "REFUND", reason, null, httpRequest);
+        return ResponseEntity.ok(updated);
     }
 }

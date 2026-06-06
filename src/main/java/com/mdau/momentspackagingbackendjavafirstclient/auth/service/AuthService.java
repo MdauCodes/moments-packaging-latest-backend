@@ -11,6 +11,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.RefreshTo
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.security.JwtService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
+import com.mdau.momentspackagingbackendjavafirstclient.audit.service.AuditLogService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
@@ -50,6 +52,7 @@ public class AuthService {
         String accessToken  = jwtService.generateAccessToken(user);
         String refreshToken = createRefreshToken(user);
 
+        auditLogService.logSystem("AUTH", user.getId().toString(), user.getEmail(), "LOGIN", null, null);
         return new AuthResponse(accessToken, refreshToken, new AuthUserDto(user));
     }
 
@@ -80,6 +83,7 @@ public class AuthService {
                 .ifPresent(rt -> {
                     rt.setRevoked(true);
                     refreshTokenRepository.save(rt);
+                    auditLogService.logSystem("AUTH", rt.getUser().getId().toString(), rt.getUser().getEmail(), "LOGOUT", null, null);
                 });
     }
 
@@ -95,6 +99,7 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setMustChangePassword(false);
         userRepository.save(user);
+        auditLogService.logSystem("AUTH", user.getId().toString(), userEmail, "PASSWORD_CHANGE", null, null);
         log.info("Password changed for user {}", userEmail);
     }
 

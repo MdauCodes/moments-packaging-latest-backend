@@ -39,8 +39,13 @@ public class InventoryService {
                     .orElse(null);
             if (product == null) continue;
 
-            if (product.getStockStatus() == StockStatus.MADE_TO_ORDER) {
-                log.debug("Skipping stock deduction for MADE_TO_ORDER product {}", product.getId());
+            // MADE_TO_ORDER: no physical stock tracked.
+            // OUT_OF_STOCK: business can still fulfil — frontend warns customer,
+            //               but order is not blocked. No stock to deduct.
+            if (product.getStockStatus() == StockStatus.MADE_TO_ORDER ||
+                product.getStockStatus() == StockStatus.OUT_OF_STOCK) {
+                log.debug("Skipping stock deduction for {} product {}",
+                        product.getStockStatus(), product.getId());
                 continue;
             }
 
@@ -57,7 +62,7 @@ public class InventoryService {
             if (updated == 0) {
                 throw new IllegalStateException(
                         "Stock deduction failed for product '" + product.getName() +
-                        "' — concurrent update detected. Please retry.");
+                        "' â€” concurrent update detected. Please retry.");
             }
             log.info("Stock deducted: product={} units={} orderRef={}",
                     product.getId(), units, order.getReference());
@@ -119,7 +124,7 @@ public class InventoryService {
     }
 
     /**
-     * Direct stock count set — used by admin for full corrections.
+     * Direct stock count set â€” used by admin for full corrections.
      */
     @Transactional
     public ProductDto setStock(UUID productId, int newCount, String reason) {

@@ -119,4 +119,11 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findByStockStatusAndDeletedFalse(StockStatus stockStatus);
 
     boolean existsBySlug(String slug);
+
+    @Query("SELECT p FROM Product p JOIN p.keywords k WHERE k = :keyword AND p.deleted = false")
+    java.util.Optional<com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product> findByKeywordAndDeletedFalse(@Param("keyword") String keyword);
+
+
+    Optional<Product> findByRisellerItemIdAndDeletedFalse(String risellerItemId);
+
 }

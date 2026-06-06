@@ -1,15 +1,18 @@
 package com.mdau.momentspackagingbackendjavafirstclient.user.controller;
 
+import com.mdau.momentspackagingbackendjavafirstclient.audit.service.AuditLogService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.user.dto.StaffRoleDto;
 import com.mdau.momentspackagingbackendjavafirstclient.user.dto.UserCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.user.dto.UserDto;
 import com.mdau.momentspackagingbackendjavafirstclient.user.dto.UserUpdateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.Permission;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.StaffRole;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.StaffRoleRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.user.service.UserService;
-import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +20,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -35,6 +39,7 @@ public class AdminUserController {
 
     private final UserService         userService;
     private final StaffRoleRepository roleRepository;
+    private final AuditLogService     auditLogService;
 
     // ── User management ───────────────────────────────────────────────────────
 
@@ -43,8 +48,7 @@ public class AdminUserController {
     public ResponseEntity<PageResponse<UserDto>> getAllStaffUsers(
             @PageableDefault(size = 20, sort = "createdAt",
                     direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(new PageResponse<>(
-                userService.getAllStaffUsers(pageable)));
+        return ResponseEntity.ok(new PageResponse<>(userService.getAllStaffUsers(pageable)));
     }
 
     @PreAuthorize("hasAuthority('PERM_USER_VIEW') or hasRole('ROLE_SUPER_ADMIN')")
@@ -56,8 +60,14 @@ public class AdminUserController {
     @PreAuthorize("hasAuthority('PERM_USER_CREATE') or hasRole('ROLE_SUPER_ADMIN')")
     @PostMapping("/users")
     public ResponseEntity<UserDto> createUser(
-            @Valid @RequestBody UserCreateRequest request) {
+            @Valid @RequestBody UserCreateRequest request,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
         UserDto created = userService.createStaffUser(request);
+        auditLogService.log(actor, "USER", created.getId().toString(),
+                created.getEmail(), "CREATE", null,
+                "{\"email\":\"" + created.getEmail() + "\",\"role\":\"" + created.getStaffRoleName() + "\"}",
+                httpRequest);
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.getId()).toUri();
         return ResponseEntity.created(location).body(created);
@@ -67,18 +77,32 @@ public class AdminUserController {
     @PatchMapping("/users/{id}")
     public ResponseEntity<UserDto> updateUser(
             @PathVariable UUID id,
-            @Valid @RequestBody UserUpdateRequest request) {
-        return ResponseEntity.ok(userService.updateStaffUser(id, request));
+            @Valid @RequestBody UserUpdateRequest request,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
+        UserDto updated = userService.updateStaffUser(id, request);
+        String changes = Boolean.TRUE.equals(request.getResetPassword())
+                ? "{\"action\":\"password_reset\"}"
+                : "{\"enabled\":" + request.getEnabled() + "}";
+        auditLogService.log(actor, "USER", id.toString(), updated.getEmail(),
+                Boolean.TRUE.equals(request.getResetPassword()) ? "PASSWORD_RESET" : "UPDATE",
+                null, changes, httpRequest);
+        return ResponseEntity.ok(updated);
     }
 
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
     @DeleteMapping("/users/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteUser(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
+        UserDto target = userService.getById(id);
         userService.deleteStaffUser(id);
+        auditLogService.log(actor, "USER", id.toString(), target.getEmail(),
+                "DELETE", null, null, httpRequest);
         return ResponseEntity.noContent().build();
     }
 
-    /** Returns all active staff for order assignment dropdown — no customer accounts */
     @PreAuthorize("hasAuthority('PERM_ORDER_ASSIGN') or hasRole('ROLE_SUPER_ADMIN')")
     @GetMapping("/users/assignable")
     public ResponseEntity<List<UserDto>> getAssignableStaff() {
@@ -87,7 +111,7 @@ public class AdminUserController {
                         .stream().collect(Collectors.toList()));
     }
 
-    // ── Role management (SUPER_ADMIN only) ────────────────────────────────────
+    // ── Role management ───────────────────────────────────────────────────────
 
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
     @GetMapping("/roles")
@@ -99,24 +123,24 @@ public class AdminUserController {
 
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
     @PostMapping("/roles")
-    public ResponseEntity<StaffRoleDto> createRole(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<StaffRoleDto> createRole(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
         String name = ((String) body.get("name")).toUpperCase().trim().replace(" ", "_");
         String displayName = (String) body.get("displayName");
         String description = (String) body.getOrDefault("description", "");
-
         @SuppressWarnings("unchecked")
         List<String> permList = (List<String>) body.getOrDefault("permissions", List.of());
         Set<Permission> permissions = parsePermissions(permList);
-
         if (roleRepository.existsByNameAndDeletedFalse(name)) {
             throw new IllegalArgumentException("Role '" + name + "' already exists.");
         }
-
         StaffRole role = roleRepository.save(StaffRole.builder()
                 .name(name).displayName(displayName).description(description)
-                .isDefault(false).permissions(permissions).deleted(false)
-                .build());
-
+                .isDefault(false).permissions(permissions).deleted(false).build());
+        auditLogService.log(actor, "ROLE", role.getId().toString(), name,
+                "CREATE", null, "{\"name\":\"" + name + "\"}", httpRequest);
         URI location = URI.create("/api/v1/admin/roles/" + role.getId());
         return ResponseEntity.created(location).body(new StaffRoleDto(role));
     }
@@ -125,26 +149,30 @@ public class AdminUserController {
     @PatchMapping("/roles/{id}")
     public ResponseEntity<StaffRoleDto> updateRole(
             @PathVariable UUID id,
-            @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
         StaffRole role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + id));
-
-        if (body.containsKey("displayName"))
-            role.setDisplayName((String) body.get("displayName"));
-        if (body.containsKey("description"))
-            role.setDescription((String) body.get("description"));
+        if (body.containsKey("displayName")) role.setDisplayName((String) body.get("displayName"));
+        if (body.containsKey("description")) role.setDescription((String) body.get("description"));
         if (body.containsKey("permissions")) {
             @SuppressWarnings("unchecked")
             List<String> permList = (List<String>) body.get("permissions");
             role.setPermissions(parsePermissions(permList));
         }
-
-        return ResponseEntity.ok(new StaffRoleDto(roleRepository.save(role)));
+        StaffRole saved = roleRepository.save(role);
+        auditLogService.log(actor, "ROLE", id.toString(), role.getName(),
+                "UPDATE", null, null, httpRequest);
+        return ResponseEntity.ok(new StaffRoleDto(saved));
     }
 
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
     @DeleteMapping("/roles/{id}")
-    public ResponseEntity<Void> deleteRole(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteRole(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
         StaffRole role = roleRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + id));
         if (Boolean.TRUE.equals(role.getIsDefault())) {
@@ -152,14 +180,11 @@ public class AdminUserController {
         }
         role.setDeleted(true);
         roleRepository.save(role);
+        auditLogService.log(actor, "ROLE", id.toString(), role.getName(),
+                "DELETE", null, null, httpRequest);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Returns all available permissions — frontend uses this to build the role-editor UI.
-     * Values are returned WITHOUT the "PERM_" prefix — they match the Permission enum names
-     * exactly and must be sent back to POST/PATCH /roles in the same format.
-     */
     @PreAuthorize("hasRole('ROLE_SUPER_ADMIN')")
     @GetMapping("/permissions")
     public ResponseEntity<List<String>> getAllPermissions() {
@@ -169,21 +194,9 @@ public class AdminUserController {
                         .collect(Collectors.toList()));
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /**
-     * Converts a list of permission strings from the frontend into Permission enum values.
-     * Tolerates both formats the frontend might send:
-     *   - Prefixed:   "PERM_ORDER_VIEW"  → strips prefix → ORDER_VIEW
-     *   - Unprefixed: "ORDER_VIEW"        → used as-is
-     *
-     * Throws IllegalArgumentException (→ 400) on unrecognised values instead of
-     * letting valueOf() bubble up as an unhandled 500.
-     */
     private Set<Permission> parsePermissions(List<String> raw) {
         return raw.stream()
                 .map(p -> {
-                    // Normalise: strip the "PERM_" prefix if present
                     String normalised = p.startsWith("PERM_") ? p.substring(5) : p;
                     try {
                         return Permission.valueOf(normalised);

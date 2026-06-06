@@ -80,7 +80,8 @@ app:
     secret: ${JWT_SECRET:}
     access-token-expiration-ms: 900000
     refresh-token-expiration-ms: 604800000
-  cloudinary:
+  cloudinary:@("RisellerSyncService.java","ProductService.java","PublicProductController.java","ProductRepository.java") | ForEach-Object { $path = Get-ChildItem -Path "J:\backend\moments-packaging-backend-Java-First client\src" -Recurse -Filter $_ | Select-Object -First 1 -ExpandProperty FullName; Write-Output "`n===== $_ =====`n"; Get-Content $path -Raw | Out-String }
+
     cloud-name: dhgwijhdu
     api-key: ${CLOUDINARY_API_KEY:837784483137119}
     api-secret: ${CLOUDINARY_API_SECRET:1_hpvy6vfmO7ByjDjiUp5MORjSg}
@@ -178,3 +179,15 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} [%X{traceId}] - %msg%n"
+
+  riseller:
+    x-app-key: "K9v#X2mPq7!Ld4@Rs8$Tn5^Wy1&Uz6*Bc3?Hg9=Jf2+Qa7%Xe4"
+    stock-url: "https://riseller.com/api/ecom/master/warehouse-stock"
+    page-size: 100
+    s3:
+      service-url: "https://sfo3.digitaloceanspaces.com"
+      bucket-name: "risellerv4"
+      access-key: "DO801MY9WXU6WXQCRR6Q"
+      secret-key: "DBLMLSa5JbsFjmc793WJo+kuxrMwtTA3Pu+gY2L23kQ"
+      folder-name: "Moments Packaging (K) Ltd"
+      file-name: "item_cache.zip"
