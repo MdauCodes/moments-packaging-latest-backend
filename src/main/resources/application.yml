@@ -148,6 +148,17 @@ app:
     api-key: ${AT_API_KEY:sandbox_key}
     sender-id: ${AT_SENDER_ID:MOMENTS}
     enabled: ${AT_ENABLED:false}
+  riseller:
+    x-app-key: "K9v#X2mPq7!Ld4@Rs8$Tn5^Wy1&Uz6*Bc3?Hg9=Jf2+Qa7%Xe4"
+    stock-url: "https://riseller.com/api/ecom/master/warehouse-stock"
+    page-size: 100
+    s3:
+      service-url: "https://sfo3.digitaloceanspaces.com"
+      bucket-name: "risellerv4"
+      access-key: "DO801MY9WXU6WXQCRR6Q"
+      secret-key: "DBLMLSa5JbsFjmc793WJo+kuxrMwtTA3Pu+gY2L23kQ"
+      folder-name: "Moments Packaging (K) Ltd"
+      file-name: "item_cache.zip"
 
 springdoc:
   api-docs:
@@ -179,15 +190,3 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} [%X{traceId}] - %msg%n"
-
-  riseller:
-    x-app-key: "K9v#X2mPq7!Ld4@Rs8$Tn5^Wy1&Uz6*Bc3?Hg9=Jf2+Qa7%Xe4"
-    stock-url: "https://riseller.com/api/ecom/master/warehouse-stock"
-    page-size: 100
-    s3:
-      service-url: "https://sfo3.digitaloceanspaces.com"
-      bucket-name: "risellerv4"
-      access-key: "DO801MY9WXU6WXQCRR6Q"
-      secret-key: "DBLMLSa5JbsFjmc793WJo+kuxrMwtTA3Pu+gY2L23kQ"
-      folder-name: "Moments Packaging (K) Ltd"
-      file-name: "item_cache.zip"
