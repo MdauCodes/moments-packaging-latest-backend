@@ -80,7 +80,7 @@ app:
     secret: ${JWT_SECRET:}
     access-token-expiration-ms: 900000
     refresh-token-expiration-ms: 604800000
-  cloudinary:@("RisellerSyncService.java","ProductService.java","PublicProductController.java","ProductRepository.java") | ForEach-Object { $path = Get-ChildItem -Path "J:\backend\moments-packaging-backend-Java-First client\src" -Recurse -Filter $_ | Select-Object -First 1 -ExpandProperty FullName; Write-Output "`n===== $_ =====`n"; Get-Content $path -Raw | Out-String }
+  cloudinary:
 
     cloud-name: dhgwijhdu
     api-key: ${CLOUDINARY_API_KEY:837784483137119}
