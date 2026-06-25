@@ -82,7 +82,10 @@ public class InventoryService {
                     .orElse(null);
             if (product == null) continue;
 
-            if (product.getStockStatus() == StockStatus.MADE_TO_ORDER) continue;
+            // Only restore stock for products that were actually deducted.
+            // MADE_TO_ORDER and OUT_OF_STOCK are skipped during deduction, so skip here too.
+            if (product.getStockStatus() == StockStatus.MADE_TO_ORDER ||
+                product.getStockStatus() == StockStatus.OUT_OF_STOCK) continue;
 
             int units = item.getTotalUnits() != null ? item.getTotalUnits() : item.getQuantity();
             if (units <= 0) continue;

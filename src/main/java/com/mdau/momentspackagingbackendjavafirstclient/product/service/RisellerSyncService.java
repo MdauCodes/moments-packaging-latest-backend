@@ -126,6 +126,10 @@ public class RisellerSyncService {
                     if (productOpt.isEmpty()) { totalUnmatched++; continue; }
 
                     var product = productOpt.get();
+
+                    // MADE_TO_ORDER products don't track physical stock — skip entirely.
+                    if (product.getStockStatus() == StockStatus.MADE_TO_ORDER) continue;
+
                     int newCount = item.getInStock() != null ? item.getInStock().intValue() : 0;
 
                     StockStatus newStatus;
