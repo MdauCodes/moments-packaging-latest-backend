@@ -136,10 +136,10 @@ app:
   daraja:
     consumer-key: ${DARAJA_CONSUMER_KEY:}
     consumer-secret: ${DARAJA_CONSUMER_SECRET:}
-    shortcode: ${DARAJA_SHORTCODE:174379}
+    shortcode: ${DARAJA_SHORTCODE:4321351}
     passkey: ${DARAJA_PASSKEY:}
     callback-url: ${DARAJA_CALLBACK_URL:https://moments-packaging-latest-backend-production.up.railway.app/api/v1/payments/daraja/callback}
-    base-url: ${DARAJA_BASE_URL:https://sandbox.safaricom.co.ke}
+    base-url: ${DARAJA_BASE_URL:https://api.safaricom.co.ke}
     transaction-type: ${DARAJA_TRANSACTION_TYPE:CustomerPayBillOnline}
     account-reference: ${DARAJA_ACCOUNT_REFERENCE:MomentsPackaging}
     transaction-desc: ${DARAJA_TRANSACTION_DESC:Payment for order}

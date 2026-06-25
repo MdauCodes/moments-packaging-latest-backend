@@ -136,7 +136,7 @@ public class PaymentService {
             }
         }
 
-        // -- M-Pesa via PayHero -------------------------------------------
+        // -- M-Pesa via Daraja (also handles legacy PAYHERO method) ----------
         if (method == PaymentMethod.PAYHERO) {
             if (request.getPhone() == null || request.getPhone().isBlank())
                 throw new IllegalArgumentException("Phone is required for M-Pesa payment");
@@ -144,12 +144,12 @@ public class PaymentService {
             String externalRef = UUID.randomUUID().toString();
             PaymentRecord record = PaymentRecord.builder()
                     .order(order).amount(order.getTotalAmount())
-                    .method(method).status(PaymentRecordStatus.INITIATED)
+                    .method(PaymentMethod.MPESA).status(PaymentRecordStatus.INITIATED)
                     .phone(request.getPhone()).externalReference(externalRef).build();
             paymentRecordRepository.save(record);
 
             try {
-                String checkoutRequestId = payHeroService.initiateSTKPush(
+                String checkoutRequestId = darajaService.initiateSTKPush(
                         request.getPhone(), order.getTotalAmount(), externalRef);
                 record.setCheckoutRequestId(checkoutRequestId);
                 record.setStatus(PaymentRecordStatus.PROCESSING);
