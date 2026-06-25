@@ -142,6 +142,11 @@ public class RisellerSyncService {
                     }
 
                     if (product.getStockCount() != newCount || product.getStockStatus() != newStatus) {
+                        log.info("Stock updated: \"{}\" count={}→{} status={}{}",
+                                product.getName(), product.getStockCount(), newCount,
+                                newStatus,
+                                product.getStockStatus() != newStatus
+                                        ? " (was " + product.getStockStatus() + ")" : "");
                         productRepository.setStockCount(product.getId(), newCount);
                         totalUpdated++;
                     }
