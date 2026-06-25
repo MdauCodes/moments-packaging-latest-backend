@@ -14,6 +14,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductCli
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductPricingTier;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductUom;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.cart.repository.CartItemRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductClickRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductPricingTierRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
@@ -45,6 +46,7 @@ public class ProductService {
     private final ProductRepository            productRepository;
     private final ProductClickRepository       productClickRepository;
     private final ProductPricingTierRepository pricingTierRepository;
+    private final CartItemRepository           cartItemRepository;
     private final IndustryRepository           industryRepository;
     private final ProductUomRepository         uomRepository;
 
@@ -257,6 +259,7 @@ public class ProductService {
         Product saved = productRepository.save(product);
 
         if (request.getPricingTiers() != null) {
+            cartItemRepository.nullifyTiersByProductId(saved.getId());
             pricingTierRepository.deleteByProductId(saved.getId());
             savePricingTiers(saved, request.getPricingTiers());
         }
