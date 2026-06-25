@@ -103,7 +103,7 @@ public class CheckoutService {
 
         if (fulfillmentType == FulfillmentType.PICKUP) {
             boolean pickupEnabled = Boolean.parseBoolean(
-                    settingsService.getValue("fulfillment.pickup.enabled", "false"));
+                    settingsService.getValue("fulfillment.pickup.enabled", "true"));
             if (!pickupEnabled) throw new IllegalArgumentException(
                     "Pickup is currently unavailable. Please select delivery.");
         }
