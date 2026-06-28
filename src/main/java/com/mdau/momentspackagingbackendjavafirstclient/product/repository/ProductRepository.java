@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -125,5 +126,16 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
 
     Optional<Product> findByRisellerItemIdAndDeletedFalse(String risellerItemId);
+
+    /** Products not yet linked to any Riseller item — candidates for auto-matching. */
+    @Query("SELECT p FROM Product p WHERE p.deleted = false AND (p.risellerItemId IS NULL OR p.risellerItemId = '')")
+    List<Product> findUnlinkedProducts();
+
+    /**
+     * Products whose Riseller ID is set but no longer appears in the current catalog —
+     * i.e., Riseller removed the item.
+     */
+    @Query("SELECT p FROM Product p WHERE p.deleted = false AND p.risellerItemId IS NOT NULL AND p.risellerItemId NOT IN :validIds")
+    List<Product> findOrphanedByRisellerId(@Param("validIds") Collection<String> validIds);
 
 }

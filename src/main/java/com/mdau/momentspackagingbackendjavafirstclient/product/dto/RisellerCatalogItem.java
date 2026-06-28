@@ -21,4 +21,20 @@ public class RisellerCatalogItem {
 
     @JsonProperty("BaseUomName")
     private String baseUomName;
+
+    /** "Yes" = physical stock tracked in warehouse; "No" = service/virtual item. */
+    @JsonProperty("StockItem")
+    private String stockItem;
+
+    /** E.g. "SK-634" — prefixed form of the code, alternative search token. */
+    @JsonProperty("PrefixedCode")
+    private String prefixedCode;
+
+    /** E.g. "FINISHED", "RAW_MATERIAL" */
+    @JsonProperty("ItemType")
+    private String itemType;
+
+    public boolean isPhysicalStockItem() {
+        return "Yes".equalsIgnoreCase(stockItem);
+    }
 }
