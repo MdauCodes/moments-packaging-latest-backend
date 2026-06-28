@@ -163,6 +163,18 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Boolean deleted = false;
 
+    /**
+     * True when this product was previously linked to Riseller but the Riseller item
+     * was removed from the catalog. The product is kept (never deleted) so admin-added
+     * content (images, descriptions, prices) is preserved. It is hidden from the
+     * storefront until Riseller re-lists the item, at which point the catalog sync
+     * clears this flag and re-links automatically.
+     */
+    @Column(name = "riseller_suspended", nullable = false,
+            columnDefinition = "boolean not null default false")
+    @Builder.Default
+    private Boolean risellerSuspended = false;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "product_industries",

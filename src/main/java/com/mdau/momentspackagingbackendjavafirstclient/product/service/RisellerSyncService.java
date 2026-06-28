@@ -103,7 +103,9 @@ public class RisellerSyncService {
                 switch (outcome) {
                     case RisellerNameMatcher.MatchOutcome.Clear(var m) -> {
                         var p = m.product();
+                        boolean wasReactivated = Boolean.TRUE.equals(p.getRisellerSuspended());
                         p.setRisellerItemId(uuid);
+                        p.setRisellerSuspended(false);  // lift suspension if previously suspended
                         // Stamp the code as a keyword → next sync uses the exact fast-path
                         if (p.getKeywords() == null) p.setKeywords(new ArrayList<>());
                         if (!p.getKeywords().contains(code)) p.getKeywords().add(code);
@@ -111,7 +113,11 @@ public class RisellerSyncService {
                         unlinkedPool.remove(p);
 
                         boolean wasExact = m.reason().contains("exact") || m.reason().contains("code-in-name");
-                        if (wasExact) {
+                        if (wasReactivated) {
+                            exactLinked++;
+                            log.info("Catalog RE-ACTIVATED [{}]: \"{}\" ← code={} (was suspended)",
+                                    m.reason(), p.getName(), code);
+                        } else if (wasExact) {
                             exactLinked++;
                             log.info("Catalog linked [{}]: \"{}\" ← code={}", m.reason(), p.getName(), code);
                         } else {
@@ -152,31 +158,41 @@ public class RisellerSyncService {
             }
 
             // ── Orphan cleanup ───────────────────────────────────────────────────────
-            // Products whose risellerItemId no longer exists in the catalog
-            // (Riseller removed the item entirely)
-            int orphanUnlinked = 0;
-            int orphanDeleted  = 0;
+            // Products whose risellerItemId no longer exists in the current catalog.
+            // We never delete a product the admin has worked on — we suspend it instead.
+            // It will be automatically re-activated if Riseller re-lists the item.
+            int orphanSuspended = 0;
+            int orphanDeleted   = 0;
+            StringBuilder suspendedLog = new StringBuilder();
+
             if (!catalogIds.isEmpty()) {
                 List<Product> orphans = productRepository.findOrphanedByRisellerId(catalogIds);
 
                 for (var orphan : orphans) {
-                    boolean hasImage = orphan.getPrimaryImageUrl() != null
-                            || (orphan.getImageUrls() != null && !orphan.getImageUrls().isEmpty());
+                    boolean hasAdminContent =
+                            orphan.getPrimaryImageUrl() != null ||
+                            (orphan.getImageUrls() != null && !orphan.getImageUrls().isEmpty()) ||
+                            orphan.getDescription() != null ||
+                            orphan.getBasePrice() != null ||
+                            orphan.getCategory() != null;
 
-                    if (hasImage) {
-                        // Safe to unlink — don't delete a product an admin invested in
-                        orphan.setRisellerItemId(null);
+                    orphan.setRisellerItemId(null);  // unlink in all cases
+
+                    if (hasAdminContent) {
+                        // Admin invested content — suspend (hide from store) but keep everything
+                        orphan.setRisellerSuspended(true);
+                        orphan.setStockStatus(StockStatus.OUT_OF_STOCK);
                         productRepository.save(orphan);
-                        orphanUnlinked++;
-                        log.warn("Orphan UNLINKED (has image, kept): \"{}\" — Riseller no longer has this item",
+                        orphanSuspended++;
+                        suspendedLog.append(String.format("  • \"%s\"%n", orphan.getName()));
+                        log.warn("Orphan SUSPENDED (has admin content): \"{}\" — Riseller no longer lists this item",
                                 orphan.getName());
                     } else {
-                        // No image, no Riseller match → soft-delete
-                        orphan.setRisellerItemId(null);
+                        // Auto-created, zero admin work — safe to remove
                         orphan.setDeleted(true);
                         productRepository.save(orphan);
                         orphanDeleted++;
-                        log.info("Orphan SOFT-DELETED (no image): \"{}\"", orphan.getName());
+                        log.info("Orphan DELETED (no admin content): \"{}\"", orphan.getName());
                     }
                 }
             }
@@ -185,42 +201,48 @@ public class RisellerSyncService {
             settingsService.upsertSetting(buildSetting(KEY_LAST_CATALOG_SYNC, Instant.now().toString()));
             String auditPayload = String.format(
                     "{\"exactLinked\":%d,\"autoLinked\":%d,\"autoCreated\":%d,\"ambiguous\":%d," +
-                    "\"alreadySynced\":%d,\"skipped\":%d,\"orphanUnlinked\":%d,\"orphanDeleted\":%d}",
+                    "\"alreadySynced\":%d,\"skipped\":%d,\"orphanSuspended\":%d,\"orphanDeleted\":%d}",
                     exactLinked, autoLinked, autoCreated, ambiguous,
-                    alreadySynced, skipped, orphanUnlinked, orphanDeleted);
+                    alreadySynced, skipped, orphanSuspended, orphanDeleted);
             auditLogService.logSystem("SYSTEM", null, "riseller-catalog-sync", "CATALOG_SYNC", null, auditPayload);
 
             log.info("Catalog sync complete: {} exact-linked, {} fuzzy-linked, {} auto-created, " +
                      "{} ambiguous (needs review), {} already synced, {} skipped | " +
-                     "Orphans: {} unlinked (kept), {} soft-deleted",
+                     "Orphans: {} suspended (content preserved), {} deleted (no content)",
                     exactLinked, autoLinked, autoCreated, ambiguous,
-                    alreadySynced, skipped, orphanUnlinked, orphanDeleted);
+                    alreadySynced, skipped, orphanSuspended, orphanDeleted);
 
-            // Email admin whenever anything interesting happened
-            boolean needsEmail = autoLinked > 0 || autoCreated > 0 || ambiguous > 0;
+            boolean needsEmail = autoLinked > 0 || autoCreated > 0 || ambiguous > 0 || orphanSuspended > 0;
             if (needsEmail) {
                 StringBuilder email = new StringBuilder("Riseller catalog sync completed.\n\n");
 
                 if (autoCreated > 0) {
-                    email.append("── AUTO-CREATED ").append(autoCreated)
-                         .append(" new product(s) from Riseller ──\n");
-                    email.append("These products did not exist in the DB and were created automatically.\n");
-                    email.append("They need price, description, images, and category added in the admin panel.\n\n");
+                    email.append("── AUTO-CREATED ").append(autoCreated).append(" new product(s) ──\n");
+                    email.append("These Riseller items had no matching product in the DB and were created automatically.\n");
+                    email.append("They are live in the store as OUT_OF_STOCK. Please add price, description,\n");
+                    email.append("images, and category for each in the admin panel.\n\n");
                 }
 
                 if (autoLinked > 0) {
                     email.append("── AUTO-LINKED ").append(autoLinked).append(" product(s) by name similarity ──\n");
-                    email.append("These were linked automatically. Review and correct if wrong:\n");
+                    email.append("Review and correct if any link looks wrong:\n");
                     email.append(autoLinkLog);
-                    email.append("To fix a wrong link: add keyword \"<RisellerCode>\" to the correct product,\n");
-                    email.append("remove it from the wrong one, then the next sync will correct it.\n\n");
+                    email.append("Fix: add keyword \"<RisellerCode>\" to the correct product; next sync corrects it.\n\n");
                 }
 
                 if (ambiguous > 0) {
-                    email.append("── AMBIGUOUS ").append(ambiguous).append(" item(s) — NOT auto-linked ──\n");
-                    email.append("Multiple existing products scored too similarly to pick automatically.\n");
-                    email.append("For each item below, add the Riseller code as a keyword to the correct product:\n");
-                    email.append(ambiguousLog);
+                    email.append("── AMBIGUOUS ").append(ambiguous).append(" item(s) — manual action required ──\n");
+                    email.append("Multiple existing products matched too closely to auto-link safely.\n");
+                    email.append("For each item, add the Riseller code as a keyword to the correct product:\n");
+                    email.append(ambiguousLog).append("\n");
+                }
+
+                if (orphanSuspended > 0) {
+                    email.append("── SUSPENDED ").append(orphanSuspended).append(" product(s) (Riseller no longer lists them) ──\n");
+                    email.append("These products have been hidden from the storefront but all admin content\n");
+                    email.append("(images, descriptions, prices) is fully preserved. They will reappear automatically\n");
+                    email.append("if Riseller re-lists them. You may also manually re-enable or delete them.\n");
+                    email.append(suspendedLog);
                 }
 
                 emailService.sendSyncFailureAlert(email.toString());

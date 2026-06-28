@@ -28,6 +28,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
         SELECT DISTINCT p FROM Product p
         LEFT JOIN p.industries i
         WHERE p.deleted = false
+        AND p.risellerSuspended = false
         AND (:industryId IS NULL OR i.id = :industryId)
         AND (:isDiscount IS NULL OR p.isDiscount = :isDiscount)
         AND (:isNewArrival IS NULL OR p.isNewArrival = :isNewArrival)
@@ -42,7 +43,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("category")     String category,
             Pageable pageable);
 
-    @Query("SELECT p FROM Product p WHERE p.deleted = false ORDER BY p.monthlyClicks DESC")
+    @Query("SELECT p FROM Product p WHERE p.deleted = false AND p.risellerSuspended = false ORDER BY p.monthlyClicks DESC")
     List<Product> findTopByMonthlyClicks(Pageable pageable);
 
     @Modifying
@@ -73,9 +74,13 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("""
     SELECT p FROM Product p
     LEFT JOIN FETCH p.imageUrls
-    WHERE p.deleted = false
+    WHERE p.deleted = false AND p.risellerSuspended = false
     """)
     List<Product> findAllActive();
+
+    /** Products suspended because Riseller dropped them — kept for admin content preservation. */
+    @Query("SELECT p FROM Product p WHERE p.deleted = false AND p.risellerSuspended = true")
+    List<Product> findSuspended();
 
     @Modifying
     @Query("""
@@ -127,7 +132,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByRisellerItemIdAndDeletedFalse(String risellerItemId);
 
-    /** Products not yet linked to any Riseller item — candidates for auto-matching. */
+    /**
+     * Products not yet linked to any Riseller item — candidates for auto-matching.
+     * Includes suspended products so they can be re-activated when Riseller re-lists them.
+     */
     @Query("SELECT p FROM Product p WHERE p.deleted = false AND (p.risellerItemId IS NULL OR p.risellerItemId = '')")
     List<Product> findUnlinkedProducts();
 
