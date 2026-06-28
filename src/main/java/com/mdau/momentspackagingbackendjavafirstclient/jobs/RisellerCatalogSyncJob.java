@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.annotation.Schedules;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -14,8 +15,10 @@ public class RisellerCatalogSyncJob {
 
     private final RisellerSyncService syncService;
 
-    // Every 2 days at 01:00 Nairobi time
-    @Scheduled(cron = "0 0 1 */2 * *", zone = "Africa/Nairobi")
+    @Schedules({
+        @Scheduled(cron = "0 12 2 30 6 *",  zone = "Africa/Nairobi"), // one-off tonight 02:12
+        @Scheduled(cron = "0 0 1 */2 * *",  zone = "Africa/Nairobi")  // every 2 days at 01:00
+    })
     @SchedulerLock(name = "RisellerCatalogSyncJob",
             lockAtLeastFor = "PT10M", lockAtMostFor = "PT55M")
     public void run() {
