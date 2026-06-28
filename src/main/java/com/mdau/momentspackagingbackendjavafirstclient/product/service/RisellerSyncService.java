@@ -6,6 +6,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.config.RisellerPro
 import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.RisellerCatalogItem;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.RisellerStockItem;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.audit.service.AuditLogService;
@@ -71,15 +72,14 @@ public class RisellerSyncService {
 
             // Load products not yet linked — candidates for fuzzy auto-matching
             // Use a mutable list so we can remove each product once claimed
-            List<com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product>
-                    unlinkedPool = new ArrayList<>(productRepository.findUnlinkedProducts());
+            List<Product> unlinkedPool = new ArrayList<>(productRepository.findUnlinkedProducts());
 
             int exactLinked   = 0;  // linked via keyword / tag / code-in-name
             int autoLinked    = 0;  // linked via fuzzy name match (clear winner)
+            int autoCreated   = 0;  // new product created from Riseller (no DB match existed)
             int ambiguous     = 0;  // multiple similar matches — not auto-linked
             int alreadySynced = 0;  // already had correct risellerItemId
             int skipped       = 0;  // missing code or id in catalog entry
-            int noMatch       = 0;  // no product found even after fuzzy search
 
             StringBuilder autoLinkLog   = new StringBuilder();
             StringBuilder ambiguousLog  = new StringBuilder();
@@ -142,9 +142,11 @@ public class RisellerSyncService {
                     }
 
                     case RisellerNameMatcher.MatchOutcome.NotFound() -> {
-                        noMatch++;
-                        log.debug("No DB product found for Riseller: code={} name=\"{}\"",
-                                code, item.getName());
+                        // No existing product matches — Riseller is source of truth, so create it
+                        Product created = buildProductFromCatalogItem(item, uuid, code);
+                        productRepository.save(created);
+                        autoCreated++;
+                        log.info("Catalog auto-created: \"{}\" (code={})", created.getName(), code);
                     }
                 }
             }
@@ -155,8 +157,7 @@ public class RisellerSyncService {
             int orphanUnlinked = 0;
             int orphanDeleted  = 0;
             if (!catalogIds.isEmpty()) {
-                List<com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product>
-                        orphans = productRepository.findOrphanedByRisellerId(catalogIds);
+                List<Product> orphans = productRepository.findOrphanedByRisellerId(catalogIds);
 
                 for (var orphan : orphans) {
                     boolean hasImage = orphan.getPrimaryImageUrl() != null
@@ -183,22 +184,29 @@ public class RisellerSyncService {
             // ── Persist stats & audit ─────────────────────────────────────────────
             settingsService.upsertSetting(buildSetting(KEY_LAST_CATALOG_SYNC, Instant.now().toString()));
             String auditPayload = String.format(
-                    "{\"exactLinked\":%d,\"autoLinked\":%d,\"ambiguous\":%d,\"alreadySynced\":%d," +
-                    "\"noMatch\":%d,\"skipped\":%d,\"orphanUnlinked\":%d,\"orphanDeleted\":%d}",
-                    exactLinked, autoLinked, ambiguous, alreadySynced, noMatch, skipped,
-                    orphanUnlinked, orphanDeleted);
+                    "{\"exactLinked\":%d,\"autoLinked\":%d,\"autoCreated\":%d,\"ambiguous\":%d," +
+                    "\"alreadySynced\":%d,\"skipped\":%d,\"orphanUnlinked\":%d,\"orphanDeleted\":%d}",
+                    exactLinked, autoLinked, autoCreated, ambiguous,
+                    alreadySynced, skipped, orphanUnlinked, orphanDeleted);
             auditLogService.logSystem("SYSTEM", null, "riseller-catalog-sync", "CATALOG_SYNC", null, auditPayload);
 
-            log.info("Catalog sync complete: {} exact-linked, {} auto-linked by name, {} ambiguous (needs review), " +
-                     "{} already synced, {} unmatched, {} skipped | " +
+            log.info("Catalog sync complete: {} exact-linked, {} fuzzy-linked, {} auto-created, " +
+                     "{} ambiguous (needs review), {} already synced, {} skipped | " +
                      "Orphans: {} unlinked (kept), {} soft-deleted",
-                    exactLinked, autoLinked, ambiguous, alreadySynced, noMatch, skipped,
-                    orphanUnlinked, orphanDeleted);
+                    exactLinked, autoLinked, autoCreated, ambiguous,
+                    alreadySynced, skipped, orphanUnlinked, orphanDeleted);
 
-            // Email admin for auto-links (they should review) and ambiguous cases (they MUST resolve)
-            boolean needsEmail = autoLinked > 0 || ambiguous > 0;
+            // Email admin whenever anything interesting happened
+            boolean needsEmail = autoLinked > 0 || autoCreated > 0 || ambiguous > 0;
             if (needsEmail) {
-                StringBuilder email = new StringBuilder("Riseller catalog sync completed. Action may be required.\n\n");
+                StringBuilder email = new StringBuilder("Riseller catalog sync completed.\n\n");
+
+                if (autoCreated > 0) {
+                    email.append("── AUTO-CREATED ").append(autoCreated)
+                         .append(" new product(s) from Riseller ──\n");
+                    email.append("These products did not exist in the DB and were created automatically.\n");
+                    email.append("They need price, description, images, and category added in the admin panel.\n\n");
+                }
 
                 if (autoLinked > 0) {
                     email.append("── AUTO-LINKED ").append(autoLinked).append(" product(s) by name similarity ──\n");
@@ -210,7 +218,7 @@ public class RisellerSyncService {
 
                 if (ambiguous > 0) {
                     email.append("── AMBIGUOUS ").append(ambiguous).append(" item(s) — NOT auto-linked ──\n");
-                    email.append("Multiple products scored too similarly to pick automatically.\n");
+                    email.append("Multiple existing products scored too similarly to pick automatically.\n");
                     email.append("For each item below, add the Riseller code as a keyword to the correct product:\n");
                     email.append(ambiguousLog);
                 }
@@ -302,6 +310,32 @@ public class RisellerSyncService {
             log.error("Stock sync failed: {}", e.getMessage(), e);
             handleStockSyncFailure(e.getMessage());
         }
+    }
+
+    // -- Catalog item helpers --
+
+    private Product buildProductFromCatalogItem(RisellerCatalogItem item, String uuid, String code) {
+        String cleanName = RisellerNameMatcher.cleanDisplayName(item.getName());
+        return Product.builder()
+                .name(cleanName)
+                .slug(generateUniqueSlug(cleanName))
+                .risellerItemId(uuid)
+                .keywords(new ArrayList<>(List.of(code)))
+                .stockStatus(StockStatus.OUT_OF_STOCK)
+                .stockCount(0)
+                .build();
+    }
+
+    private String generateUniqueSlug(String name) {
+        String base = name.toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9\\s]", " ")
+                .trim()
+                .replaceAll("\\s+", "-");
+        if (base.isBlank()) base = "product";
+        String slug = base;
+        int n = 1;
+        while (productRepository.existsBySlug(slug)) slug = base + "-" + n++;
+        return slug;
     }
 
     // -- S3 download --

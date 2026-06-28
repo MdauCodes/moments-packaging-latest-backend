@@ -56,6 +56,14 @@ public final class RisellerNameMatcher {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
+    /** Strip pack-size parentheticals for use as a clean display name. */
+    public static String cleanDisplayName(String risellerName) {
+        if (risellerName == null || risellerName.isBlank()) return "Unnamed Product";
+        String s = PACK_PARENTHETICAL.matcher(risellerName).replaceAll("").trim();
+        s = MULTI_SPACE.matcher(s).replaceAll(" ").trim();
+        return s.isBlank() ? risellerName.trim() : s;
+    }
+
     /** Jaccard similarity on tokenised names. 0.0 = no overlap, 1.0 = identical. */
     public static double jaccardScore(String a, String b) {
         Set<String> ta = tokenize(a);
