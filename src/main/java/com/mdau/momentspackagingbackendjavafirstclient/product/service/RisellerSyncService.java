@@ -27,9 +27,12 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Instant;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -74,12 +77,13 @@ public class RisellerSyncService {
             // Use a mutable list so we can remove each product once claimed
             List<Product> unlinkedPool = new ArrayList<>(productRepository.findUnlinkedProducts());
 
-            int exactLinked   = 0;  // linked via keyword / tag / code-in-name
-            int autoLinked    = 0;  // linked via fuzzy name match (clear winner)
-            int autoCreated   = 0;  // new product created from Riseller (no DB match existed)
-            int ambiguous     = 0;  // multiple similar matches — not auto-linked
-            int alreadySynced = 0;  // already had correct risellerItemId
-            int skipped       = 0;  // missing code or id in catalog entry
+            int exactLinked    = 0;  // linked via keyword / tag / code-in-name
+            int autoLinked     = 0;  // linked via fuzzy name match (clear winner)
+            int autoCreated    = 0;  // new product created from Riseller (no DB match existed)
+            int ambiguous      = 0;  // multiple similar matches — not auto-linked
+            int alreadySynced  = 0;  // already had correct risellerItemId
+            int priceUpdated   = 0;  // price refreshed from Riseller on already-linked product
+            int skipped        = 0;  // missing code or id in catalog entry
 
             StringBuilder autoLinkLog   = new StringBuilder();
             StringBuilder ambiguousLog  = new StringBuilder();
@@ -90,7 +94,32 @@ public class RisellerSyncService {
                 String uuid = item.getId().trim();
 
                 // ── Fast path: product already linked with this exact Riseller ID ──
-                if (productRepository.findByRisellerItemIdAndDeletedFalse(uuid).isPresent()) {
+                var existingOpt = productRepository.findByRisellerItemIdAndDeletedFalse(uuid);
+                if (existingOpt.isPresent()) {
+                    Product existing = existingOpt.get();
+                    boolean changed = false;
+                    // Keep price in sync with Riseller — admin never needs to set it manually
+                    if (item.getPriceInc() != null && item.getPriceInc() > 0) {
+                        BigDecimal risellerPrice = BigDecimal.valueOf(item.getPriceInc())
+                                .setScale(2, java.math.RoundingMode.HALF_UP);
+                        if (!risellerPrice.equals(existing.getBasePrice())) {
+                            existing.setBasePrice(risellerPrice);
+                            changed = true;
+                            priceUpdated++;
+                            log.info("Price updated for \"{}\": {} → {} KES",
+                                    existing.getName(), existing.getBasePrice(), risellerPrice);
+                        }
+                    }
+                    // Fill in description/category only if admin hasn't set them yet
+                    if (existing.getDescription() == null || existing.getDescription().isBlank()) {
+                        existing.setDescription(generateDescription(item));
+                        changed = true;
+                    }
+                    if (existing.getCategory() == null || existing.getCategory().isBlank()) {
+                        existing.setCategory(inferCategory(item.getName()));
+                        changed = true;
+                    }
+                    if (changed) productRepository.save(existing);
                     alreadySynced++;
                     continue;
                 }
@@ -169,30 +198,29 @@ public class RisellerSyncService {
                 List<Product> orphans = productRepository.findOrphanedByRisellerId(catalogIds);
 
                 for (var orphan : orphans) {
+                    // Image is the only thing admin uploads — description/price/category come from Riseller.
+                    // Only preserve (suspend) products where admin has actually uploaded an image.
                     boolean hasAdminContent =
                             orphan.getPrimaryImageUrl() != null ||
-                            (orphan.getImageUrls() != null && !orphan.getImageUrls().isEmpty()) ||
-                            orphan.getDescription() != null ||
-                            orphan.getBasePrice() != null ||
-                            orphan.getCategory() != null;
+                            (orphan.getImageUrls() != null && !orphan.getImageUrls().isEmpty());
 
                     orphan.setRisellerItemId(null);  // unlink in all cases
 
                     if (hasAdminContent) {
-                        // Admin invested content — suspend (hide from store) but keep everything
+                        // Admin uploaded an image — suspend (hide from store) but keep everything
                         orphan.setRisellerSuspended(true);
                         orphan.setStockStatus(StockStatus.OUT_OF_STOCK);
                         productRepository.save(orphan);
                         orphanSuspended++;
                         suspendedLog.append(String.format("  • \"%s\"%n", orphan.getName()));
-                        log.warn("Orphan SUSPENDED (has admin content): \"{}\" — Riseller no longer lists this item",
+                        log.warn("Orphan SUSPENDED (has images): \"{}\" — Riseller no longer lists this item",
                                 orphan.getName());
                     } else {
-                        // Auto-created, zero admin work — safe to remove
+                        // No admin images — safe to remove (price/description were auto-set by sync)
                         orphan.setDeleted(true);
                         productRepository.save(orphan);
                         orphanDeleted++;
-                        log.info("Orphan DELETED (no admin content): \"{}\"", orphan.getName());
+                        log.info("Orphan DELETED (no images): \"{}\"", orphan.getName());
                     }
                 }
             }
@@ -201,16 +229,17 @@ public class RisellerSyncService {
             settingsService.upsertSetting(buildSetting(KEY_LAST_CATALOG_SYNC, Instant.now().toString()));
             String auditPayload = String.format(
                     "{\"exactLinked\":%d,\"autoLinked\":%d,\"autoCreated\":%d,\"ambiguous\":%d," +
-                    "\"alreadySynced\":%d,\"skipped\":%d,\"orphanSuspended\":%d,\"orphanDeleted\":%d}",
+                    "\"alreadySynced\":%d,\"priceUpdated\":%d,\"skipped\":%d," +
+                    "\"orphanSuspended\":%d,\"orphanDeleted\":%d}",
                     exactLinked, autoLinked, autoCreated, ambiguous,
-                    alreadySynced, skipped, orphanSuspended, orphanDeleted);
+                    alreadySynced, priceUpdated, skipped, orphanSuspended, orphanDeleted);
             auditLogService.logSystem("SYSTEM", null, "riseller-catalog-sync", "CATALOG_SYNC", null, auditPayload);
 
             log.info("Catalog sync complete: {} exact-linked, {} fuzzy-linked, {} auto-created, " +
-                     "{} ambiguous (needs review), {} already synced, {} skipped | " +
-                     "Orphans: {} suspended (content preserved), {} deleted (no content)",
+                     "{} ambiguous (needs review), {} already synced ({} prices refreshed), {} skipped | " +
+                     "Orphans: {} suspended (images preserved), {} deleted (no images)",
                     exactLinked, autoLinked, autoCreated, ambiguous,
-                    alreadySynced, skipped, orphanSuspended, orphanDeleted);
+                    alreadySynced, priceUpdated, skipped, orphanSuspended, orphanDeleted);
 
             boolean needsEmail = autoLinked > 0 || autoCreated > 0 || ambiguous > 0 || orphanSuspended > 0;
             if (needsEmail) {
@@ -219,8 +248,9 @@ public class RisellerSyncService {
                 if (autoCreated > 0) {
                     email.append("── AUTO-CREATED ").append(autoCreated).append(" new product(s) ──\n");
                     email.append("These Riseller items had no matching product in the DB and were created automatically.\n");
-                    email.append("They are live in the store as OUT_OF_STOCK. Please add price, description,\n");
-                    email.append("images, and category for each in the admin panel.\n\n");
+                    email.append("Price, category, and a placeholder description have been pre-filled from Riseller data.\n");
+                    email.append("The only thing needed from you: upload product images in the admin panel.\n");
+                    email.append("Products remain OUT_OF_STOCK until the next stock sync confirms inventory.\n\n");
                 }
 
                 if (autoLinked > 0) {
@@ -338,6 +368,15 @@ public class RisellerSyncService {
 
     private Product buildProductFromCatalogItem(RisellerCatalogItem item, String uuid, String code) {
         String cleanName = RisellerNameMatcher.cleanDisplayName(item.getName());
+
+        BigDecimal price = (item.getPriceInc() != null && item.getPriceInc() > 0)
+                ? BigDecimal.valueOf(item.getPriceInc()).setScale(2, java.math.RoundingMode.HALF_UP)
+                : null;
+
+        BigDecimal vat = (item.getVatRate() != null)
+                ? BigDecimal.valueOf(item.getVatRate()).setScale(4, java.math.RoundingMode.HALF_UP)
+                : new BigDecimal("0.1600");
+
         return Product.builder()
                 .name(cleanName)
                 .slug(generateUniqueSlug(cleanName))
@@ -345,7 +384,92 @@ public class RisellerSyncService {
                 .keywords(new ArrayList<>(List.of(code)))
                 .stockStatus(StockStatus.OUT_OF_STOCK)
                 .stockCount(0)
+                .basePrice(price)
+                .vatRate(vat)
+                .vatExempt(false)
+                .category(inferCategory(item.getName()))
+                .description(generateDescription(item))
                 .build();
+    }
+
+    // -- Catalog enrichment helpers --
+
+    private static final Pattern PACK_PARENS = Pattern.compile("\\(([^)]+)\\)");
+
+    static String generateDescription(RisellerCatalogItem item) {
+        String cleanName = RisellerNameMatcher.cleanDisplayName(item.getName());
+        StringBuilder sb = new StringBuilder(toTitleCase(cleanName)).append(".");
+
+        // Pack size from name parens: "(100PCS)", "(1*10KGS)", "(50PKTS*50PCS)"
+        if (item.getName() != null) {
+            Matcher m = PACK_PARENS.matcher(item.getName());
+            if (m.find()) {
+                sb.append(" Pack size: ").append(m.group(1)).append(".");
+            }
+        }
+
+        // Brand (prefer BrandName, fall back to ManufacturerName)
+        String brand = (item.getBrandName() != null && !item.getBrandName().isBlank())
+                ? item.getBrandName()
+                : item.getManufacturerName();
+        if (brand != null && !brand.isBlank()) {
+            sb.append(" Supplied by ").append(toTitleCase(brand)).append(".");
+        }
+
+        if (item.getBaseUomName() != null && !item.getBaseUomName().isBlank()) {
+            sb.append(" Sold per ").append(item.getBaseUomName().toLowerCase(Locale.ROOT)).append(".");
+        }
+
+        sb.append(" Contact us for bulk pricing or custom branding options.");
+        return sb.toString();
+    }
+
+    static String inferCategory(String name) {
+        if (name == null) return "GENERAL";
+        String u = name.toUpperCase(Locale.ROOT);
+
+        if (u.contains("CUP") || u.contains("RIPPLE") || u.contains("JAZI")
+                || u.contains("THERMO") || u.contains("LID") || u.contains("ICE CREAM"))
+            return "CUPS & LIDS";
+        if (u.contains("PLATE"))
+            return "PLATES";
+        if (u.contains("BAG") || u.contains("KHAKI") || u.contains("ZIPLOCK")
+                || u.contains("POUCH") || u.contains("MAFUCO") || u.contains("NICE #")
+                || u.contains("BLUESTAR") || u.contains("BARAKA"))
+            return "BAGS";
+        if (u.contains("BOARD"))
+            return "BOARDS";
+        if (u.contains("FOIL"))
+            return "FOIL TINS";
+        if (u.contains("BOX") || u.contains("MUFFIN") || u.contains("CUPCAKE")
+                || u.contains("CASE") || u.contains("CAKE CONT"))
+            return "BOXES & BAKING";
+        if (u.contains("CONT") || u.contains("SUSHI") || u.contains("TIRAMISU")
+                || u.contains("OCTA") || u.contains("PULP") || u.contains("HOT DOG")
+                || u.contains("TRAY") || u.contains("PET ") || u.contains("MACAROON")
+                || u.contains("LOAF") || u.contains("KRAFT"))
+            return "CONTAINERS";
+        if (u.contains("CLING") || u.contains("FILM") || u.contains("POLYCOATED"))
+            return "FILM & WRAP";
+        if (u.contains("JAR"))
+            return "JARS";
+        if (u.contains("TWINE") || u.contains("STRAW"))
+            return "ACCESSORIES";
+        if (u.contains("SHOES") || u.contains("GLOVES") || u.contains("APRON")
+                || u.contains("MASK") || u.contains("CHEF"))
+            return "HYGIENE & PPE";
+
+        return "GENERAL";
+    }
+
+    private static String toTitleCase(String s) {
+        if (s == null || s.isBlank()) return s;
+        String[] words = s.toLowerCase(Locale.ROOT).split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (!w.isEmpty()) sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1)).append(' ');
+        }
+        return sb.toString().trim();
     }
 
     private String generateUniqueSlug(String name) {

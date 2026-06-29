@@ -14,8 +14,8 @@ public class RisellerStockSyncJob {
 
     private final RisellerSyncService syncService;
 
-    // Every hour at :05 past, Nairobi time
-    @Scheduled(cron = "0 5 * * * *", zone = "Africa/Nairobi")
+    // Every 2 hours at :05 past, Nairobi time
+    @Scheduled(cron = "0 5 */2 * * *", zone = "Africa/Nairobi")
     @SchedulerLock(name = "RisellerStockSyncJob",
             lockAtLeastFor = "PT5M", lockAtMostFor = "PT50M")
     public void run() {
