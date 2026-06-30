@@ -287,11 +287,6 @@ public class ProductIndustryPatchSeeder implements ApplicationRunner {
             case "MISCELLANEOUS" -> s.addAll(List.of(FAB, HOS, RET));
             case "BOARDS"        -> s.addAll(List.of(FAB, HOS));
 
-            // ── Riseller extra categories ─────────────────────────────────────────
-            case "PLATES"       -> s.addAll(List.of(FAB, HOS, RET));
-            case "BOXES & BAKING" -> s.addAll(List.of(FAB, HOS, RET));
-            case "FILM & WRAP"  -> s.addAll(List.of(FAB, HOS, AGR, MFG));
-
             default -> s.addAll(List.of(RET, FAB));
         }
 
