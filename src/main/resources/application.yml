@@ -116,6 +116,7 @@ app:
     sales-address: pkihara2008@gmail.com
 
     notify-addresses: pkihara2008@gmail.com,mdaucodes@gmail.com,info@momentspackaging.com
+    ops-address: mdaucodes@gmail.com
     brevo-api-key: ${BREVO_API_KEY:}
     brevo-api-url: https://api.brevo.com/v3/smtp/email
     use-brevo-api: ${USE_BREVO_API:true}

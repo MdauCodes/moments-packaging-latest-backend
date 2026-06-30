@@ -45,6 +45,9 @@ public class EmailService {
     @Value("${app.email.notify-addresses:}")
     private String notifyAddresses;
 
+    @Value("${app.email.ops-address:mdaucodes@gmail.com}")
+    private String opsAddress;
+
     @Value("${app.email.brevo-api-key:}")
     private String brevoApiKey;
 
@@ -413,7 +416,7 @@ public class EmailService {
                     + "<p>" + message + "</p>"
                     + "<p style=\"color:#666;font-size:12px\">Moments Packaging Kenya &mdash; Automated alert</p>"
                     + "</div>";
-            for (String addr : notifyAddresses.split(",")) {
+            for (String addr : opsAddress.split(",")) {
                 String t = addr.trim();
                 if (!t.isBlank()) sendHtml(t, "Riseller Sync Failure Alert", body);
             }
