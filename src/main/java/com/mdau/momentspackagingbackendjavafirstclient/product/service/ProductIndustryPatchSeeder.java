@@ -9,8 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -55,8 +55,15 @@ public class ProductIndustryPatchSeeder implements ApplicationRunner {
     private Map<String, Industry> slugToIndustry;
 
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
+        try {
+            runInternal();
+        } catch (Exception e) {
+            log.warn("ProductIndustryPatchSeeder: aborted unexpectedly — {}. Associations already written by a concurrent instance will be preserved.", e.getMessage());
+        }
+    }
+
+    private void runInternal() {
         List<Product> allActive = productRepository.findAllActive();
         if (allActive.isEmpty()) {
             log.info("ProductIndustryPatchSeeder: no active products — skipping.");
@@ -80,39 +87,44 @@ public class ProductIndustryPatchSeeder implements ApplicationRunner {
 
         int patched = 0;
         for (Product p : allActive) {
-            String cat  = p.getCategory() != null ? p.getCategory().toUpperCase(Locale.ROOT) : "";
-            String name = p.getName()     != null ? p.getName().toUpperCase(Locale.ROOT)     : "";
+            try {
+                String cat  = p.getCategory() != null ? p.getCategory().toUpperCase(Locale.ROOT) : "";
+                String name = p.getName()     != null ? p.getName().toUpperCase(Locale.ROOT)     : "";
 
-            Set<String> required = resolveIndustrySlugs(cat, name);
+                Set<String> required = resolveIndustrySlugs(cat, name);
 
-            // Existing industries on this product
-            Set<String> existing = (p.getIndustries() == null) ? new HashSet<>()
-                    : p.getIndustries().stream()
-                        .map(Industry::getSlug)
-                        .collect(Collectors.toSet());
+                // Existing industries on this product
+                Set<String> existing = (p.getIndustries() == null) ? new HashSet<>()
+                        : p.getIndustries().stream()
+                            .map(Industry::getSlug)
+                            .collect(Collectors.toSet());
 
-            boolean changed = false;
-            for (String slug : required) {
-                if (!existing.contains(slug)) {
-                    Industry ind = slugToIndustry.get(slug);
-                    if (ind != null) {
-                        if (p.getIndustries() == null) p.setIndustries(new HashSet<>());
-                        p.getIndustries().add(ind);
-                        changed = true;
+                boolean changed = false;
+                for (String slug : required) {
+                    if (!existing.contains(slug)) {
+                        Industry ind = slugToIndustry.get(slug);
+                        if (ind != null) {
+                            if (p.getIndustries() == null) p.setIndustries(new HashSet<>());
+                            p.getIndustries().add(ind);
+                            changed = true;
+                        }
                     }
                 }
-            }
 
-            // Stamp the sentinel keyword so we don't re-run
-            if (p.getKeywords() == null) p.setKeywords(new ArrayList<>());
-            if (!p.getKeywords().contains(SENTINEL)) {
-                p.getKeywords().add(SENTINEL);
-                changed = true;
-            }
+                // Stamp the sentinel keyword so we don't re-run
+                if (p.getKeywords() == null) p.setKeywords(new ArrayList<>());
+                if (!p.getKeywords().contains(SENTINEL)) {
+                    p.getKeywords().add(SENTINEL);
+                    changed = true;
+                }
 
-            if (changed) {
-                productRepository.save(p);
-                patched++;
+                if (changed) {
+                    productRepository.save(p);
+                    patched++;
+                }
+            } catch (DataIntegrityViolationException e) {
+                // Another instance already inserted this product's associations — safe to skip
+                log.debug("ProductIndustryPatchSeeder: skipping product {} (already patched by concurrent instance)", p.getId());
             }
         }
 
