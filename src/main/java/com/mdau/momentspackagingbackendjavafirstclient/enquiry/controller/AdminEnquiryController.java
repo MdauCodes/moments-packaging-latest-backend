@@ -73,7 +73,7 @@ public class AdminEnquiryController {
                 "UPDATE",
                 request.getNote(),
                 buildChangesJson(request),
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
 
         return ResponseEntity.ok(updated);
     }
@@ -115,7 +115,7 @@ public class AdminEnquiryController {
             throw new ResourceNotFoundException("Enquiry not found: " + id);
         enquiryRepository.deleteById(id);
         auditLogService.log(actor, "ENQUIRY", id.toString(), id.toString(),
-                "DELETE", "Admin deleted enquiry", null, httpRequest);
+                "DELETE", "Admin deleted enquiry", null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.noContent().build();
     }
 

@@ -40,7 +40,7 @@ public class AdminSettingsController {
         auditLogService.log(actor, "SETTING", request.getKey(), request.getKey(),
                 "UPDATE", null,
                 "{\"key\":\"" + request.getKey() + "\",\"from\":\"" + oldValue + "\",\"to\":\"" + request.getValue() + "\"}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 }

@@ -57,7 +57,7 @@ public class AdminOrderController {
         auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
                 "STATUS_CHANGE", request.getStaffNotes(),
                 "{\"from\":\"" + before.getStatus() + "\",\"to\":\"" + updated.getStatus() + "\"}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -72,7 +72,7 @@ public class AdminOrderController {
         auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
                 "ASSIGN", null,
                 "{\"assignedTo\":\"" + request.getAssignedTo() + "\"}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -91,7 +91,7 @@ public class AdminOrderController {
         auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
                 "DISPATCH_CONFIRM", null,
                 "{\"contentsVerified\":" + request.getContentsVerified() + "}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -105,7 +105,7 @@ public class AdminOrderController {
         String reason = body.getOrDefault("reason", "Refund processed");
         OrderDto updated = orderService.processRefund(id, reason, user.getEmail());
         auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
-                "REFUND", reason, null, httpRequest);
+                "REFUND", reason, null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 }

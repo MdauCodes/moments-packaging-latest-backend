@@ -46,7 +46,7 @@ public class AdminMockModeController {
                 enabled ? "MOCK_MODE_ON" : "MOCK_MODE_OFF",
                 "SUPER_ADMIN toggled test mode",
                 "{\"enabled\":" + enabled + "}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
 
         return ResponseEntity.ok(new MockModeStatusDto(enabled,
                 enabled

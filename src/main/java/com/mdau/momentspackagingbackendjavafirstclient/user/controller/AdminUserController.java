@@ -67,7 +67,7 @@ public class AdminUserController {
         auditLogService.log(actor, "USER", created.getId().toString(),
                 created.getEmail(), "CREATE", null,
                 "{\"email\":\"" + created.getEmail() + "\",\"role\":\"" + created.getStaffRoleName() + "\"}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.getId()).toUri();
         return ResponseEntity.created(location).body(created);
@@ -86,7 +86,7 @@ public class AdminUserController {
                 : "{\"enabled\":" + request.getEnabled() + "}";
         auditLogService.log(actor, "USER", id.toString(), updated.getEmail(),
                 Boolean.TRUE.equals(request.getResetPassword()) ? "PASSWORD_RESET" : "UPDATE",
-                null, changes, httpRequest);
+                null, changes, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -99,7 +99,7 @@ public class AdminUserController {
         UserDto target = userService.getById(id);
         userService.deleteStaffUser(id);
         auditLogService.log(actor, "USER", id.toString(), target.getEmail(),
-                "DELETE", null, null, httpRequest);
+                "DELETE", null, null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.noContent().build();
     }
 
@@ -140,7 +140,7 @@ public class AdminUserController {
                 .name(name).displayName(displayName).description(description)
                 .isDefault(false).permissions(permissions).deleted(false).build());
         auditLogService.log(actor, "ROLE", role.getId().toString(), name,
-                "CREATE", null, "{\"name\":\"" + name + "\"}", httpRequest);
+                "CREATE", null, "{\"name\":\"" + name + "\"}", AuditLogService.extractIp(httpRequest));
         URI location = URI.create("/api/v1/admin/roles/" + role.getId());
         return ResponseEntity.created(location).body(new StaffRoleDto(role));
     }
@@ -163,7 +163,7 @@ public class AdminUserController {
         }
         StaffRole saved = roleRepository.save(role);
         auditLogService.log(actor, "ROLE", id.toString(), role.getName(),
-                "UPDATE", null, null, httpRequest);
+                "UPDATE", null, null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(new StaffRoleDto(saved));
     }
 
@@ -181,7 +181,7 @@ public class AdminUserController {
         role.setDeleted(true);
         roleRepository.save(role);
         auditLogService.log(actor, "ROLE", id.toString(), role.getName(),
-                "DELETE", null, null, httpRequest);
+                "DELETE", null, null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.noContent().build();
     }
 

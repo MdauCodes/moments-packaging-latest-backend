@@ -11,18 +11,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
-
 /**
  * Central service for writing audit log entries.
  *
- * Usage from any service/controller:
- *   auditLogService.log(actor, "PRODUCT", productId.toString(), productName,
- *                       "PRICE_CHANGE", "Admin corrected price",
- *                       "{\"basePrice\":{\"from\":100,\"to\":90}}", request);
+ * IMPORTANT: always call extractIp(httpRequest) synchronously in the controller and pass the
+ * String result — never pass HttpServletRequest directly. Tomcat recycles the request object
+ * after the response is committed, before this @Async method runs on a different thread.
  *
- * All writes are async and run in their own transaction so a failure
- * never rolls back the business operation that triggered the log.
+ * Usage:
+ *   auditLogService.log(actor, "PRODUCT", id, name, "PRICE_CHANGE", reason, changesJson,
+ *                       AuditLogService.extractIp(httpRequest));
  */
 @Slf4j
 @Service
@@ -40,7 +38,7 @@ public class AuditLogService {
                     String action,
                     String reason,
                     String changesJson,
-                    HttpServletRequest request) {
+                    String ipAddress) {
 
         try {
             AuditLog entry = AuditLog.builder()
@@ -53,7 +51,7 @@ public class AuditLogService {
                     .action(action)
                     .reason(reason)
                     .changes(changesJson)
-                    .ipAddress(extractIp(request))
+                    .ipAddress(ipAddress)
                     .build();
             auditLogRepository.save(entry);
         } catch (Exception e) {
@@ -88,7 +86,8 @@ public class AuditLogService {
         }
     }
 
-    private String extractIp(HttpServletRequest request) {
+    /** Extract the caller IP synchronously on the request thread before any async hand-off. */
+    public static String extractIp(HttpServletRequest request) {
         if (request == null) return null;
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {

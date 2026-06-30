@@ -64,7 +64,7 @@ public class AdminProductController {
             HttpServletRequest httpRequest) {
         ProductDto created = productService.createProduct(request);
         auditLogService.log(actor, "PRODUCT", created.getId().toString(), created.getName(),
-                "CREATE", null, null, httpRequest);
+                "CREATE", null, null, AuditLogService.extractIp(httpRequest));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.getId()).toUri();
         return ResponseEntity.created(location).body(created);
@@ -78,17 +78,17 @@ public class AdminProductController {
             @AuthenticationPrincipal User actor,
             HttpServletRequest httpRequest) {
 
+        String ip = AuditLogService.extractIp(httpRequest);
         ProductDto before = productService.getById(id);
         ProductDto updated = productService.updateProduct(id, request);
 
-        // Build changes JSON — include price change detail if prices changed
         String changesJson = buildPriceChangesJson(before, updated, request);
         String action = request.getBasePrice() != null || request.getOriginalBasePrice() != null
                 || Boolean.TRUE.equals(request.getClearOriginalBasePrice())
                 ? "PRICE_CHANGE" : "UPDATE";
 
         auditLogService.log(actor, "PRODUCT", id.toString(), updated.getName(),
-                action, null, changesJson, httpRequest);
+                action, null, changesJson, ip);
 
         return ResponseEntity.ok(updated);
     }
@@ -102,7 +102,7 @@ public class AdminProductController {
         ProductDto product = productService.getById(id);
         productService.deleteProduct(id);
         auditLogService.log(actor, "PRODUCT", id.toString(), product.getName(),
-                "DELETE", null, null, httpRequest);
+                "DELETE", null, null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.noContent().build();
     }
 
@@ -120,7 +120,7 @@ public class AdminProductController {
                 "STOCK_ADJUST",
                 request.getReason(),
                 "{\"delta\":" + request.getDelta() + ",\"type\":\"" + request.getType() + "\"}",
-                httpRequest);
+                AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
@@ -134,7 +134,8 @@ public class AdminProductController {
             HttpServletRequest httpRequest) {
         ProductDto updated = inventoryService.setStock(id, count, reason);
         auditLogService.log(actor, "PRODUCT", id.toString(), updated.getName(),
-                "STOCK_SET", reason, "{\"newCount\":" + count + "}", httpRequest);
+                "STOCK_SET", reason, "{\"newCount\":" + count + "}",
+                AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 
