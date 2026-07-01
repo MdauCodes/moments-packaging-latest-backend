@@ -18,4 +18,11 @@ public class DarajaConfig {
     private String transactionType;
     private String accountReference;
     private String transactionDesc;
+    /**
+     * Optional dedicated secret for the callback URL path. If unset,
+     * DarajaService derives one automatically from consumerSecret+passkey
+     * (already-required config, so this never blocks a deploy) — see
+     * DarajaService.resolveCallbackSecret().
+     */
+    private String callbackSecret;
 }

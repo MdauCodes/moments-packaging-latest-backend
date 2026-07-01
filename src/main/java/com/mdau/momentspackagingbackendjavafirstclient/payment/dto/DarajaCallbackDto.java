@@ -9,7 +9,9 @@ import java.util.List;
 
 /**
  * Daraja STK Push callback payload shape.
- * POST arrives at /api/v1/payments/daraja/callback
+ * POST arrives at /api/v1/payments/daraja/callback/{secret} — see
+ * DarajaService.buildCallbackUrl() for how the secret is derived and
+ * embedded in the CallBackURL sent with each STK push request.
  *
  * Success result example:
  * {

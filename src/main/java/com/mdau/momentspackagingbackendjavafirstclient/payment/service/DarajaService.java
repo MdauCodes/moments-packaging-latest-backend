@@ -14,10 +14,13 @@ import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
 
 /**
@@ -63,7 +66,7 @@ public class DarajaService {
         payload.put("PartyA",            normalized);
         payload.put("PartyB",            darajaConfig.getShortcode());
         payload.put("PhoneNumber",       normalized);
-        payload.put("CallBackURL",       darajaConfig.getCallbackUrl());
+        payload.put("CallBackURL",       buildCallbackUrl());
         payload.put("AccountReference",  darajaConfig.getAccountReference());
         payload.put("TransactionDesc",   darajaConfig.getTransactionDesc());
 
@@ -140,6 +143,50 @@ public class DarajaService {
             log.error("Daraja OAuth failed", e);
             throw new PaymentGatewayException(
                     "M-Pesa authentication error. Please try again.", "DARAJA_AUTH_ERROR");
+        }
+    }
+
+    /**
+     * Safaricom's STK Push callback carries no signature Daraja lets us verify
+     * against the payload, unlike PayHero (which echoes back a Basic Auth
+     * header we can compare — see PayHeroService.isValidCallback()). The
+     * callback URL is sent fresh with every STK push request rather than
+     * fixed via Safaricom's portal, so embedding a secret in the URL path
+     * itself is the practical equivalent: only someone who received our STK
+     * push request (i.e. Safaricom) — or has access to our environment
+     * config — could know that path segment. Without this, anyone who
+     * guesses/observes a CheckoutRequestID could POST a fake "payment
+     * succeeded" callback and get an order marked paid for free.
+     */
+    String buildCallbackUrl() {
+        String base = darajaConfig.getCallbackUrl();
+        if (base == null || base.isBlank()) return base;
+        return base.replaceAll("/+$", "") + "/" + resolveCallbackSecret();
+    }
+
+    public boolean isValidCallbackSecret(String candidate) {
+        if (candidate == null || candidate.isBlank()) return false;
+        return MessageDigest.isEqual(
+                resolveCallbackSecret().getBytes(StandardCharsets.UTF_8),
+                candidate.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Explicit app.daraja.callback-secret wins if set; otherwise derives a
+     * stable secret from config that's already required for STK push to
+     * work at all (consumerSecret + passkey), so this never introduces a
+     * new required env var that could block a deploy.
+     */
+    private String resolveCallbackSecret() {
+        String explicit = darajaConfig.getCallbackSecret();
+        if (explicit != null && !explicit.isBlank()) return explicit;
+        try {
+            String raw = darajaConfig.getConsumerSecret() + ":" + darajaConfig.getPasskey() + ":daraja-callback";
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash).substring(0, 32);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is always available on the JVM; this is unreachable in practice.
+            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 
