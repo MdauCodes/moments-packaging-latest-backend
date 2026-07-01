@@ -54,7 +54,11 @@ public class ProductCategoryNormalizationSeeder implements ApplicationRunner {
             Map.entry("Tapes", List.of("TAPES", "TAPE")),
             Map.entry("General", List.of("GENERAL")),
             Map.entry("Miscellaneous", List.of("MISCELLANEOUS")),
-            Map.entry("Boards", List.of("BOARDS"))
+            Map.entry("Boards", List.of("BOARDS")),
+            // Found via the "unmapped" log line on first deploy — real values on real
+            // products, not covered by the seeder-file scan this map was built from.
+            Map.entry("Gifting & Retail", List.of("GIFTING")),
+            Map.entry("Mailers & Shipping", List.of("MAILERS"))
     );
 
     /** Reverse-indexed for O(1) lookup: uppercased raw value → canonical value. */
