@@ -4,6 +4,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.audit.service.AuditLogSer
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.BulkClassifyRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.BulkClassifyResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductUpdateRequest;
@@ -91,6 +93,22 @@ public class AdminProductController {
                 action, null, changesJson, ip);
 
         return ResponseEntity.ok(updated);
+    }
+
+    @IsStaffOrAdmin
+    @PatchMapping("/bulk-classify")
+    public ResponseEntity<BulkClassifyResponse> bulkClassify(
+            @Valid @RequestBody BulkClassifyRequest request,
+            @AuthenticationPrincipal User actor,
+            HttpServletRequest httpRequest) {
+        BulkClassifyResponse result = productService.bulkClassify(request);
+        auditLogService.log(actor, "PRODUCT", "bulk", result.getUpdatedCount() + " products",
+                "BULK_CLASSIFY",
+                null,
+                "{\"productIds\":" + result.getProductIds() + ",\"subcategoryId\":\"" + request.getSubcategoryId()
+                        + "\",\"industryIds\":" + request.getIndustryIds() + "}",
+                AuditLogService.extractIp(httpRequest));
+        return ResponseEntity.ok(result);
     }
 
     @IsAdmin

@@ -4,10 +4,14 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.exception.Resource
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.repository.IndustryRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.BulkClassifyRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.product.dto.BulkClassifyResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductPricingTierDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductUpdateRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SubcategoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.ProductClick;
@@ -49,6 +53,7 @@ public class ProductService {
     private final CartItemRepository           cartItemRepository;
     private final IndustryRepository           industryRepository;
     private final ProductUomRepository         uomRepository;
+    private final SubcategoryRepository        subcategoryRepository;
 
     // Ã¢â€â‚¬Ã¢â€â‚¬ Standard paginated listing Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
@@ -265,6 +270,36 @@ public class ProductService {
         }
 
         return toDtoAdmin(saved);
+    }
+
+    @CacheEvict(value = "recommended-products", allEntries = true)
+    @Transactional
+    public BulkClassifyResponse bulkClassify(BulkClassifyRequest request) {
+        if (request.getSubcategoryId() == null && request.getIndustryIds() == null) {
+            throw new IllegalArgumentException("At least one of subcategoryId or industryIds must be provided");
+        }
+
+        List<Product> products = productRepository.findAllById(request.getProductIds());
+        if (products.size() != request.getProductIds().size()) {
+            throw new ResourceNotFoundException("One or more products in productIds were not found");
+        }
+
+        Subcategory subcategory = null;
+        if (request.getSubcategoryId() != null) {
+            subcategory = subcategoryRepository.findById(request.getSubcategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found: " + request.getSubcategoryId()));
+        }
+        Set<Industry> industries = request.getIndustryIds() != null
+                ? resolveIndustries(request.getIndustryIds())
+                : null;
+
+        for (Product product : products) {
+            if (subcategory != null) product.setSubcategory(subcategory);
+            if (industries != null) product.setIndustries(new HashSet<>(industries));
+        }
+        productRepository.saveAll(products);
+
+        return new BulkClassifyResponse(products.size(), request.getProductIds());
     }
 
     @CacheEvict(value = "recommended-products", allEntries = true)

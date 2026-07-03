@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.product.entity;
 
 import com.mdau.momentspackagingbackendjavafirstclient.common.entity.BaseEntity;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -37,6 +38,15 @@ public class Product extends BaseEntity {
 
     @Column(length = 100)
     private String category;
+
+    /**
+     * New hierarchical classification (Segment -> Category -> Subcategory).
+     * Nullable during migration from the legacy {@link #category} string;
+     * every product should eventually have exactly one.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subcategory_id")
+    private Subcategory subcategory;
 
     @Column(columnDefinition = "TEXT")
     private String description;

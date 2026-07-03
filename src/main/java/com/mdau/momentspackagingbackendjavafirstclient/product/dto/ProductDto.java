@@ -57,6 +57,10 @@ public class ProductDto {
     private final List<ProductPricingTierDto> pricingTiers;
     private final List<IndustryDto> industries;
     private final List<UUID>        industryIds;
+    private final UUID              subcategoryId;
+    private final String            subcategoryName;
+    private final String            categoryName;
+    private final String            segmentName;
     private final Long              monthlyClicks;
     private final Long              totalClicks;
     private final Instant           createdAt;
@@ -106,6 +110,10 @@ public class ProductDto {
         this.industryIds            = product.getIndustries().stream()
                                          .map(i -> i.getId())
                                          .collect(Collectors.toList());
+        this.subcategoryId          = product.getSubcategory() != null ? product.getSubcategory().getId() : null;
+        this.subcategoryName        = product.getSubcategory() != null ? product.getSubcategory().getName() : null;
+        this.categoryName           = product.getSubcategory() != null ? product.getSubcategory().getCategory().getName() : null;
+        this.segmentName            = product.getSubcategory() != null ? product.getSubcategory().getCategory().getSegment().getName() : null;
     }
 
     public ProductDto(Product product) {

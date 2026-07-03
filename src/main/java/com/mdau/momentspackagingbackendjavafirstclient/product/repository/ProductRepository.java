@@ -146,4 +146,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("SELECT p FROM Product p WHERE p.deleted = false AND p.risellerItemId IS NOT NULL AND p.risellerItemId NOT IN :validIds")
     List<Product> findOrphanedByRisellerId(@Param("validIds") Collection<String> validIds);
 
+    long countBySubcategoryIdAndDeletedFalse(UUID subcategoryId);
+
+    List<Product> findByCategoryAndDeletedFalseAndSubcategoryIsNull(String category);
+
 }

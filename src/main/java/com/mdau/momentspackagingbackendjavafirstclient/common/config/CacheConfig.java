@@ -23,6 +23,24 @@ public class CacheConfig {
                         .maximumSize(50)
                         .build());
 
+        manager.registerCustomCache("segments",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(50)
+                        .build());
+
+        manager.registerCustomCache("categories",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(200)
+                        .build());
+
+        manager.registerCustomCache("subcategories",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(500)
+                        .build());
+
         manager.registerCustomCache("public-config",
                 Caffeine.newBuilder()
                         .expireAfterWrite(60, TimeUnit.SECONDS)
