@@ -61,10 +61,17 @@ public class ProductService {
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
                                         Boolean isNewArrival, Boolean isFastMoving,
                                         String category, Pageable pageable) {
+        return getProducts(industryId, isDiscount, isNewArrival, isFastMoving, category, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
+                                        Boolean isNewArrival, Boolean isFastMoving,
+                                        String category, UUID subcategoryId, Pageable pageable) {
         int size = Math.min(pageable.getPageSize(), 100);
         Pageable capped = PageRequest.of(pageable.getPageNumber(), size, pageable.getSort());
         return productRepository
-                .findAllWithFilters(industryId, isDiscount, isNewArrival, isFastMoving, category, capped)
+                .findAllWithFilters(industryId, isDiscount, isNewArrival, isFastMoving, category, subcategoryId, capped)
                 .map(p -> toDtoPublic(p));
     }
 

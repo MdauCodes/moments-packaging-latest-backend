@@ -34,13 +34,15 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
         AND (:isNewArrival IS NULL OR p.isNewArrival = :isNewArrival)
         AND (:isFastMoving IS NULL OR p.isFastMoving = :isFastMoving)
         AND (:category IS NULL OR LOWER(p.category) = LOWER(CAST(:category AS string)))
+        AND (:subcategoryId IS NULL OR p.subcategory.id = :subcategoryId)
         """)
     Page<Product> findAllWithFilters(
-            @Param("industryId")   UUID industryId,
-            @Param("isDiscount")   Boolean isDiscount,
-            @Param("isNewArrival") Boolean isNewArrival,
-            @Param("isFastMoving") Boolean isFastMoving,
-            @Param("category")     String category,
+            @Param("industryId")     UUID industryId,
+            @Param("isDiscount")     Boolean isDiscount,
+            @Param("isNewArrival")   Boolean isNewArrival,
+            @Param("isFastMoving")   Boolean isFastMoving,
+            @Param("category")      String category,
+            @Param("subcategoryId") UUID subcategoryId,
             Pageable pageable);
 
     @Query("SELECT p FROM Product p WHERE p.deleted = false AND p.risellerSuspended = false ORDER BY p.monthlyClicks DESC")

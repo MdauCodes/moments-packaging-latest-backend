@@ -37,11 +37,12 @@ public class PublicProductController {
             @RequestParam(required = false) Boolean isNewArrival,
             @RequestParam(required = false) Boolean isFastMoving,
             @RequestParam(required = false) String  category,
+            @RequestParam(required = false) UUID    subcategoryId,
             @PageableDefault(size = 20, sort = "createdAt",
                              direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(new PageResponse<>(
                 productService.getProducts(industryId, isDiscount, isNewArrival,
-                        isFastMoving, category, pageable)));
+                        isFastMoving, category, subcategoryId, pageable)));
     }
 
     /**
