@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.product.entity;
 
 import com.mdau.momentspackagingbackendjavafirstclient.common.entity.BaseEntity;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
+import com.mdau.momentspackagingbackendjavafirstclient.tag.entity.Tag;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
 import jakarta.persistence.*;
 import lombok.*;
@@ -193,4 +194,18 @@ public class Product extends BaseEntity {
     )
     @Builder.Default
     private Set<Industry> industries = new HashSet<>();
+
+    /**
+     * Admin-managed curated tags (drives the storefront's "What do you need?"
+     * chips). Distinct from the legacy {@link #tags} free-text list above —
+     * that field stays untouched/vestigial, this is the real relation.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "product_tag_assignments",
+        joinColumns        = @JoinColumn(name = "product_id"),
+        inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    @Builder.Default
+    private Set<Tag> curatedTags = new HashSet<>();
 }

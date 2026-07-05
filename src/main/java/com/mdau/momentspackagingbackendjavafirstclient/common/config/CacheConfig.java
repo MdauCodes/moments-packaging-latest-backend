@@ -41,6 +41,12 @@ public class CacheConfig {
                         .maximumSize(500)
                         .build());
 
+        manager.registerCustomCache("tags",
+                Caffeine.newBuilder()
+                        .expireAfterWrite(5, TimeUnit.MINUTES)
+                        .maximumSize(200)
+                        .build());
+
         manager.registerCustomCache("public-config",
                 Caffeine.newBuilder()
                         .expireAfterWrite(60, TimeUnit.SECONDS)

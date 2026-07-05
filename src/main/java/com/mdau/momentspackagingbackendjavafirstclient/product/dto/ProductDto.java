@@ -4,6 +4,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.industry.dto.IndustryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.tag.dto.TagDto;
 import lombok.Getter;
 
 import java.math.BigDecimal;
@@ -61,6 +62,8 @@ public class ProductDto {
     private final String            subcategoryName;
     private final String            categoryName;
     private final String            segmentName;
+    private final List<TagDto>      curatedTags;
+    private final List<UUID>        curatedTagIds;
     private final Long              monthlyClicks;
     private final Long              totalClicks;
     private final Instant           createdAt;
@@ -114,6 +117,12 @@ public class ProductDto {
         this.subcategoryName        = product.getSubcategory() != null ? product.getSubcategory().getName() : null;
         this.categoryName           = product.getSubcategory() != null ? product.getSubcategory().getCategory().getName() : null;
         this.segmentName            = product.getSubcategory() != null ? product.getSubcategory().getCategory().getSegment().getName() : null;
+        this.curatedTags            = product.getCuratedTags().stream()
+                                         .map(TagDto::new)
+                                         .collect(Collectors.toList());
+        this.curatedTagIds          = product.getCuratedTags().stream()
+                                         .map(t -> t.getId())
+                                         .collect(Collectors.toList());
     }
 
     public ProductDto(Product product) {

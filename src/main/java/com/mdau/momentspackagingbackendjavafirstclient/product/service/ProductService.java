@@ -10,6 +10,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductCreate
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductPricingTierDto;
 import com.mdau.momentspackagingbackendjavafirstclient.product.dto.ProductUpdateRequest;
+import com.mdau.momentspackagingbackendjavafirstclient.tag.entity.Tag;
+import com.mdau.momentspackagingbackendjavafirstclient.tag.repository.TagRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SubcategoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.PriceUnit;
@@ -54,6 +56,7 @@ public class ProductService {
     private final IndustryRepository           industryRepository;
     private final ProductUomRepository         uomRepository;
     private final SubcategoryRepository        subcategoryRepository;
+    private final TagRepository                tagRepository;
 
     // Ã¢â€â‚¬Ã¢â€â‚¬ Standard paginated listing Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
@@ -61,17 +64,24 @@ public class ProductService {
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
                                         Boolean isNewArrival, Boolean isFastMoving,
                                         String category, Pageable pageable) {
-        return getProducts(industryId, isDiscount, isNewArrival, isFastMoving, category, null, pageable);
+        return getProducts(industryId, isDiscount, isNewArrival, isFastMoving, category, null, null, pageable);
     }
 
     @Transactional(readOnly = true)
     public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
                                         Boolean isNewArrival, Boolean isFastMoving,
                                         String category, UUID subcategoryId, Pageable pageable) {
+        return getProducts(industryId, isDiscount, isNewArrival, isFastMoving, category, subcategoryId, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductDto> getProducts(UUID industryId, Boolean isDiscount,
+                                        Boolean isNewArrival, Boolean isFastMoving,
+                                        String category, UUID subcategoryId, UUID tagId, Pageable pageable) {
         int size = Math.min(pageable.getPageSize(), 100);
         Pageable capped = PageRequest.of(pageable.getPageNumber(), size, pageable.getSort());
         return productRepository
-                .findAllWithFilters(industryId, isDiscount, isNewArrival, isFastMoving, category, subcategoryId, capped)
+                .findAllWithFilters(industryId, tagId, isDiscount, isNewArrival, isFastMoving, category, subcategoryId, capped)
                 .map(p -> toDtoPublic(p));
     }
 
@@ -291,8 +301,8 @@ public class ProductService {
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
     public BulkClassifyResponse bulkClassify(BulkClassifyRequest request) {
-        if (request.getSubcategoryId() == null && request.getIndustryIds() == null) {
-            throw new IllegalArgumentException("At least one of subcategoryId or industryIds must be provided");
+        if (request.getSubcategoryId() == null && request.getIndustryIds() == null && request.getTagIds() == null) {
+            throw new IllegalArgumentException("At least one of subcategoryId, industryIds or tagIds must be provided");
         }
 
         List<Product> products = productRepository.findAllById(request.getProductIds());
@@ -308,10 +318,14 @@ public class ProductService {
         Set<Industry> industries = request.getIndustryIds() != null
                 ? resolveIndustries(request.getIndustryIds())
                 : null;
+        Set<Tag> tags = request.getTagIds() != null
+                ? new HashSet<>(tagRepository.findAllById(request.getTagIds()))
+                : null;
 
         for (Product product : products) {
             if (subcategory != null) product.setSubcategory(subcategory);
             if (industries != null) product.setIndustries(new HashSet<>(industries));
+            if (tags != null) product.setCuratedTags(new HashSet<>(tags));
         }
         productRepository.saveAll(products);
 

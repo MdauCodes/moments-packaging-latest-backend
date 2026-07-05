@@ -27,9 +27,11 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("""
         SELECT DISTINCT p FROM Product p
         LEFT JOIN p.industries i
+        LEFT JOIN p.curatedTags t
         WHERE p.deleted = false
         AND p.risellerSuspended = false
         AND (:industryId IS NULL OR i.id = :industryId)
+        AND (:tagId IS NULL OR t.id = :tagId)
         AND (:isDiscount IS NULL OR p.isDiscount = :isDiscount)
         AND (:isNewArrival IS NULL OR p.isNewArrival = :isNewArrival)
         AND (:isFastMoving IS NULL OR p.isFastMoving = :isFastMoving)
@@ -38,6 +40,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
         """)
     Page<Product> findAllWithFilters(
             @Param("industryId")     UUID industryId,
+            @Param("tagId")          UUID tagId,
             @Param("isDiscount")     Boolean isDiscount,
             @Param("isNewArrival")   Boolean isNewArrival,
             @Param("isFastMoving")   Boolean isFastMoving,

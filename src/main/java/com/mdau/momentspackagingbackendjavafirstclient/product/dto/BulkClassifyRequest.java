@@ -9,8 +9,9 @@ import java.util.UUID;
 
 /**
  * Bulk admin action: assign a set of products to one Subcategory and/or one
- * set of Industries in a single call. Null subcategoryId/industryIds are
- * left untouched on each product; at least one of the two must be provided.
+ * set of Industries and/or one set of Tags in a single call. Null
+ * subcategoryId/industryIds/tagIds are left untouched on each product; at
+ * least one of the three must be provided.
  */
 @Getter
 @Setter
@@ -22,4 +23,6 @@ public class BulkClassifyRequest {
     private UUID subcategoryId;
 
     private List<UUID> industryIds;
+
+    private List<UUID> tagIds;
 }
