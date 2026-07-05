@@ -150,6 +150,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     long countBySubcategoryIdAndDeletedFalse(UUID subcategoryId);
 
+    List<Product> findByDeletedFalse();
+
     List<Product> findByCategoryAndDeletedFalseAndSubcategoryIsNull(String category);
 
 }

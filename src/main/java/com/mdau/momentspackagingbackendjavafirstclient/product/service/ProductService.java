@@ -205,13 +205,16 @@ public class ProductService {
                 .basePrice(request.getBasePrice())
                 .originalBasePrice(request.getOriginalBasePrice())
                 .priceUnit(request.getPriceUnit() != null ? request.getPriceUnit() : PriceUnit.PER_UNIT)
-                .stockStatus(request.getStockStatus() != null
-                        ? request.getStockStatus() : StockStatus.IN_STOCK)
                 .leadTimeDays(request.getLeadTimeDays() != null ? request.getLeadTimeDays() : 14)
                 .customizable(request.getCustomizable() != null ? request.getCustomizable() : false)
                 .stockCount(request.getStockCount() != null ? request.getStockCount() : 0)
                 .lowStockThreshold(request.getLowStockThreshold() != null
                         ? request.getLowStockThreshold() : 10)
+                .stockStatus(request.getStockStatus() != null
+                        ? request.getStockStatus()
+                        : deriveStockStatus(
+                                request.getStockCount() != null ? request.getStockCount() : 0,
+                                request.getLowStockThreshold() != null ? request.getLowStockThreshold() : 10))
                 .vatRate(request.getVatRate() != null ? request.getVatRate() : new BigDecimal("0.1600"))
                 .vatExempt(request.getVatExempt() != null ? request.getVatExempt() : false)
                 .deleted(false)
@@ -251,11 +254,17 @@ public class ProductService {
         if (request.getMaterial()              != null) product.setMaterial(request.getMaterial());
         if (request.getFinish()                != null) product.setFinish(request.getFinish());
         if (request.getBasePrice()             != null) product.setBasePrice(request.getBasePrice());
-        if (request.getStockStatus()           != null) product.setStockStatus(request.getStockStatus());
         if (request.getLeadTimeDays()          != null) product.setLeadTimeDays(request.getLeadTimeDays());
         if (request.getCustomizable()          != null) product.setCustomizable(request.getCustomizable());
         if (request.getStockCount()            != null) product.setStockCount(request.getStockCount());
         if (request.getLowStockThreshold()     != null) product.setLowStockThreshold(request.getLowStockThreshold());
+        // Keep stockStatus consistent with stockCount unless the caller explicitly overrides it
+        // (e.g. MADE_TO_ORDER, which is legitimately independent of count).
+        if (request.getStockStatus() != null) {
+            product.setStockStatus(request.getStockStatus());
+        } else if (request.getStockCount() != null) {
+            product.setStockStatus(deriveStockStatus(product.getStockCount(), product.getLowStockThreshold()));
+        }
         if (request.getVatRate()               != null) product.setVatRate(request.getVatRate());
         if (request.getVatExempt()             != null) product.setVatExempt(request.getVatExempt());
         if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
@@ -425,5 +434,12 @@ public class ProductService {
     private Set<Industry> resolveIndustries(List<UUID> industryIds) {
         if (industryIds == null || industryIds.isEmpty()) return new HashSet<>();
         return new HashSet<>(industryRepository.findAllById(industryIds));
+    }
+
+    /** Mirrors the CASE WHEN logic in ProductRepository's deductStock/restoreStock/setStockCount. */
+    private StockStatus deriveStockStatus(int stockCount, int lowStockThreshold) {
+        if (stockCount <= 0) return StockStatus.OUT_OF_STOCK;
+        if (stockCount <= lowStockThreshold) return StockStatus.LOW_STOCK;
+        return StockStatus.IN_STOCK;
     }
 }
