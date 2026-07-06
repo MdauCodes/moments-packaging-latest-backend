@@ -46,7 +46,14 @@ public class ProductSearchService {
 
     @Transactional(readOnly = true)
     public List<ProductDto> search(String query, int limit) {
-        int cappedLimit = Math.min(limit, 50);
+        return searchProductEntities(query, Math.min(limit, 50)).stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /** Entity-returning variant for internal reuse (e.g. TagSeeder auto-assigning matches). */
+    @Transactional(readOnly = true)
+    public List<Product> searchProductEntities(String query, int limit) {
         if (query == null || query.isBlank()) return List.of();
 
         String   q      = query.trim().toLowerCase();
@@ -58,8 +65,8 @@ public class ProductSearchService {
                 .map(p -> new ScoredProduct(p, score(p, q, tokens)))
                 .filter(sp -> sp.score > 0)
                 .sorted(Comparator.comparingInt(ScoredProduct::getScore).reversed())
-                .limit(cappedLimit)
-                .map(sp -> toDto(sp.product))
+                .limit(limit)
+                .map(sp -> sp.product)
                 .collect(Collectors.toList());
     }
 
