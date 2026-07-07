@@ -53,4 +53,8 @@ public class ProductUpdateRequest {
 
     private List<UUID>                  industryIds;
     private List<ProductPricingTierDto> pricingTiers;
+
+    /** Real Segment/Category/Subcategory classification — optional, can also be set via Classify Products. */
+    private UUID       subcategoryId;
+    private List<UUID> tagIds;
 }

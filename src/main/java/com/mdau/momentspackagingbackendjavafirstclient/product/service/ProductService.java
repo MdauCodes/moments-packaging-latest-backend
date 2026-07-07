@@ -229,6 +229,11 @@ public class ProductService {
                 .vatExempt(request.getVatExempt() != null ? request.getVatExempt() : false)
                 .deleted(false)
                 .industries(resolveIndustries(request.getIndustryIds()))
+                .curatedTags(resolveTags(request.getTagIds()))
+                .subcategory(request.getSubcategoryId() != null
+                        ? subcategoryRepository.findById(request.getSubcategoryId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found: " + request.getSubcategoryId()))
+                        : null)
                 .build();
 
         Product saved = productRepository.save(product);
@@ -278,6 +283,11 @@ public class ProductService {
         if (request.getVatRate()               != null) product.setVatRate(request.getVatRate());
         if (request.getVatExempt()             != null) product.setVatExempt(request.getVatExempt());
         if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
+        if (request.getTagIds()                != null) product.setCuratedTags(resolveTags(request.getTagIds()));
+        if (request.getSubcategoryId()         != null) {
+            product.setSubcategory(subcategoryRepository.findById(request.getSubcategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found: " + request.getSubcategoryId())));
+        }
         if (request.getPriceUnit()             != null) product.setPriceUnit(request.getPriceUnit());
 
         // Compare-at price: explicit clear takes priority, then value update
@@ -448,6 +458,11 @@ public class ProductService {
     private Set<Industry> resolveIndustries(List<UUID> industryIds) {
         if (industryIds == null || industryIds.isEmpty()) return new HashSet<>();
         return new HashSet<>(industryRepository.findAllById(industryIds));
+    }
+
+    private Set<Tag> resolveTags(List<UUID> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) return new HashSet<>();
+        return new HashSet<>(tagRepository.findAllById(tagIds));
     }
 
     /** Mirrors the CASE WHEN logic in ProductRepository's deductStock/restoreStock/setStockCount. */

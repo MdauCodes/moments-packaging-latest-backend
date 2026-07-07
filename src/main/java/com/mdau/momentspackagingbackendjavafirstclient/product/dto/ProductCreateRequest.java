@@ -65,4 +65,8 @@ public class ProductCreateRequest {
 
     private List<UUID>                  industryIds  = new ArrayList<>();
     private List<ProductPricingTierDto> pricingTiers = new ArrayList<>();
+
+    /** Real Segment/Category/Subcategory classification — optional, can also be set later via Classify Products. */
+    private UUID       subcategoryId;
+    private List<UUID> tagIds = new ArrayList<>();
 }
