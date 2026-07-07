@@ -113,16 +113,18 @@ public class Order {
     private BigDecimal subtotal;
 
     /**
-     * Sum of line totals for taxable items only.
-     * Used to compute vatAmount.
+     * VAT-inclusive sum of line totals for non-vat-exempt items only
+     * (already embedded in subtotal, not additional to it).
      */
     @Column(name = "taxable_amount", precision = 12, scale = 2)
     @Builder.Default
     private BigDecimal taxableAmount = BigDecimal.ZERO;
 
     /**
-     * VAT amount = taxableAmount * effective VAT rate.
-     * Computed at checkout based on vat.calculation.mode setting.
+     * VAT extracted from each non-exempt line's VAT-inclusive price, using
+     * that product's own vatRate at the time the order was placed. Computed
+     * in CheckoutService.checkout() — already embedded in subtotal/total,
+     * not additional to them.
      */
     @Column(name = "vat_amount", precision = 12, scale = 2)
     @Builder.Default

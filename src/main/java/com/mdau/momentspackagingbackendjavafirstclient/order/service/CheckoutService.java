@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -139,6 +140,42 @@ public class CheckoutService {
         BigDecimal total = subtotal.add(deliveryFee).subtract(discount);
         String reference = referenceGenerator.generate();
 
+        // ── VAT breakdown ────────────────────────────────────────────────
+        // Product.basePrice (and therefore every line total / subtotal derived
+        // from it) is VAT-inclusive, so VAT is extracted out of each line
+        // rather than added on top. taxableAmount is the gross (VAT-inclusive)
+        // total of non-exempt lines only, matching its own field doc.
+        BigDecimal taxableAmount = BigDecimal.ZERO;
+        BigDecimal vatAmount = BigDecimal.ZERO;
+        if (!cartItems.isEmpty()) {
+            for (CartItem ci : cartItems) {
+                Product product = ci.getProduct();
+                BigDecimal lineTotal = ci.getLineTotalSnapshot();
+                if (lineTotal == null || Boolean.TRUE.equals(product != null ? product.getVatExempt() : null)) continue;
+                BigDecimal rate = (product != null && product.getVatRate() != null) ? product.getVatRate() : new BigDecimal("0.16");
+                BigDecimal lineVat = lineTotal.subtract(lineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
+                taxableAmount = taxableAmount.add(lineTotal);
+                vatAmount = vatAmount.add(lineVat);
+            }
+        } else if (request.getItems() != null) {
+            for (var it : request.getItems()) {
+                BigDecimal price = it.getUnitPrice() != null ? it.getUnitPrice() : BigDecimal.ZERO;
+                int qty = it.getQuantity() != null ? it.getQuantity() : 1;
+                BigDecimal lineTotal = price.multiply(BigDecimal.valueOf(qty));
+                Product product = null;
+                try {
+                    product = productRepository.findByIdAndDeletedFalse(UUID.fromString(it.getProductId())).orElse(null);
+                } catch (IllegalArgumentException ignored) {
+                    // non-UUID productId — treat as standard-rated, matches the item-resolution fallback below
+                }
+                if (Boolean.TRUE.equals(product != null ? product.getVatExempt() : null)) continue;
+                BigDecimal rate = (product != null && product.getVatRate() != null) ? product.getVatRate() : new BigDecimal("0.16");
+                BigDecimal lineVat = lineTotal.subtract(lineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
+                taxableAmount = taxableAmount.add(lineTotal);
+                vatAmount = vatAmount.add(lineVat);
+            }
+        }
+
         // â”€â”€ Build order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Order order = Order.builder()
                 .reference(reference)
@@ -156,6 +193,8 @@ public class CheckoutService {
                 .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(PaymentStatus.PENDING)
                 .subtotal(subtotal)
+                .taxableAmount(taxableAmount)
+                .vatAmount(vatAmount)
                 .deliveryFee(deliveryFee)
                 .discount(discount)
                 .totalAmount(total)
