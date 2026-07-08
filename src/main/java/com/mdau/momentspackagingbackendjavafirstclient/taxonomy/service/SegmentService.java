@@ -3,6 +3,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SegmentCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SegmentDto;
@@ -83,9 +84,11 @@ public class SegmentService {
      * @param reassignTo if the segment still has categories and this is set, they're moved
      *                    onto this other segment first instead of blocking the delete.
      * @param cascade     if the segment still has categories and this is true (and
-     *                    reassignTo isn't set), the empty categories — and their empty
-     *                    subcategories — are deleted along with it. Refuses (409) if any
-     *                    subcategory anywhere in the subtree still has products.
+     *                    reassignTo isn't set), the categories — and their subcategories —
+     *                    are deleted along with it. Any products still under those
+     *                    subcategories are unassigned (subcategory set to null), never
+     *                    deleted — a taxonomy cleanup must never take real inventory down
+     *                    with it.
      */
     @CacheEvict(value = "segments", allEntries = true)
     @Transactional
@@ -107,10 +110,10 @@ public class SegmentService {
                 List<Subcategory> grandchildren = subcategoryRepository.findByCategoryIdIn(categoryIds);
                 if (!grandchildren.isEmpty()) {
                     List<UUID> subcategoryIds = grandchildren.stream().map(Subcategory::getId).collect(Collectors.toList());
-                    long attachedProducts = productRepository.countBySubcategoryIdInAndDeletedFalse(subcategoryIds);
-                    if (attachedProducts > 0) {
-                        throw new ConflictException(
-                                "Cannot delete segment: " + attachedProducts + " products are still assigned to subcategories under it. Reassign them first.");
+                    List<Product> orphaned = productRepository.findBySubcategoryIdInAndDeletedFalse(subcategoryIds);
+                    if (!orphaned.isEmpty()) {
+                        orphaned.forEach(p -> p.setSubcategory(null));
+                        productRepository.saveAll(orphaned);
                     }
                     subcategoryRepository.deleteAll(grandchildren);
                 }

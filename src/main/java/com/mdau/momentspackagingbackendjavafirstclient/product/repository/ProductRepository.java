@@ -153,9 +153,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     long countBySubcategoryIdAndDeletedFalse(UUID subcategoryId);
 
-    long countBySubcategoryIdInAndDeletedFalse(Collection<UUID> subcategoryIds);
-
     List<Product> findBySubcategoryIdAndDeletedFalse(UUID subcategoryId);
+
+    List<Product> findBySubcategoryIdInAndDeletedFalse(Collection<UUID> subcategoryIds);
 
     List<Product> findByDeletedFalse();
 

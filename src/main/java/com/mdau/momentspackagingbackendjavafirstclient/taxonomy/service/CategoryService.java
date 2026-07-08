@@ -3,6 +3,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.CategoryCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.CategoryDto;
@@ -99,9 +100,10 @@ public class CategoryService {
      * @param reassignTo if the category still has subcategories and this is set, they're
      *                    moved onto this other category first instead of blocking the delete.
      * @param cascade     if the category still has subcategories and this is true (and
-     *                    reassignTo isn't set), the empty ones are deleted along with it.
-     *                    Refuses (409) if any of them still has products — those are never
-     *                    swept away by a taxonomy cleanup, only reassignTo moves them.
+     *                    reassignTo isn't set), they're deleted along with it. Any products
+     *                    still under those subcategories are unassigned (subcategory set to
+     *                    null), never deleted — a taxonomy cleanup must never take real
+     *                    inventory down with it.
      */
     @CacheEvict(value = "categories", allEntries = true)
     @Transactional
@@ -120,10 +122,10 @@ public class CategoryService {
                 subcategoryRepository.saveAll(children);
             } else if (cascade) {
                 List<UUID> childIds = children.stream().map(Subcategory::getId).collect(Collectors.toList());
-                long attachedProducts = productRepository.countBySubcategoryIdInAndDeletedFalse(childIds);
-                if (attachedProducts > 0) {
-                    throw new ConflictException(
-                            "Cannot delete category: " + attachedProducts + " products are still assigned to subcategories under it. Reassign them first.");
+                List<Product> orphaned = productRepository.findBySubcategoryIdInAndDeletedFalse(childIds);
+                if (!orphaned.isEmpty()) {
+                    orphaned.forEach(p -> p.setSubcategory(null));
+                    productRepository.saveAll(orphaned);
                 }
                 subcategoryRepository.deleteAll(children);
             } else {

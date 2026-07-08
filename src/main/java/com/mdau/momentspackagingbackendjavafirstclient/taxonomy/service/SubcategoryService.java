@@ -95,28 +95,35 @@ public class SubcategoryService {
 
     /**
      * @param reassignTo if the subcategory still has products and this is set, they're
-     *                    moved onto this other subcategory first instead of blocking the
-     *                    delete. Products are never cascade-deleted here — deleting real
-     *                    inventory is a separate, deliberate action (see ProductService).
+     *                    moved onto this other subcategory first instead of blocking the delete.
+     * @param cascade     if the subcategory still has products and this is true (and reassignTo
+     *                    isn't set), they're unassigned (subcategory set to null) rather than
+     *                    blocking the delete. Products are NEVER deleted by this — subcategory_id
+     *                    is nullable specifically so a product can survive its subcategory going
+     *                    away; deleting a product is a separate, deliberate action (ProductService).
      */
     @CacheEvict(value = "subcategories", allEntries = true)
     @Transactional
-    public void deleteSubcategory(UUID id, UUID reassignTo) {
+    public void deleteSubcategory(UUID id, UUID reassignTo, boolean cascade) {
         Subcategory subcategory = subcategoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found: " + id));
         List<Product> attachedProducts = productRepository.findBySubcategoryIdAndDeletedFalse(id);
         if (!attachedProducts.isEmpty()) {
-            if (reassignTo == null) {
+            if (reassignTo != null) {
+                if (reassignTo.equals(id)) {
+                    throw new ConflictException("Cannot reassign a subcategory's products to itself.");
+                }
+                Subcategory target = subcategoryRepository.findById(reassignTo)
+                        .orElseThrow(() -> new ResourceNotFoundException("Reassignment target subcategory not found: " + reassignTo));
+                attachedProducts.forEach(p -> p.setSubcategory(target));
+                productRepository.saveAll(attachedProducts);
+            } else if (cascade) {
+                attachedProducts.forEach(p -> p.setSubcategory(null));
+                productRepository.saveAll(attachedProducts);
+            } else {
                 throw new ConflictException(
-                        "Cannot delete subcategory: " + attachedProducts.size() + " products are still assigned to it. Reassign them first.");
+                        "Cannot delete subcategory: " + attachedProducts.size() + " products are still assigned to it. Reassign or unassign them first.");
             }
-            if (reassignTo.equals(id)) {
-                throw new ConflictException("Cannot reassign a subcategory's products to itself.");
-            }
-            Subcategory target = subcategoryRepository.findById(reassignTo)
-                    .orElseThrow(() -> new ResourceNotFoundException("Reassignment target subcategory not found: " + reassignTo));
-            attachedProducts.forEach(p -> p.setSubcategory(target));
-            productRepository.saveAll(attachedProducts);
         }
         subcategoryRepository.delete(subcategory);
     }
