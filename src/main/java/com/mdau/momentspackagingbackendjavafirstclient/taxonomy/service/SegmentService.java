@@ -3,11 +3,15 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SegmentCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SegmentDto;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Category;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Segment;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.CategoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SegmentRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SubcategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -26,6 +30,8 @@ public class SegmentService {
 
     private final SegmentRepository segmentRepository;
     private final CategoryRepository categoryRepository;
+    private final SubcategoryRepository subcategoryRepository;
+    private final ProductRepository productRepository;
 
     @Cacheable("segments")
     @Transactional(readOnly = true)
@@ -73,17 +79,47 @@ public class SegmentService {
         return new SegmentDto(segmentRepository.save(segment));
     }
 
+    /**
+     * @param reassignTo if the segment still has categories and this is set, they're moved
+     *                    onto this other segment first instead of blocking the delete.
+     * @param cascade     if the segment still has categories and this is true (and
+     *                    reassignTo isn't set), the empty categories — and their empty
+     *                    subcategories — are deleted along with it. Refuses (409) if any
+     *                    subcategory anywhere in the subtree still has products.
+     */
     @CacheEvict(value = "segments", allEntries = true)
     @Transactional
-    public void deleteSegment(UUID id) {
-        if (!segmentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Segment not found: " + id);
+    public void deleteSegment(UUID id, UUID reassignTo, boolean cascade) {
+        Segment segment = segmentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Segment not found: " + id));
+        List<Category> children = categoryRepository.findBySegmentId(id);
+        if (!children.isEmpty()) {
+            if (reassignTo != null) {
+                if (reassignTo.equals(id)) {
+                    throw new ConflictException("Cannot reassign a segment's categories to itself.");
+                }
+                Segment target = segmentRepository.findById(reassignTo)
+                        .orElseThrow(() -> new ResourceNotFoundException("Reassignment target segment not found: " + reassignTo));
+                children.forEach(c -> c.setSegment(target));
+                categoryRepository.saveAll(children);
+            } else if (cascade) {
+                List<UUID> categoryIds = children.stream().map(Category::getId).collect(Collectors.toList());
+                List<Subcategory> grandchildren = subcategoryRepository.findByCategoryIdIn(categoryIds);
+                if (!grandchildren.isEmpty()) {
+                    List<UUID> subcategoryIds = grandchildren.stream().map(Subcategory::getId).collect(Collectors.toList());
+                    long attachedProducts = productRepository.countBySubcategoryIdInAndDeletedFalse(subcategoryIds);
+                    if (attachedProducts > 0) {
+                        throw new ConflictException(
+                                "Cannot delete segment: " + attachedProducts + " products are still assigned to subcategories under it. Reassign them first.");
+                    }
+                    subcategoryRepository.deleteAll(grandchildren);
+                }
+                categoryRepository.deleteAll(children);
+            } else {
+                throw new ConflictException(
+                        "Cannot delete segment: " + children.size() + " categories still belong to it. Reassign or delete them first.");
+            }
         }
-        long childCategories = categoryRepository.countBySegmentId(id);
-        if (childCategories > 0) {
-            throw new ConflictException(
-                    "Cannot delete segment: " + childCategories + " categories still belong to it. Reassign or delete them first.");
-        }
-        segmentRepository.deleteById(id);
+        segmentRepository.delete(segment);
     }
 }

@@ -57,8 +57,11 @@ public class AdminCategoryController {
 
     @IsAdmin
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        categoryService.deleteCategory(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID reassignTo,
+            @RequestParam(required = false, defaultValue = "false") boolean cascade) {
+        categoryService.deleteCategory(id, reassignTo, cascade);
         return ResponseEntity.noContent().build();
     }
 }

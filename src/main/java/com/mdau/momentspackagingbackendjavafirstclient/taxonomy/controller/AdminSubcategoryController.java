@@ -57,8 +57,10 @@ public class AdminSubcategoryController {
 
     @IsAdmin
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        subcategoryService.deleteSubcategory(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID reassignTo) {
+        subcategoryService.deleteSubcategory(id, reassignTo);
         return ResponseEntity.noContent().build();
     }
 }

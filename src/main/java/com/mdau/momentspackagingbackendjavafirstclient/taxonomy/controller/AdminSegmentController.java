@@ -54,8 +54,11 @@ public class AdminSegmentController {
 
     @IsAdmin
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        segmentService.deleteSegment(id);
+    public ResponseEntity<Void> delete(
+            @PathVariable UUID id,
+            @RequestParam(required = false) UUID reassignTo,
+            @RequestParam(required = false, defaultValue = "false") boolean cascade) {
+        segmentService.deleteSegment(id, reassignTo, cascade);
         return ResponseEntity.noContent().build();
     }
 }

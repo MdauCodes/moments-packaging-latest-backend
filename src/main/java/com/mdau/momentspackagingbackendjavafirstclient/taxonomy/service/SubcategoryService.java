@@ -3,6 +3,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SubcategoryCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SubcategoryDto;
@@ -92,17 +93,31 @@ public class SubcategoryService {
         return new SubcategoryDto(subcategoryRepository.save(subcategory));
     }
 
+    /**
+     * @param reassignTo if the subcategory still has products and this is set, they're
+     *                    moved onto this other subcategory first instead of blocking the
+     *                    delete. Products are never cascade-deleted here — deleting real
+     *                    inventory is a separate, deliberate action (see ProductService).
+     */
     @CacheEvict(value = "subcategories", allEntries = true)
     @Transactional
-    public void deleteSubcategory(UUID id) {
-        if (!subcategoryRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Subcategory not found: " + id);
+    public void deleteSubcategory(UUID id, UUID reassignTo) {
+        Subcategory subcategory = subcategoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found: " + id));
+        List<Product> attachedProducts = productRepository.findBySubcategoryIdAndDeletedFalse(id);
+        if (!attachedProducts.isEmpty()) {
+            if (reassignTo == null) {
+                throw new ConflictException(
+                        "Cannot delete subcategory: " + attachedProducts.size() + " products are still assigned to it. Reassign them first.");
+            }
+            if (reassignTo.equals(id)) {
+                throw new ConflictException("Cannot reassign a subcategory's products to itself.");
+            }
+            Subcategory target = subcategoryRepository.findById(reassignTo)
+                    .orElseThrow(() -> new ResourceNotFoundException("Reassignment target subcategory not found: " + reassignTo));
+            attachedProducts.forEach(p -> p.setSubcategory(target));
+            productRepository.saveAll(attachedProducts);
         }
-        long attachedProducts = productRepository.countBySubcategoryIdAndDeletedFalse(id);
-        if (attachedProducts > 0) {
-            throw new ConflictException(
-                    "Cannot delete subcategory: " + attachedProducts + " products are still assigned to it. Reassign them first.");
-        }
-        subcategoryRepository.deleteById(id);
+        subcategoryRepository.delete(subcategory);
     }
 }

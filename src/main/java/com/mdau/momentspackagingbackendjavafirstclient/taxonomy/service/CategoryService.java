@@ -3,10 +3,12 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.CategoryCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.CategoryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Category;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Segment;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.CategoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SegmentRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SubcategoryRepository;
@@ -29,6 +31,7 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final SegmentRepository segmentRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final ProductRepository productRepository;
 
     @Cacheable("categories")
     @Transactional(readOnly = true)
@@ -92,17 +95,42 @@ public class CategoryService {
         return new CategoryDto(categoryRepository.save(category));
     }
 
+    /**
+     * @param reassignTo if the category still has subcategories and this is set, they're
+     *                    moved onto this other category first instead of blocking the delete.
+     * @param cascade     if the category still has subcategories and this is true (and
+     *                    reassignTo isn't set), the empty ones are deleted along with it.
+     *                    Refuses (409) if any of them still has products — those are never
+     *                    swept away by a taxonomy cleanup, only reassignTo moves them.
+     */
     @CacheEvict(value = "categories", allEntries = true)
     @Transactional
-    public void deleteCategory(UUID id) {
-        if (!categoryRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Category not found: " + id);
+    public void deleteCategory(UUID id, UUID reassignTo, boolean cascade) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + id));
+        List<Subcategory> children = subcategoryRepository.findByCategoryId(id);
+        if (!children.isEmpty()) {
+            if (reassignTo != null) {
+                if (reassignTo.equals(id)) {
+                    throw new ConflictException("Cannot reassign a category's subcategories to itself.");
+                }
+                Category target = categoryRepository.findById(reassignTo)
+                        .orElseThrow(() -> new ResourceNotFoundException("Reassignment target category not found: " + reassignTo));
+                children.forEach(sc -> sc.setCategory(target));
+                subcategoryRepository.saveAll(children);
+            } else if (cascade) {
+                List<UUID> childIds = children.stream().map(Subcategory::getId).collect(Collectors.toList());
+                long attachedProducts = productRepository.countBySubcategoryIdInAndDeletedFalse(childIds);
+                if (attachedProducts > 0) {
+                    throw new ConflictException(
+                            "Cannot delete category: " + attachedProducts + " products are still assigned to subcategories under it. Reassign them first.");
+                }
+                subcategoryRepository.deleteAll(children);
+            } else {
+                throw new ConflictException(
+                        "Cannot delete category: " + children.size() + " subcategories still belong to it. Reassign or delete them first.");
+            }
         }
-        long childSubcategories = subcategoryRepository.countByCategoryId(id);
-        if (childSubcategories > 0) {
-            throw new ConflictException(
-                    "Cannot delete category: " + childSubcategories + " subcategories still belong to it. Reassign or delete them first.");
-        }
-        categoryRepository.deleteById(id);
+        categoryRepository.delete(category);
     }
 }
