@@ -6,6 +6,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.notification.service.Noti
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderStatusHistoryRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.order.service.InvoiceNumberGenerator;
 import com.mdau.momentspackagingbackendjavafirstclient.order.service.OrderReader;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
@@ -37,6 +38,7 @@ public class PaymentService {
     private final OrderReader                  orderReader;
     private final CacheManager                 cacheManager;
     private final InventoryService             inventoryService;
+    private final InvoiceNumberGenerator       invoiceNumberGenerator;
 
     // -- Initiate ---------------------------------------------------------
 
@@ -271,6 +273,10 @@ public class PaymentService {
             Order order = record.getOrder();
             order.setPaymentStatus(PaymentStatus.PAID);
             order.setStatus(OrderStatus.PAID);
+            if (order.getInvoiceNumber() == null) {
+                order.setInvoiceNumber(invoiceNumberGenerator.generate());
+                order.setPaidAt(Instant.now());
+            }
             orderRepository.save(order);
 
             historyRepository.save(OrderStatusHistory.builder()

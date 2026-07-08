@@ -1,6 +1,7 @@
 package com.mdau.momentspackagingbackendjavafirstclient.settings.controller;
 
 import com.mdau.momentspackagingbackendjavafirstclient.settings.dto.PublicConfigDto;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/public/config")
 @RequiredArgsConstructor
 public class PublicConfigController {
+
+    private final SettingsService settingsService;
 
     @Value("${app.features.blogs-enabled}")
     private Boolean blogsEnabled;
@@ -37,7 +40,8 @@ public class PublicConfigController {
                 emailCaptureEnabled,
                 whatsappNumber,
                 companyEmail,
-                companyPhone
+                companyPhone,
+                settingsService.getValue("business.kraPin", "")
         ));
     }
 }

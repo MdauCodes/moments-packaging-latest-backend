@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 public class OrderDto {
     private final UUID       id;
     private final String     reference;
+    private final String     invoiceNumber;
+    private final Instant    paidAt;
     private final String     status;
     private final String     paymentMethod;
     private final String     paymentStatus;
@@ -53,6 +55,8 @@ public class OrderDto {
     public OrderDto(Order order) {
         this.id                        = order.getId();
         this.reference                 = order.getReference();
+        this.invoiceNumber             = order.getInvoiceNumber();
+        this.paidAt                    = order.getPaidAt();
         this.status                    = order.getStatus().name();
         this.paymentMethod             = order.getPaymentMethod().name();
         this.paymentStatus             = order.getPaymentStatus().name();

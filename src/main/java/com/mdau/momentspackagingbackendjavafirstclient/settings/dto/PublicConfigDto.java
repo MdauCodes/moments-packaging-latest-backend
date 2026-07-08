@@ -12,4 +12,7 @@ public class PublicConfigDto {
     private String  whatsappNumber;
     private String  companyEmail;
     private String  companyPhone;
+
+    /** Printed on customer invoices — empty string until an admin sets it in Settings. */
+    private String  businessKraPin;
 }
