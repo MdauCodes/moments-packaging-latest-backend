@@ -161,4 +161,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findByCategoryAndDeletedFalseAndSubcategoryIsNull(String category);
 
+    List<Product> findByIndustries_IdAndDeletedFalse(UUID industryId);
+
 }
