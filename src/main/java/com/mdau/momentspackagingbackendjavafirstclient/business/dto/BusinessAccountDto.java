@@ -26,7 +26,8 @@ public class BusinessAccountDto {
     private final String welcomeCode;
     private final Instant createdAt;
 
-    /** Admin-only enrichment — null on the customer's own "/me" view. */
+    /** Set on both the customer's own "/me" view and the admin detail view —
+     *  an early signal toward future trade-credit eligibility. */
     @Setter
     private Long orderCount;
     @Setter

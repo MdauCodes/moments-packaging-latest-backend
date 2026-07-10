@@ -54,6 +54,7 @@ public class SecurityConfig {
                     "/api/v1/public/**",
                     "/api/v1/cart/**",
                     "/api/v1/checkout",
+                    "/api/v1/checkout/validate-promo",
                     "/api/v1/orders/track/**",
                     "/api/v1/orders/by-email",
                     "/api/v1/auth/staff/forgot-password",

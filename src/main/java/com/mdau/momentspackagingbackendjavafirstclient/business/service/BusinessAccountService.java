@@ -98,9 +98,9 @@ public class BusinessAccountService {
 
     @Transactional(readOnly = true)
     public BusinessAccountDto getMine(User user) {
-        return businessAccountRepository.findByUserId(user.getId())
-                .map(BusinessAccountDto::new)
+        BusinessAccount account = businessAccountRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("No business account for this user."));
+        return withOrderStats(new BusinessAccountDto(account), account);
     }
 
     @Transactional
@@ -132,7 +132,12 @@ public class BusinessAccountService {
     public BusinessAccountDto getById(UUID id) {
         BusinessAccount account = businessAccountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Business account not found: " + id));
-        BusinessAccountDto dto = new BusinessAccountDto(account);
+        return withOrderStats(new BusinessAccountDto(account), account);
+    }
+
+    /** Order count / lifetime spend — shown to the account owner and to admin
+     *  alike, as an early signal toward future trade-credit eligibility. */
+    private BusinessAccountDto withOrderStats(BusinessAccountDto dto, BusinessAccount account) {
         Object[] stats = orderRepository.getOrderStatsForCustomer(account.getUser()).get(0);
         dto.setOrderCount((Long) stats[0]);
         dto.setTotalSpend((BigDecimal) stats[1]);
