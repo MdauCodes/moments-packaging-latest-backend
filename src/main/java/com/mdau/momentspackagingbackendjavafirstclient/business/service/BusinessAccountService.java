@@ -10,7 +10,11 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.exception.Conflict
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.repository.IndustryRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.DiscountType;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PromoCode;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.order.repository.PromoCodeRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -18,15 +22,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class BusinessAccountService {
 
+    /** Admin-editable via the generic /api/v1/admin/settings endpoint. */
+    private static final String WELCOME_DISCOUNT_SETTING_KEY = "discounts.welcomeCodePercent";
+    private static final String WELCOME_DISCOUNT_DEFAULT = "10";
+    private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final BusinessAccountRepository businessAccountRepository;
     private final IndustryRepository industryRepository;
     private final OrderRepository orderRepository;
+    private final PromoCodeRepository promoCodeRepository;
+    private final SettingsService settingsService;
 
     @Transactional
     public BusinessAccountDto create(User user, BusinessAccountCreateRequest request) {
@@ -37,13 +50,50 @@ public class BusinessAccountService {
                 .user(user)
                 .businessName(request.getBusinessName())
                 .kraPin(request.getKraPin())
-                .businessRegNumber(request.getBusinessRegNumber())
+                .location(request.getLocation())
+                .road(request.getRoad())
+                .buildingAddress(request.getBuildingAddress())
                 .industry(resolveIndustry(request.getIndustryId()))
                 .contactPersonName(request.getContactPersonName())
                 .contactPersonRole(request.getContactPersonRole())
                 .phone(request.getPhone())
                 .build();
+        account.setWelcomeCode(issueWelcomeCode(user));
         return new BusinessAccountDto(businessAccountRepository.save(account));
+    }
+
+    /**
+     * Every new Business Account earns a unique, single-use promo code
+     * redeemable only by that account, for whatever percentage is currently
+     * configured in {@link #WELCOME_DISCOUNT_SETTING_KEY} — admin-editable,
+     * never hardcoded per order.
+     */
+    private String issueWelcomeCode(User user) {
+        String code = generateUniqueCode();
+        BigDecimal percent = new BigDecimal(
+                settingsService.getValue(WELCOME_DISCOUNT_SETTING_KEY, WELCOME_DISCOUNT_DEFAULT));
+        PromoCode promo = PromoCode.builder()
+                .code(code)
+                .discountType(DiscountType.PERCENT)
+                .discountValue(percent)
+                .maxUses(1)
+                .active(true)
+                .restrictedToUserId(user.getId())
+                .build();
+        promoCodeRepository.save(promo);
+        return code;
+    }
+
+    private String generateUniqueCode() {
+        String code;
+        do {
+            StringBuilder sb = new StringBuilder("WELCOME-");
+            for (int i = 0; i < 6; i++) {
+                sb.append(CODE_ALPHABET.charAt(RANDOM.nextInt(CODE_ALPHABET.length())));
+            }
+            code = sb.toString();
+        } while (promoCodeRepository.existsByCodeIgnoreCase(code));
+        return code;
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +109,9 @@ public class BusinessAccountService {
                 .orElseThrow(() -> new ResourceNotFoundException("No business account for this user."));
         account.setBusinessName(request.getBusinessName());
         account.setKraPin(request.getKraPin());
-        account.setBusinessRegNumber(request.getBusinessRegNumber());
+        account.setLocation(request.getLocation());
+        account.setRoad(request.getRoad());
+        account.setBuildingAddress(request.getBuildingAddress());
         account.setIndustry(resolveIndustry(request.getIndustryId()));
         account.setContactPersonName(request.getContactPersonName());
         account.setContactPersonRole(request.getContactPersonRole());

@@ -8,10 +8,11 @@ import lombok.*;
 
 /**
  * Phase 1 of the trade-account roadmap — a self-service business profile
- * attached to a customer's User account. Carries no special pricing or
- * credit terms on its own; it exists to accumulate an order history that
- * later becomes the prerequisite for applying for actual trade credit
- * (a separate, future phase).
+ * attached to a customer's User account. Opening one issues a single-use
+ * welcome promo code (see BusinessAccountService), but carries no ongoing
+ * discount or credit terms of its own; it exists to accumulate an order
+ * history that later becomes the prerequisite for applying for actual
+ * trade credit (a separate, future phase).
  */
 @Entity
 @Table(name = "business_accounts", indexes = {
@@ -30,8 +31,14 @@ public class BusinessAccount extends BaseEntity {
     @Column(name = "kra_pin", nullable = false, length = 20)
     private String kraPin;
 
-    @Column(name = "business_reg_number", nullable = false, length = 100)
-    private String businessRegNumber;
+    @Column(nullable = false, length = 150)
+    private String location;
+
+    @Column(nullable = false, length = 150)
+    private String road;
+
+    @Column(name = "building_address", nullable = false, length = 255)
+    private String buildingAddress;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "industry_id")
@@ -50,4 +57,9 @@ public class BusinessAccount extends BaseEntity {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private BusinessAccountStatus status = BusinessAccountStatus.ACTIVE;
+
+    /** Denormalized copy of the auto-issued PromoCode.code for this account —
+     *  avoids a join on every read since it's set once and never changes. */
+    @Column(name = "welcome_code", length = 50)
+    private String welcomeCode;
 }

@@ -129,7 +129,7 @@ public class CheckoutService {
         String appliedPromo = null;
         if (request.getPromoCode() != null && !request.getPromoCode().isBlank()) {
             Map<String, Object> promoResult = promoCodeService.validateAndCalculate(
-                    request.getPromoCode(), subtotal);
+                    request.getPromoCode(), subtotal, customer != null ? customer.getId() : null);
             if (Boolean.TRUE.equals(promoResult.get("valid"))) {
                 discount = (BigDecimal) promoResult.get("discountAmount");
                 appliedPromo = request.getPromoCode().toUpperCase();

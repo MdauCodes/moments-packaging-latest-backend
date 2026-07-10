@@ -23,11 +23,27 @@ public class PromoCodeService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> validateAndCalculate(String code, BigDecimal subtotal) {
+        return validateAndCalculate(code, subtotal, null);
+    }
+
+    /**
+     * @param requestingUserId the customer attempting to redeem the code, or null for a
+     *                         guest checkout. Codes with {@code restrictedToUserId} set
+     *                         (e.g. a Business Account's auto-issued welcome code) are
+     *                         only valid when this matches.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> validateAndCalculate(String code, BigDecimal subtotal, UUID requestingUserId) {
         PromoCode promo = promoCodeRepository
                 .findByCodeIgnoreCaseAndActiveTrue(code).orElse(null);
 
         if (promo == null) {
             return Map.of("valid", false, "message", "Invalid or expired promo code",
+                    "discountAmount", BigDecimal.ZERO);
+        }
+
+        if (promo.getRestrictedToUserId() != null && !promo.getRestrictedToUserId().equals(requestingUserId)) {
+            return Map.of("valid", false, "message", "This code is not valid for your account",
                     "discountAmount", BigDecimal.ZERO);
         }
 

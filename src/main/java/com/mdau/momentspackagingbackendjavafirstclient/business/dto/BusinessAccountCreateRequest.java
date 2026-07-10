@@ -16,8 +16,14 @@ public class BusinessAccountCreateRequest {
     @NotBlank(message = "KRA PIN is required")
     private String kraPin;
 
-    @NotBlank(message = "Business registration number is required")
-    private String businessRegNumber;
+    @NotBlank(message = "Location is required")
+    private String location;
+
+    @NotBlank(message = "Road is required")
+    private String road;
+
+    @NotBlank(message = "Building address is required")
+    private String buildingAddress;
 
     private UUID industryId;
 

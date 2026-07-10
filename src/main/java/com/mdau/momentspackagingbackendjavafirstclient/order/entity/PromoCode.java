@@ -49,4 +49,9 @@ public class PromoCode {
     @Column(nullable = false)
     @Builder.Default
     private Boolean active = true;
+
+    /** Set only for a Business Account's auto-issued welcome code — redeemable
+     *  only by the user it was issued to. Null for ordinary, publicly-shared codes. */
+    @Column(name = "restricted_to_user_id")
+    private UUID restrictedToUserId;
 }

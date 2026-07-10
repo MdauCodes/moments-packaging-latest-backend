@@ -3,8 +3,10 @@ package com.mdau.momentspackagingbackendjavafirstclient.order.controller;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PromoCode;
 import com.mdau.momentspackagingbackendjavafirstclient.order.service.PromoCodeService;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -20,10 +22,12 @@ public class PromoCodeController {
 
     @PostMapping("/api/v1/checkout/validate-promo")
     public ResponseEntity<Map<String, Object>> validatePromo(
-            @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal(errorOnInvalidType = false) User user) {
         String code      = (String) body.get("code");
         BigDecimal sub   = new BigDecimal(body.get("subtotal").toString());
-        return ResponseEntity.ok(promoCodeService.validateAndCalculate(code, sub));
+        UUID userId      = user != null ? user.getId() : null;
+        return ResponseEntity.ok(promoCodeService.validateAndCalculate(code, sub, userId));
     }
 
     @IsAdmin
