@@ -28,7 +28,14 @@ public class BusinessAccount extends BaseEntity {
     @Column(name = "business_name", nullable = false, length = 255)
     private String businessName;
 
-    @Column(name = "kra_pin", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "business_type", length = 30)
+    private BusinessType businessType;
+
+    /** Optional at this stage — only required later when applying for trade
+     *  credit, so opening a Business Account doesn't feel like disclosing
+     *  formal registration paperwork just to get a profile. */
+    @Column(name = "kra_pin", length = 20)
     private String kraPin;
 
     @Column(nullable = false, length = 150)

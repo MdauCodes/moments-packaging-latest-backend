@@ -23,15 +23,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class BusinessAccountService {
 
-    /** Admin-editable via the generic /api/v1/admin/settings endpoint. */
-    private static final String WELCOME_DISCOUNT_SETTING_KEY = "discounts.welcomeCodePercent";
-    private static final String WELCOME_DISCOUNT_DEFAULT = "10";
+    // Admin-editable via the generic /api/v1/admin/settings endpoint —
+    // seeded by DiscountSettingsSeeder so they're visible there from boot.
+    private static final String WELCOME_DISCOUNT_PERCENT_KEY = "discounts.welcomeCodePercent";
+    private static final String WELCOME_DISCOUNT_MIN_ORDER_KEY = "discounts.welcomeCodeMinOrderAmount";
+    private static final String WELCOME_DISCOUNT_VALID_DAYS_KEY = "discounts.welcomeCodeValidDays";
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -49,6 +53,7 @@ public class BusinessAccountService {
         BusinessAccount account = BusinessAccount.builder()
                 .user(user)
                 .businessName(request.getBusinessName())
+                .businessType(request.getBusinessType())
                 .kraPin(request.getKraPin())
                 .location(request.getLocation())
                 .road(request.getRoad())
@@ -64,20 +69,23 @@ public class BusinessAccountService {
 
     /**
      * Every new Business Account earns a unique, single-use promo code
-     * redeemable only by that account, for whatever percentage is currently
-     * configured in {@link #WELCOME_DISCOUNT_SETTING_KEY} — admin-editable,
-     * never hardcoded per order.
+     * redeemable only by that account — percentage off, minimum order
+     * amount, and validity window are all read from admin-editable
+     * settings, never hardcoded per order.
      */
     private String issueWelcomeCode(User user) {
         String code = generateUniqueCode();
-        BigDecimal percent = new BigDecimal(
-                settingsService.getValue(WELCOME_DISCOUNT_SETTING_KEY, WELCOME_DISCOUNT_DEFAULT));
+        BigDecimal percent = new BigDecimal(settingsService.getValue(WELCOME_DISCOUNT_PERCENT_KEY, "5"));
+        BigDecimal minOrderAmount = new BigDecimal(settingsService.getValue(WELCOME_DISCOUNT_MIN_ORDER_KEY, "5000"));
+        int validDays = Integer.parseInt(settingsService.getValue(WELCOME_DISCOUNT_VALID_DAYS_KEY, "30"));
         PromoCode promo = PromoCode.builder()
                 .code(code)
                 .discountType(DiscountType.PERCENT)
                 .discountValue(percent)
+                .minOrderAmount(minOrderAmount)
                 .maxUses(1)
                 .active(true)
+                .expiresAt(Instant.now().plus(validDays, ChronoUnit.DAYS))
                 .restrictedToUserId(user.getId())
                 .build();
         promoCodeRepository.save(promo);
@@ -108,6 +116,7 @@ public class BusinessAccountService {
         BusinessAccount account = businessAccountRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("No business account for this user."));
         account.setBusinessName(request.getBusinessName());
+        account.setBusinessType(request.getBusinessType());
         account.setKraPin(request.getKraPin());
         account.setLocation(request.getLocation());
         account.setRoad(request.getRoad());

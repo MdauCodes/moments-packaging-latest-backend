@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.business.dto;
 
+import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessType;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,7 +14,9 @@ public class BusinessAccountCreateRequest {
     @NotBlank(message = "Business name is required")
     private String businessName;
 
-    @NotBlank(message = "KRA PIN is required")
+    private BusinessType businessType;
+
+    /** Optional here — only required later at trade-credit application. */
     private String kraPin;
 
     @NotBlank(message = "Location is required")

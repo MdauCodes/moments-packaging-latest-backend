@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.business.dto;
 
 import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessAccount;
 import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessAccountStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -13,6 +14,7 @@ public class BusinessAccountDto {
 
     private final UUID id;
     private final String businessName;
+    private final BusinessType businessType;
     private final String kraPin;
     private final String location;
     private final String road;
@@ -36,6 +38,7 @@ public class BusinessAccountDto {
     public BusinessAccountDto(BusinessAccount account) {
         this.id = account.getId();
         this.businessName = account.getBusinessName();
+        this.businessType = account.getBusinessType();
         this.kraPin = account.getKraPin();
         this.location = account.getLocation();
         this.road = account.getRoad();
