@@ -19,7 +19,7 @@ public class ReferralCodeDto {
     public ReferralCodeDto(ReferralCode rc, String frontendUrl) {
         this.id             = rc.getId();
         this.code           = rc.getCode();
-        this.referralUrl    = frontendUrl + "/register?ref=" + rc.getCode();
+        this.referralUrl    = frontendUrl + "/account/register?ref=" + rc.getCode();
         this.isActive       = rc.getIsActive();
         this.totalReferrals = rc.getTotalReferrals();
         this.maxReferrals   = rc.getMaxReferrals();

@@ -89,7 +89,7 @@ app:
   cors:
     allowed-origins: "https://moments-demo.site/,https://www.momentspackaging.com,https://momentspackaging.com,https://moments-connect-hub.lovable.app,https://preview--moments-connect-hub.lovable.app,https://moments-non-lovable-project.onrender.com,http://localhost:5173"
   frontend:
-    url: "https://moments-connect-hub.lovable.app"
+    url: ${FRONTEND_URL:https://momentspackaging.com}
   admin:
     superadmin-password: ${SUPERADMIN_PASSWORD:}
     dev-admin-password: ${DEV_ADMIN_PASSWORD:}
