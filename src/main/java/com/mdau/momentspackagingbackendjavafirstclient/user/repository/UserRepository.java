@@ -4,6 +4,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -33,4 +35,17 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     /** Find expired temp-password accounts that were never activated. */
     List<User> findByMustChangePasswordTrueAndTempPasswordExpiresAtBeforeAndDeletedFalse(
             Instant now);
+
+    /** Customer search for the admin Customers page — excludes staff/admin accounts. */
+    @Query("""
+        SELECT u FROM User u
+        WHERE u.isStaff = false AND u.deleted = false
+        AND (:q IS NULL OR :q = ''
+             OR LOWER(u.firstName) LIKE LOWER(CONCAT('%', :q, '%'))
+             OR LOWER(u.lastName) LIKE LOWER(CONCAT('%', :q, '%'))
+             OR LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))
+             OR u.phone LIKE CONCAT('%', :q, '%'))
+        ORDER BY u.createdAt DESC
+        """)
+    List<User> searchCustomers(@Param("q") String q);
 }
