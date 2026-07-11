@@ -88,23 +88,23 @@ public class ReferralService {
         log.info("Referral code {} created for {}", code, user.getEmail());
     }
 
-    // ── Sole Merchant rewards — wallet/ledger are the same tables the
-    //    referral system already uses; these are the general (non-referral)
-    //    earning triggers: welcome bonus, review bonus, spend-based accrual.
+    // ── Rewards program — wallet/ledger are the same tables the referral
+    //    system already uses; these are the general (non-referral) earning
+    //    triggers: welcome bonus, review bonus, spend-based accrual. Earned
+    //    by every customer regardless of account type (Sole Merchant or
+    //    Business) — the two account types differ in what other features
+    //    they get, not in whether they participate in rewards.
 
     @Transactional
     public void awardWelcomeBonus(User user) {
         int points = Integer.parseInt(settingsService.getValue(KEY_WELCOME_POINTS, "100"));
         if (points <= 0) return;
         awardCredits(user, points, CreditTransactionType.EARNED_SIGNUP,
-                "Welcome bonus for opening a Sole Merchant Account", null, null);
+                "Welcome bonus for opening your account", null, null);
     }
 
     @Transactional
     public void awardReviewBonus(User user) {
-        if (user.getAccountType() != com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.SOLE_MERCHANT) {
-            return;
-        }
         int points = Integer.parseInt(settingsService.getValue(KEY_REVIEW_POINTS, "50"));
         if (points <= 0) return;
         awardCredits(user, points, CreditTransactionType.EARNED_REVIEW,
@@ -112,16 +112,16 @@ public class ReferralService {
     }
 
     /**
-     * General points accrual on any paid order — every Sole Merchant earns
-     * these regardless of referral status, unlike EARNED_PURCHASE (which is
+     * General points accrual on any paid order — every customer earns these
+     * regardless of referral status, unlike EARNED_PURCHASE (which is
      * specifically "purchase made by a referred buyer", see
-     * processOrderForReferral). Both can fire on the same order.
+     * processOrderForReferral). Both can fire on the same order — a
+     * deliberate stack, matching how reference loyalty programs (Smile.io,
+     * Rothy's) run spend-based points and referral rewards as two
+     * independent, coexisting mechanics rather than one blocking the other.
      */
     @Transactional
     public void awardOrderPoints(User buyer, Order order) {
-        if (buyer.getAccountType() != com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.SOLE_MERCHANT) {
-            return;
-        }
         int pointsPer100Kes = Integer.parseInt(settingsService.getValue(KEY_POINTS_PER_100_KES, "1"));
         int points = order.getTotalAmount()
                 .divide(BigDecimal.valueOf(100), 0, RoundingMode.FLOOR)
