@@ -36,9 +36,11 @@ public class StaffRoleSeeder implements ApplicationRunner {
                         Permission.ORDER_PREPARE, Permission.ORDER_DISPATCH,
                         Permission.ORDER_ASSIGN, Permission.ORDER_MANAGE_ALL,
                         Permission.PRODUCT_VIEW, Permission.PRODUCT_MANAGE,
-                        Permission.PAYMENT_VIEW, Permission.USER_VIEW,
-                        Permission.USER_CREATE, Permission.ANALYTICS_VIEW,
-                        Permission.SETTINGS_MANAGE));
+                        Permission.PAYMENT_VIEW, Permission.PAYMENT_REFUND,
+                        Permission.USER_VIEW, Permission.USER_CREATE,
+                        Permission.ANALYTICS_VIEW, Permission.SETTINGS_MANAGE,
+                        Permission.BLOG_MANAGE, Permission.ENQUIRY_VIEW,
+                        Permission.REVIEW_MODERATE, Permission.CUSTOMER_VIEW));
 
         seed("SUPERVISOR", "Supervisor",
                 "View all orders and assign them to staff.",
@@ -70,18 +72,38 @@ public class StaffRoleSeeder implements ApplicationRunner {
         log.info("Staff role seeding complete.");
     }
 
+    /**
+     * Creates the role if missing. If it already exists AND is still a
+     * default (never customized by a SUPER_ADMIN), its permission set is
+     * refreshed to match the list defined here — otherwise a role seeded
+     * before a new Permission value existed would never receive it, since
+     * this runner only used to act on first creation.
+     */
     private void seed(String name, String displayName,
                       String description, Set<Permission> permissions) {
-        if (!roleRepository.existsByNameAndDeletedFalse(name)) {
-            roleRepository.save(StaffRole.builder()
-                    .name(name)
-                    .displayName(displayName)
-                    .description(description)
-                    .isDefault(true)
-                    .permissions(permissions)
-                    .deleted(false)
-                    .build());
-            log.info("Seeded role: {}", name);
-        }
+        roleRepository.findByNameAndDeletedFalse(name).ifPresentOrElse(
+                existing -> {
+                    if (Boolean.TRUE.equals(existing.getIsDefault())
+                            && !existing.getPermissions().equals(permissions)) {
+                        // Mutate the managed Hibernate collection in place —
+                        // replacing the field with an immutable Set.of() breaks
+                        // @ElementCollection dirty-checking.
+                        existing.getPermissions().clear();
+                        existing.getPermissions().addAll(permissions);
+                        roleRepository.save(existing);
+                        log.info("Refreshed permissions for default role: {}", name);
+                    }
+                },
+                () -> {
+                    roleRepository.save(StaffRole.builder()
+                            .name(name)
+                            .displayName(displayName)
+                            .description(description)
+                            .isDefault(true)
+                            .permissions(permissions)
+                            .deleted(false)
+                            .build());
+                    log.info("Seeded role: {}", name);
+                });
     }
 }

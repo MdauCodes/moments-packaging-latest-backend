@@ -16,6 +16,7 @@ public enum Permission {
 
     // Payment permissions
     PAYMENT_VIEW,
+    PAYMENT_REFUND,
 
     // User / role management
     USER_VIEW,
@@ -30,5 +31,11 @@ public enum Permission {
     AUDIT_VIEW,
 
     // Enquiry / CRM
-    ENQUIRY_MANAGE
+    ENQUIRY_MANAGE,
+    ENQUIRY_VIEW,
+
+    // Content
+    BLOG_MANAGE,
+    REVIEW_MODERATE,
+    CUSTOMER_VIEW
 }
