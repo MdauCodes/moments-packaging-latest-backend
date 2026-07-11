@@ -12,6 +12,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.exception.Resource
 import com.mdau.momentspackagingbackendjavafirstclient.common.security.JwtService;
 import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.Role;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
@@ -59,6 +60,7 @@ public class CustomerAuthService {
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
+                .accountType(request.getAccountType())
                 .emailVerified(false)
                 .enabled(true)
                 .deleted(false)
@@ -68,6 +70,10 @@ public class CustomerAuthService {
         User saved = userRepository.save(user);
 
         referralService.initializeNewUser(saved);
+
+        if (request.getAccountType() == AccountType.SOLE_MERCHANT) {
+            referralService.awardWelcomeBonus(saved);
+        }
 
         if (request.getReferralCode() != null && !request.getReferralCode().isBlank()) {
             referralService.recordReferralSignup(saved, request.getReferralCode());

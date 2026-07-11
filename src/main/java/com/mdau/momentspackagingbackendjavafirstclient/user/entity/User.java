@@ -65,6 +65,16 @@ public class User extends BaseEntity implements UserDetails {
     @Column(length = 255)
     private String businessName;
 
+    /**
+     * Chosen at registration: SOLE_MERCHANT or BUSINESS. Null only for
+     * legacy accounts created before this field existed — backfilled by
+     * AccountTypeMigrationSeeder on the first startup after this change.
+     * Never set for staff/admin accounts.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", length = 20)
+    private AccountType accountType;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean deleted = false;

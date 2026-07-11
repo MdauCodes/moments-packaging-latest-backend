@@ -19,6 +19,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRep
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderStatusHistoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import com.mdau.momentspackagingbackendjavafirstclient.settings.service.MockModeService;
 import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
@@ -52,6 +53,7 @@ public class CheckoutService {
     private final SettingsService         settingsService;
     private final ProductRepository       productRepository;
     private final CacheManager            cacheManager;
+    private final ReferralService         referralService;
 
     @Transactional
     public OrderDto checkout(User customer, String sessionId, CheckoutRequest request) {
@@ -135,6 +137,19 @@ public class CheckoutService {
                 appliedPromo = request.getPromoCode().toUpperCase();
                 promoCodeService.incrementUsedCount(request.getPromoCode());
             }
+        }
+
+        // ── Rewards points redemption ───────────────────────────────────────
+        Integer redeemPoints = request.getRedeemPoints();
+        BigDecimal pointsDiscount = BigDecimal.ZERO;
+        if (redeemPoints != null && redeemPoints > 0 && customer != null) {
+            BigDecimal preliminaryTotal = subtotal.add(deliveryFee).subtract(discount);
+            BigDecimal requestedDiscount = referralService.calculateRedemptionDiscount(customer, redeemPoints);
+            BigDecimal maxRedeemable = referralService.calculateMaxRedeemableKes(preliminaryTotal);
+            pointsDiscount = requestedDiscount.compareTo(maxRedeemable) > 0 ? maxRedeemable : requestedDiscount;
+            discount = discount.add(pointsDiscount);
+        } else {
+            redeemPoints = null;
         }
 
         BigDecimal total = subtotal.add(deliveryFee).subtract(discount);
@@ -276,6 +291,15 @@ public class CheckoutService {
                 .build());
 
         Order saved = orderRepository.save(order);
+
+        if (redeemPoints != null) {
+            try {
+                referralService.commitRedemption(customer, redeemPoints, pointsDiscount, saved);
+            } catch (Exception e) {
+                log.error("Points redemption commit failed for order {}: {}",
+                        saved.getReference(), e.getMessage(), e);
+            }
+        }
 
         // â”€â”€ Store idempotency key â†’ reference â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {

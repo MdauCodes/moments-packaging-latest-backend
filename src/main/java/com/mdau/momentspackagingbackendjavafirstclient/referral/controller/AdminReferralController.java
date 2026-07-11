@@ -111,6 +111,30 @@ public class AdminReferralController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/rewards-tiers")
+    public ResponseEntity<List<RewardsTierConfigDto>> getAllRewardsTiers() {
+        return ResponseEntity.ok(referralService.getAllRewardsTiers());
+    }
+
+    @PostMapping("/rewards-tiers")
+    public ResponseEntity<RewardsTierConfigDto> createRewardsTier(
+            @Valid @RequestBody RewardsTierConfigDto request) {
+        return ResponseEntity.status(201).body(referralService.createRewardsTier(request));
+    }
+
+    @PutMapping("/rewards-tiers/{id}")
+    public ResponseEntity<RewardsTierConfigDto> updateRewardsTier(
+            @PathVariable UUID id,
+            @Valid @RequestBody RewardsTierConfigDto request) {
+        return ResponseEntity.ok(referralService.updateRewardsTier(id, request));
+    }
+
+    @DeleteMapping("/rewards-tiers/{id}")
+    public ResponseEntity<Void> deleteRewardsTier(@PathVariable UUID id) {
+        referralService.deleteRewardsTier(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/credits/adjust")
     public ResponseEntity<CreditWalletDto> adjustCredits(
             @Valid @RequestBody AdminCreditAdjustRequest request) {

@@ -12,6 +12,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.service.InventoryService;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
@@ -39,6 +40,7 @@ public class PaymentService {
     private final CacheManager                 cacheManager;
     private final InventoryService             inventoryService;
     private final InvoiceNumberGenerator       invoiceNumberGenerator;
+    private final ReferralService              referralService;
 
     // -- Initiate ---------------------------------------------------------
 
@@ -278,6 +280,16 @@ public class PaymentService {
                 order.setPaidAt(Instant.now());
             }
             orderRepository.save(order);
+
+            if (order.getCustomer() != null) {
+                try {
+                    referralService.processOrderForReferral(order.getCustomer(), order);
+                    referralService.awardOrderPoints(order.getCustomer(), order);
+                } catch (Exception e) {
+                    log.error("Rewards processing failed for order {}: {}",
+                            order.getReference(), e.getMessage(), e);
+                }
+            }
 
             historyRepository.save(OrderStatusHistory.builder()
                     .order(order).fromStatus(OrderStatus.PENDING_PAYMENT)

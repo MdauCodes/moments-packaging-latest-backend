@@ -4,6 +4,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -48,4 +49,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
         ORDER BY u.createdAt DESC
         """)
     List<User> searchCustomers(@Param("q") String q);
+
+    /** One-time backfill for accounts created before AccountType existed. */
+    @Modifying
+    @Query("""
+        UPDATE User u SET u.accountType = com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.SOLE_MERCHANT
+        WHERE u.accountType IS NULL AND u.isStaff = false AND u.deleted = false
+        """)
+    int backfillMissingAccountTypeAsSoleMerchant();
 }

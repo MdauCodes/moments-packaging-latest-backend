@@ -33,6 +33,7 @@ public class ReferralService {
     private final CreditWalletRepository       walletRepo;
     private final CreditTransactionRepository  txRepo;
     private final ReferralTierConfigRepository tierRepo;
+    private final RewardsTierConfigRepository  rewardsTierRepo;
     private final UserRepository               userRepository;
     private final SettingsService              settingsService;
 
@@ -45,6 +46,9 @@ public class ReferralService {
     private static final String KEY_CREDITS_PER_KES     = "referral.credits.per.kes";
     private static final String KEY_MAX_REDEMPTION_PCT  = "referral.max.redemption.percent";
     private static final String KEY_MAX_ACTIVE_REFERRALS= "referral.max.active.referrals.per.user";
+    private static final String KEY_WELCOME_POINTS      = "rewards.welcome.points";
+    private static final String KEY_REVIEW_POINTS       = "rewards.review.points";
+    private static final String KEY_POINTS_PER_100_KES  = "rewards.points.per.100kes";
 
     // ── Feature status (public — for frontend) ────────────────────────────────
 
@@ -82,6 +86,50 @@ public class ReferralService {
                 .build();
         referralCodeRepo.save(rc);
         log.info("Referral code {} created for {}", code, user.getEmail());
+    }
+
+    // ── Sole Merchant rewards — wallet/ledger are the same tables the
+    //    referral system already uses; these are the general (non-referral)
+    //    earning triggers: welcome bonus, review bonus, spend-based accrual.
+
+    @Transactional
+    public void awardWelcomeBonus(User user) {
+        int points = Integer.parseInt(settingsService.getValue(KEY_WELCOME_POINTS, "100"));
+        if (points <= 0) return;
+        awardCredits(user, points, CreditTransactionType.EARNED_SIGNUP,
+                "Welcome bonus for opening a Sole Merchant Account", null, null);
+    }
+
+    @Transactional
+    public void awardReviewBonus(User user) {
+        if (user.getAccountType() != com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.SOLE_MERCHANT) {
+            return;
+        }
+        int points = Integer.parseInt(settingsService.getValue(KEY_REVIEW_POINTS, "50"));
+        if (points <= 0) return;
+        awardCredits(user, points, CreditTransactionType.EARNED_REVIEW,
+                "Points earned for submitting a product review", null, null);
+    }
+
+    /**
+     * General points accrual on any paid order — every Sole Merchant earns
+     * these regardless of referral status, unlike EARNED_PURCHASE (which is
+     * specifically "purchase made by a referred buyer", see
+     * processOrderForReferral). Both can fire on the same order.
+     */
+    @Transactional
+    public void awardOrderPoints(User buyer, Order order) {
+        if (buyer.getAccountType() != com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.SOLE_MERCHANT) {
+            return;
+        }
+        int pointsPer100Kes = Integer.parseInt(settingsService.getValue(KEY_POINTS_PER_100_KES, "1"));
+        int points = order.getTotalAmount()
+                .divide(BigDecimal.valueOf(100), 0, RoundingMode.FLOOR)
+                .multiply(BigDecimal.valueOf(pointsPer100Kes))
+                .intValue();
+        if (points <= 0) return;
+        awardCredits(buyer, points, CreditTransactionType.EARNED_ORDER,
+                "Points earned for order of KES " + order.getTotalAmount(), null, order.getId().toString());
     }
 
     // ── On registration with referral code ────────────────────────────────────
@@ -215,6 +263,56 @@ public class ReferralService {
         return discountKes;
     }
 
+    /**
+     * Pure calculation, no mutation — used both by the checkout-preview
+     * endpoint and by CheckoutService while computing an order's total
+     * (the order doesn't exist yet at that point, so redeemCredits/its
+     * order-bound cap check can't run until after the order is saved).
+     */
+    @Transactional(readOnly = true)
+    public BigDecimal calculateRedemptionDiscount(User user, int creditsToRedeem) {
+        assertFeatureAvailable();
+        CreditWallet wallet = getOrCreateWallet(user);
+        if (wallet.getBalance() < creditsToRedeem) {
+            throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
+        }
+        int creditsPerKes = Integer.parseInt(settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+        return BigDecimal.valueOf(creditsToRedeem)
+                .divide(BigDecimal.valueOf(creditsPerKes), 2, RoundingMode.FLOOR);
+    }
+
+    /**
+     * Commits a redemption whose discount amount was already computed and
+     * folded into the order's total at checkout time (see CheckoutService) —
+     * re-validates balance only (defends against a race between preview and
+     * commit), does not re-derive the discount or the order-value cap, since
+     * those were already fixed at checkout time and re-deriving them off the
+     * now-discounted order total would produce a smaller, inconsistent cap.
+     */
+    @Transactional
+    public void commitRedemption(User user, int creditsToRedeem, BigDecimal discountKes, Order order) {
+        CreditWallet wallet = getOrCreateWallet(user);
+        if (wallet.getBalance() < creditsToRedeem) {
+            throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
+        }
+        wallet.setBalance(wallet.getBalance() - creditsToRedeem);
+        wallet.setLifetimeRedeemed(wallet.getLifetimeRedeemed() + creditsToRedeem);
+        walletRepo.save(wallet);
+
+        CreditTransaction tx = CreditTransaction.builder()
+                .user(user)
+                .type(CreditTransactionType.REDEEMED)
+                .amount(-creditsToRedeem)
+                .balanceAfter(wallet.getBalance())
+                .description("Redeemed " + creditsToRedeem + " credits for KES " + discountKes + " discount")
+                .orderId(order.getId().toString())
+                .build();
+        txRepo.save(tx);
+
+        log.info("User {} redeemed {} credits = KES {} on order {}",
+                user.getEmail(), creditsToRedeem, discountKes, order.getId());
+    }
+
     // ── Customer endpoints ────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -244,6 +342,56 @@ public class ReferralService {
         assertFeatureAvailable();
         return referralEventRepo.findByReferrerOrderByCreatedAtDesc(user)
                 .stream().map(ReferralEventDto::new).collect(Collectors.toList());
+    }
+
+    /** A Sole Merchant's resolved VIP tier — computed from lifetime points earned, never stored. */
+    @Transactional(readOnly = true)
+    public RewardsTierConfigDto getMyRewardsTier(User user) {
+        CreditWallet wallet = getOrCreateWallet(user);
+        return rewardsTierRepo.findCurrentTier(wallet.getLifetimeEarned())
+                .map(RewardsTierConfigDto::new)
+                .orElse(null);
+    }
+
+    // ── Admin: VIP rewards tier CRUD ──────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<RewardsTierConfigDto> getAllRewardsTiers() {
+        return rewardsTierRepo.findAll().stream()
+                .map(RewardsTierConfigDto::new).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public RewardsTierConfigDto createRewardsTier(RewardsTierConfigDto req) {
+        RewardsTierConfig tier = RewardsTierConfig.builder()
+                .tierName(req.getTierName())
+                .minLifetimePoints(req.getMinLifetimePoints())
+                .discountPercent(req.getDiscountPercent())
+                .perkDescription(req.getPerkDescription())
+                .isActive(req.getIsActive() != null ? req.getIsActive() : true)
+                .sortOrder(req.getSortOrder() != null ? req.getSortOrder() : 0)
+                .build();
+        return new RewardsTierConfigDto(rewardsTierRepo.save(tier));
+    }
+
+    @Transactional
+    public RewardsTierConfigDto updateRewardsTier(UUID id, RewardsTierConfigDto req) {
+        RewardsTierConfig tier = rewardsTierRepo.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tier not found: " + id));
+        if (req.getTierName()          != null) tier.setTierName(req.getTierName());
+        if (req.getMinLifetimePoints() != null) tier.setMinLifetimePoints(req.getMinLifetimePoints());
+        if (req.getDiscountPercent()   != null) tier.setDiscountPercent(req.getDiscountPercent());
+        if (req.getPerkDescription()   != null) tier.setPerkDescription(req.getPerkDescription());
+        if (req.getIsActive()          != null) tier.setIsActive(req.getIsActive());
+        if (req.getSortOrder()         != null) tier.setSortOrder(req.getSortOrder());
+        return new RewardsTierConfigDto(rewardsTierRepo.save(tier));
+    }
+
+    @Transactional
+    public void deleteRewardsTier(UUID id) {
+        if (!rewardsTierRepo.existsById(id))
+            throw new ResourceNotFoundException("Tier not found: " + id);
+        rewardsTierRepo.deleteById(id);
     }
 
     // ── Admin: tier CRUD ──────────────────────────────────────────────────────

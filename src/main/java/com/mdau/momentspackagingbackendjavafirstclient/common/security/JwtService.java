@@ -42,6 +42,9 @@ public class JwtService {
             claims.put("lastName", user.getLastName());
             claims.put("isStaff", Boolean.TRUE.equals(user.getIsStaff()));
             claims.put("mustChangePassword", Boolean.TRUE.equals(user.getMustChangePassword()));
+            if (user.getAccountType() != null) {
+                claims.put("accountType", user.getAccountType().name());
+            }
 
             // Legacy roles for backward compat
             claims.put("roles", user.getRoles().stream()

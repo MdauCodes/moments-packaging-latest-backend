@@ -1,7 +1,9 @@
 package com.mdau.momentspackagingbackendjavafirstclient.auth.dto;
 
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,6 +27,9 @@ public class CustomerRegisterRequest {
     private String password;
 
     private String phone;
+
+    @NotNull(message = "Account type is required")
+    private AccountType accountType;
 
     /** Optional — referral code from a friend's referral link */
     private String referralCode;

@@ -11,8 +11,10 @@ import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Review;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ReviewRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ReviewService {
@@ -27,6 +30,7 @@ public class ReviewService {
     private final ReviewRepository  reviewRepository;
     private final ProductRepository productRepository;
     private final OrderRepository   orderRepository;
+    private final ReferralService   referralService;
 
     @Transactional
     public ReviewDto createReview(User customer, ReviewCreateRequest request) {
@@ -60,7 +64,15 @@ public class ReviewService {
                 .verified(true)
                 .build();
 
-        return new ReviewDto(reviewRepository.save(review));
+        ReviewDto dto = new ReviewDto(reviewRepository.save(review));
+
+        try {
+            referralService.awardReviewBonus(customer);
+        } catch (Exception e) {
+            log.error("Review bonus award failed for customer {}: {}", customer.getId(), e.getMessage(), e);
+        }
+
+        return dto;
     }
 
     @Transactional(readOnly = true)

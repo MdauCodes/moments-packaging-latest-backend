@@ -36,6 +36,9 @@ public class CheckoutRequest {
     private String promoCode;
     private String sessionId;
 
+    /** Sole Merchant rewards points to redeem against this order — optional, capped server-side. */
+    private Integer redeemPoints;
+
     @NotNull(message = "Payment method is required")
     private PaymentMethod paymentMethod;
 

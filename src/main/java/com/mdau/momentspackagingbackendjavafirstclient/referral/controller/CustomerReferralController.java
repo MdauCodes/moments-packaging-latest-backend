@@ -4,6 +4,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -11,7 +12,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/customer/referral")
@@ -46,5 +49,27 @@ public class CustomerReferralController {
     public ResponseEntity<List<ReferralEventDto>> getMyReferrals(
             @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(referralService.getMyReferrals(user));
+    }
+
+    /** Resolved VIP tier (Silver/Gold/Platinum) — computed from lifetime points, not stored. null if no tier qualifies yet. */
+    @GetMapping("/tier")
+    public ResponseEntity<RewardsTierConfigDto> getMyRewardsTier(
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(referralService.getMyRewardsTier(user));
+    }
+
+    /** Preview only — no side effects. Lets the checkout UI show "you'll get KSh X off" before submitting. */
+    @PostMapping("/redeem/preview")
+    public ResponseEntity<Map<String, Object>> previewRedeem(
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody RedeemPreviewRequest request) {
+        BigDecimal discount = referralService.calculateRedemptionDiscount(user, request.getPoints());
+        BigDecimal maxRedeemable = referralService.calculateMaxRedeemableKes(request.getOrderTotal());
+        BigDecimal appliedDiscount = discount.compareTo(maxRedeemable) > 0 ? maxRedeemable : discount;
+        return ResponseEntity.ok(Map.of(
+                "requestedDiscountKes", discount,
+                "maxRedeemableKes", maxRedeemable,
+                "appliedDiscountKes", appliedDiscount,
+                "capped", discount.compareTo(maxRedeemable) > 0));
     }
 }
