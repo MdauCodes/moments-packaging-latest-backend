@@ -34,6 +34,8 @@ public class BusinessAccountDto {
     private Long orderCount;
     @Setter
     private java.math.BigDecimal totalSpend;
+    @Setter
+    private CreditReadinessDto creditReadiness;
 
     public BusinessAccountDto(BusinessAccount account) {
         this.id = account.getId();

@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.business.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.business.dto.BusinessAccountCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.business.dto.BusinessAccountDto;
+import com.mdau.momentspackagingbackendjavafirstclient.business.dto.CreditReadinessDto;
 import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessAccount;
 import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessAccountStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.business.repository.BusinessAccountRepository;
@@ -144,13 +145,53 @@ public class BusinessAccountService {
         return withOrderStats(new BusinessAccountDto(account), account);
     }
 
-    /** Order count / lifetime spend — shown to the account owner and to admin
-     *  alike, as an early signal toward future trade-credit eligibility. */
+    /** Order count / lifetime spend / credit readiness — shown to the account
+     *  owner and to admin alike, as an early signal toward future
+     *  trade-credit eligibility. Never used to auto-approve anything. */
     private BusinessAccountDto withOrderStats(BusinessAccountDto dto, BusinessAccount account) {
         Object[] stats = orderRepository.getOrderStatsForCustomer(account.getUser()).get(0);
-        dto.setOrderCount((Long) stats[0]);
-        dto.setTotalSpend((BigDecimal) stats[1]);
+        Long orderCount = (Long) stats[0];
+        BigDecimal totalSpend = (BigDecimal) stats[1];
+        Instant lastOrderAt = (Instant) stats[2];
+        dto.setOrderCount(orderCount);
+        dto.setTotalSpend(totalSpend);
+        dto.setCreditReadiness(computeReadiness(orderCount, totalSpend, account.getCreatedAt(), lastOrderAt));
         return dto;
+    }
+
+    /**
+     * A deliberately simple, transparent scoring model — not a real credit
+     * score. Four factors, each capped, so a business can see exactly what
+     * moves the number: how often they order, how much, how long they've
+     * held the account, and whether they've ordered recently.
+     */
+    private CreditReadinessDto computeReadiness(
+            long orderCount, BigDecimal totalSpend, Instant accountCreatedAt, Instant lastOrderAt) {
+        int orderCountPoints = (int) Math.round(Math.min(orderCount, 15) * 2.0);
+
+        double spendRatio = Math.min(totalSpend.doubleValue() / 175_000.0, 1.0);
+        int spendPoints = (int) Math.round(spendRatio * 35);
+
+        long accountAgeDays = ChronoUnit.DAYS.between(accountCreatedAt, Instant.now());
+        double agePeriod = Math.min(accountAgeDays / 90.0, 1.0);
+        int accountAgePoints = (int) Math.round(agePeriod * 20);
+
+        int recencyPoints;
+        if (lastOrderAt == null) {
+            recencyPoints = 0;
+        } else {
+            long daysSinceLastOrder = ChronoUnit.DAYS.between(lastOrderAt, Instant.now());
+            if (daysSinceLastOrder <= 30) {
+                recencyPoints = 15;
+            } else if (daysSinceLastOrder >= 180) {
+                recencyPoints = 0;
+            } else {
+                double decay = 1.0 - ((daysSinceLastOrder - 30) / 150.0);
+                recencyPoints = (int) Math.round(decay * 15);
+            }
+        }
+
+        return new CreditReadinessDto(orderCountPoints, spendPoints, accountAgePoints, recencyPoints);
     }
 
     @Transactional

@@ -68,7 +68,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     long countByCreatedAtBetween(Instant start, Instant end);
 
     @Query("""
-        SELECT COUNT(o), COALESCE(SUM(o.totalAmount), 0) FROM Order o
+        SELECT COUNT(o), COALESCE(SUM(o.totalAmount), 0), MAX(o.createdAt) FROM Order o
         WHERE o.customer = :customer AND o.paymentStatus = 'PAID'
         """)
     List<Object[]> getOrderStatsForCustomer(@Param("customer") User customer);
