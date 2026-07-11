@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.customer.dto;
 
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType;
 import lombok.Getter;
 
 import java.math.BigDecimal;
@@ -27,11 +28,13 @@ public class CustomerDto {
     private final BigDecimal averageOrderValue;
     private final String defaultAddress;
     private final Instant createdAt;
+    private final AccountType accountType;
+    private final Integer rewardsPoints;
 
     public CustomerDto(UUID id, String name, String email, String phone, String city,
                         Segment segment, Status status, BigDecimal lifetimeValue, long ordersCount,
                         Instant lastOrderAt, Instant firstOrderAt, BigDecimal averageOrderValue,
-                        String defaultAddress, Instant createdAt) {
+                        String defaultAddress, Instant createdAt, AccountType accountType, Integer rewardsPoints) {
         this.id = id;
         this.name = name;
         this.email = email;
@@ -46,5 +49,7 @@ public class CustomerDto {
         this.averageOrderValue = averageOrderValue;
         this.defaultAddress = defaultAddress;
         this.createdAt = createdAt;
+        this.accountType = accountType;
+        this.rewardsPoints = rewardsPoints;
     }
 }

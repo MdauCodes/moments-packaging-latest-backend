@@ -6,6 +6,9 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.customer.dto.CustomerDto;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.entity.CreditWallet;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.CreditWalletRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import com.mdau.momentspackagingbackendjavafirstclient.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +45,7 @@ public class AdminCustomerService {
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final BusinessAccountRepository businessAccountRepository;
+    private final CreditWalletRepository creditWalletRepository;
 
     @Transactional(readOnly = true)
     public PageResponse<CustomerDto> list(String q, String status, String segment, Pageable pageable) {
@@ -81,6 +85,10 @@ public class AdminCustomerService {
                 ? lifetimeValue.divide(BigDecimal.valueOf(orderCount), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
+        Integer rewardsPoints = user.getAccountType() == AccountType.SOLE_MERCHANT
+                ? creditWalletRepository.findByUser(user).map(CreditWallet::getBalance).orElse(0)
+                : null;
+
         return new CustomerDto(
                 user.getId(),
                 (user.getFirstName() + " " + user.getLastName()).trim(),
@@ -95,7 +103,9 @@ public class AdminCustomerService {
                 firstOrderAt,
                 avgOrderValue,
                 user.getDeliveryAddress(),
-                user.getCreatedAt());
+                user.getCreatedAt(),
+                user.getAccountType(),
+                rewardsPoints);
     }
 
     /** RETAIL by default; a Business Account bumps the customer into a B2B segment. */
