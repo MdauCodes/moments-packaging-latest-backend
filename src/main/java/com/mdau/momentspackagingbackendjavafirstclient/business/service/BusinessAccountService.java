@@ -194,6 +194,24 @@ public class BusinessAccountService {
         return new CreditReadinessDto(orderCountPoints, spendPoints, accountAgePoints, recencyPoints);
     }
 
+    /** Admin edit — corrects/completes a business's own profile on their behalf. */
+    @Transactional
+    public BusinessAccountDto adminUpdate(UUID id, BusinessAccountCreateRequest request) {
+        BusinessAccount account = businessAccountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Business account not found: " + id));
+        account.setBusinessName(request.getBusinessName());
+        account.setBusinessType(request.getBusinessType());
+        account.setKraPin(request.getKraPin());
+        account.setLocation(request.getLocation());
+        account.setRoad(request.getRoad());
+        account.setBuildingAddress(request.getBuildingAddress());
+        account.setIndustry(resolveIndustry(request.getIndustryId()));
+        account.setContactPersonName(request.getContactPersonName());
+        account.setContactPersonRole(request.getContactPersonRole());
+        account.setPhone(request.getPhone());
+        return withOrderStats(new BusinessAccountDto(businessAccountRepository.save(account)), account);
+    }
+
     @Transactional
     public BusinessAccountDto setStatus(UUID id, BusinessAccountStatus status) {
         BusinessAccount account = businessAccountRepository.findById(id)

@@ -1,11 +1,13 @@
 package com.mdau.momentspackagingbackendjavafirstclient.business.controller;
 
+import com.mdau.momentspackagingbackendjavafirstclient.business.dto.BusinessAccountCreateRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.business.dto.BusinessAccountDto;
 import com.mdau.momentspackagingbackendjavafirstclient.business.entity.BusinessAccountStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.business.service.BusinessAccountService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
 import com.mdau.momentspackagingbackendjavafirstclient.common.dto.PageResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -35,6 +37,14 @@ public class AdminBusinessAccountController {
     @GetMapping("/{id}")
     public ResponseEntity<BusinessAccountDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(businessAccountService.getById(id));
+    }
+
+    @IsStaffOrAdmin
+    @PutMapping("/{id}")
+    public ResponseEntity<BusinessAccountDto> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody BusinessAccountCreateRequest request) {
+        return ResponseEntity.ok(businessAccountService.adminUpdate(id, request));
     }
 
     @IsAdmin
