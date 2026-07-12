@@ -17,7 +17,7 @@ public class PublicCustomerAuthController {
     private final CustomerAuthService customerAuthService;
 
     @PostMapping("/register")
-    public ResponseEntity<CustomerRegisterResponse> register(
+    public ResponseEntity<AuthResponse> register(
             @Valid @RequestBody CustomerRegisterRequest request) {
         return ResponseEntity.status(201).body(customerAuthService.register(request));
     }

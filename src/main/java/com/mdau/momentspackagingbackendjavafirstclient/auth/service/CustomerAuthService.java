@@ -47,7 +47,7 @@ public class CustomerAuthService {
     private long refreshTokenExpirationMs;
 
     @Transactional
-    public CustomerRegisterResponse register(CustomerRegisterRequest request) {
+    public AuthResponse register(CustomerRegisterRequest request) {
         // Only blocks registration if a non-deleted account exists with this email
         if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new ConflictException("An account with this email already exists");
@@ -60,7 +60,7 @@ public class CustomerAuthService {
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
                 .accountType(request.getAccountType())
-                .emailVerified(false)
+                .emailVerified(true)
                 .enabled(true)
                 .deleted(false)
                 .roles(Set.of(Role.ROLE_CUSTOMER))
@@ -75,20 +75,13 @@ public class CustomerAuthService {
             referralService.recordReferralSignup(saved, request.getReferralCode());
         }
 
-        String otp = generateOtp();
-        EmailVerificationToken token = EmailVerificationToken.builder()
-                .user(saved)
-                .token(otp)
-                .expiresAt(Instant.now().plusSeconds(900))
-                .used(false)
-                .build();
-        evTokenRepository.save(token);
+        emailService.sendWelcomeEmail(saved);
 
-        emailService.sendOtpEmail(saved, otp);
+        String accessToken  = jwtService.generateAccessToken(saved);
+        String refreshToken = createRefreshToken(saved);
 
         log.info("Customer registered: {}", saved.getEmail());
-        return new CustomerRegisterResponse(saved.getId(), saved.getEmail(),
-                "Verification code sent to your email");
+        return new AuthResponse(accessToken, refreshToken, new AuthUserDto(saved));
     }
 
     @Transactional
