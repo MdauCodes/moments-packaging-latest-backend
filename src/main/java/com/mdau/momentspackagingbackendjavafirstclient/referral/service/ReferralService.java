@@ -233,10 +233,7 @@ public class ReferralService {
             throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
         }
 
-        int creditsPerKes = Integer.parseInt(
-                settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
-        BigDecimal discountKes = BigDecimal.valueOf(creditsToRedeem)
-                .divide(BigDecimal.valueOf(creditsPerKes), 2, RoundingMode.FLOOR);
+        BigDecimal discountKes = creditsToKes(creditsToRedeem);
 
         BigDecimal maxRedeemable = calculateMaxRedeemableKes(order.getTotalAmount());
         if (discountKes.compareTo(maxRedeemable) > 0) {
@@ -276,9 +273,7 @@ public class ReferralService {
         if (wallet.getBalance() < creditsToRedeem) {
             throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
         }
-        int creditsPerKes = Integer.parseInt(settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
-        return BigDecimal.valueOf(creditsToRedeem)
-                .divide(BigDecimal.valueOf(creditsPerKes), 2, RoundingMode.FLOOR);
+        return creditsToKes(creditsToRedeem);
     }
 
     /**
@@ -478,6 +473,23 @@ public class ReferralService {
         return referralEventRepo.findAllByOrderByCreatedAtDesc(pageable).map(ReferralEventDto::new);
     }
 
+    @Transactional(readOnly = true)
+    public RewardsSummaryDto getRewardsSummary() {
+        Object[] row = txRepo.sumEarnedAndRedeemed();
+        long totalEarned = ((Number) row[0]).longValue();
+        long totalRedeemed = ((Number) row[1]).longValue();
+        long netOutstanding = totalEarned - totalRedeemed;
+
+        int creditsPerKes = Integer.parseInt(
+                settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+        BigDecimal kesValueRedeemed = creditsToKes((int) totalRedeemed);
+        BigDecimal kesValueOutstanding = creditsToKes((int) netOutstanding);
+
+        return new RewardsSummaryDto(
+                totalEarned, totalRedeemed, netOutstanding,
+                kesValueRedeemed, kesValueOutstanding, creditsPerKes);
+    }
+
     // ── Guards ────────────────────────────────────────────────────────────────
 
     public boolean isFeatureUnlocked() {
@@ -498,6 +510,13 @@ public class ReferralService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private BigDecimal creditsToKes(int credits) {
+        int creditsPerKes = Integer.parseInt(
+                settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+        return BigDecimal.valueOf(credits)
+                .divide(BigDecimal.valueOf(creditsPerKes), 2, RoundingMode.FLOOR);
+    }
 
     private CreditWallet getOrCreateWallet(User user) {
         return walletRepo.findByUser(user).orElseGet(() -> {

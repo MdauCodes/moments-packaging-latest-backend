@@ -158,4 +158,9 @@ public class AdminReferralController {
                 referralService.getAllReferralEvents(
                         PageRequest.of(page, size, Sort.by("createdAt").descending()))));
     }
+
+    @GetMapping("/summary")
+    public ResponseEntity<RewardsSummaryDto> getRewardsSummary() {
+        return ResponseEntity.ok(referralService.getRewardsSummary());
+    }
 }
