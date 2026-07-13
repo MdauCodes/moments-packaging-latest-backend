@@ -57,7 +57,7 @@ public class EmailService {
     @Value("${app.email.use-brevo-api:true}")
     private boolean useBrevoApi;
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Staff invite & password reset Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Staff invite & password reset ----
 
     @Async
     public void sendStaffInviteEmail(User user, String tempPassword) {
@@ -79,20 +79,20 @@ public class EmailService {
                               <strong>%s</strong></td></tr>
                       </table>
                       <p style="color:#dc2626;margin-top:16px">
-                        <strong>Ã¢Å¡Â  This password expires in 48 hours.</strong>
+                        <strong>Warning: this password expires in 48 hours.</strong>
                         You will be prompted to change it on first login.
                       </p>
                       <p>If you do not log in within 48 hours, your account will be removed
                          and you will need to be re-invited by the administrator.</p>
                       <p style="margin-top:24px;color:#666;font-size:12px">
-                        Moments Packaging Kenya Ã¢â‚¬â€ Internal staff access only.
+                        Moments Packaging Kenya - Internal staff access only.
                       </p>
                     </div>
                     """.formatted(
                     user.getFirstName(), roleName, user.getEmail(), tempPassword);
 
             sendHtml(user.getEmail(),
-                    "You have been invited to Moments Packaging Ã¢â‚¬â€ " + roleName, body);
+                    "You have been invited to Moments Packaging - " + roleName, body);
             log.info("Staff invite email sent to {}", user.getEmail());
         } catch (Exception e) {
             log.error("Failed to send staff invite email to {}: {}", user.getEmail(), e.getMessage());
@@ -104,7 +104,7 @@ public class EmailService {
         try {
             String body = """
                     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-                      <h2 style="color:#1a472a">Password Reset Ã¢â‚¬â€ Moments Packaging</h2>
+                      <h2 style="color:#1a472a">Password Reset - Moments Packaging</h2>
                       <p>Hi %s,</p>
                       <p>Your password has been reset by the administrator.</p>
                       <p>Your new temporary password:</p>
@@ -114,7 +114,7 @@ public class EmailService {
                         <strong>%s</strong>
                       </p>
                       <p style="color:#dc2626">
-                        <strong>Ã¢Å¡Â  This password expires in 48 hours.</strong>
+                        <strong>Warning: this password expires in 48 hours.</strong>
                         You will be prompted to set a new password on login.
                       </p>
                     </div>
@@ -128,7 +128,7 @@ public class EmailService {
         }
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Auth Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Auth ----
 
     @Async
     public void sendOtpEmail(User user, String otp) {
@@ -168,7 +168,7 @@ public class EmailService {
         }
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Enquiry Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Enquiry ----
 
     @Async
     public void sendEnterpriseQuoteToSales(Enquiry enquiry) {
@@ -208,7 +208,7 @@ public class EmailService {
         }
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Lead digest Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Lead digest ----
 
     @Async
     public void sendLeadDigest(List<Lead> leads, String digestPeriod) {
@@ -228,7 +228,7 @@ public class EmailService {
         }
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Low stock Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Low stock ----
 
     @Async
     public void sendLowStockAlert(List<Product> products) {
@@ -257,7 +257,7 @@ public class EmailService {
         }
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Order notifications Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Order notifications ----
 
     @Async public void sendOrderConfirmedEmail(Order order) {
         sendOrderEmail(order, "email/order-confirmed",
@@ -312,7 +312,7 @@ public class EmailService {
     private void sendOrderEmail(Order order, String template, String subject) {
         try {
             // Eagerly initialize ALL lazy collections before Thymeleaf accesses them
-            // Must be done here Ã¢â‚¬â€ async thread has no active Hibernate session
+            // Must be done here - async thread has no active Hibernate session
             if (order.getItems() != null) {
                 org.hibernate.Hibernate.initialize(order.getItems());
             }
@@ -333,13 +333,13 @@ public class EmailService {
         }
     }
 
-    
+
     @Async
     public void sendStaffPasswordResetOtpEmail(User user, String otp) {
         try {
             String body = """
                     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-                      <h2 style="color:#1a472a">Password Reset Ã¢â‚¬â€ Moments Packaging</h2>
+                      <h2 style="color:#1a472a">Password Reset - Moments Packaging</h2>
                       <p>Hi %s,</p>
                       <p>Use the 6-digit code below to reset your password.
                          It expires in <strong>15 minutes</strong>.</p>
@@ -348,7 +348,7 @@ public class EmailService {
                                   background:#f0fdf4;padding:20px;border-radius:8px">%s</p>
                       </div>
                       <p style="color:#dc2626;font-size:12px">
-                        If you did not request this, ignore this email Ã¢â‚¬â€ your password will not change.
+                        If you did not request this, ignore this email - your password will not change.
                       </p>
                     </div>
                     """.formatted(user.getFirstName(), otp);
@@ -359,7 +359,7 @@ public class EmailService {
         }
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Core sender Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ---- Core sender ----
 
     private void sendHtml(String to, String subject, String htmlBody) throws Exception {
         if (useBrevoApi && brevoApiKey != null && !brevoApiKey.isBlank()) {
@@ -414,7 +414,7 @@ public class EmailService {
             String body = "<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto\">"
                     + "<h2 style=\"color:#dc2626\">Riseller Sync Alert</h2>"
                     + "<p>" + message + "</p>"
-                    + "<p style=\"color:#666;font-size:12px\">Moments Packaging Kenya &mdash; Automated alert</p>"
+                    + "<p style=\"color:#666;font-size:12px\">Moments Packaging Kenya - Automated alert</p>"
                     + "</div>";
             for (String addr : opsAddress.split(",")) {
                 String t = addr.trim();
