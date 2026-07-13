@@ -88,7 +88,7 @@ public class UserService {
                 .tempPasswordExpiresAt(Instant.now().plus(48, ChronoUnit.HOURS))
                 .emailVerified(false)
                 .deleted(false)
-                .roles(Set.of(Role.ROLE_STAFF))
+                .roles(rolesForStaffRole(role))
                 .build();
 
         User saved = userRepository.save(user);
@@ -111,6 +111,7 @@ public class UserService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Role not found: " + request.getStaffRoleId()));
             user.setStaffRole(role);
+            user.setRoles(rolesForStaffRole(role));
         }
 
         if (Boolean.TRUE.equals(request.getResetPassword())) {
@@ -162,5 +163,18 @@ public class UserService {
                 : localPart.toLowerCase();
         int suffix = (int)(Math.random() * 900) + 100; // 100–999
         return "MP-" + prefix + suffix;
+    }
+
+    /**
+     * Legacy Role gate mirrors the assigned StaffRole: SUPER_ADMIN/ADMIN staff
+     * roles get ROLE_ADMIN, everyone else gets ROLE_STAFF. Keeps the old
+     * roles-based checks (frontend isAdmin, @IsAdmin) consistent with the
+     * fine-grained StaffRole/permission a staff member actually holds.
+     */
+    private Set<Role> rolesForStaffRole(StaffRole role) {
+        if (role != null && ("SUPER_ADMIN".equals(role.getName()) || "ADMIN".equals(role.getName()))) {
+            return Set.of(Role.ROLE_ADMIN);
+        }
+        return Set.of(Role.ROLE_STAFF);
     }
 }

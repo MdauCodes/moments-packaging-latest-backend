@@ -46,13 +46,21 @@ public class AdminSeeder implements ApplicationRunner {
     private void seedAdmin(String email, String firstName, String lastName,
                            String rawPassword, StaffRole role) {
         if (userRepository.existsByEmail(email)) {
-            // Ensure existing admin has staffRole set
+            // Ensure existing admin has staffRole and the legacy ROLE_ADMIN flag set
             userRepository.findByEmail(email).ifPresent(u -> {
+                boolean changed = false;
                 if (u.getStaffRole() == null && role != null) {
                     u.setStaffRole(role);
                     u.setIsStaff(true);
+                    changed = true;
+                }
+                if (u.getRoles() == null || !u.getRoles().contains(Role.ROLE_ADMIN)) {
+                    u.setRoles(Set.of(Role.ROLE_ADMIN));
+                    changed = true;
+                }
+                if (changed) {
                     userRepository.save(u);
-                    log.info("Updated staffRole for existing admin: {}", email);
+                    log.info("Repaired admin flags for existing admin: {}", email);
                 }
             });
             return;
