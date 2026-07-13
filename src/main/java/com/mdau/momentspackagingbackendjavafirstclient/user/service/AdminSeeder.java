@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
@@ -55,7 +56,10 @@ public class AdminSeeder implements ApplicationRunner {
                     changed = true;
                 }
                 if (u.getRoles() == null || !u.getRoles().contains(Role.ROLE_ADMIN)) {
-                    u.setRoles(Set.of(Role.ROLE_ADMIN));
+                    // Mutable set required: repository.save() on a loaded entity goes
+                    // through JPA merge, which clears/refills the persistent
+                    // @ElementCollection in place — throws on an immutable Set.of(...).
+                    u.setRoles(new HashSet<>(Set.of(Role.ROLE_ADMIN)));
                     changed = true;
                 }
                 if (changed) {

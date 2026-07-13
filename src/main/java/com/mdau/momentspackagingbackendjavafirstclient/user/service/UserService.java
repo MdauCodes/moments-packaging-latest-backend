@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -172,9 +173,12 @@ public class UserService {
      * fine-grained StaffRole/permission a staff member actually holds.
      */
     private Set<Role> rolesForStaffRole(StaffRole role) {
+        // Mutable set required: Hibernate's merge path clears/refills the
+        // persistent @ElementCollection in place, which throws on an
+        // immutable Set.of(...) for entities loaded from the DB (update path).
         if (role != null && ("SUPER_ADMIN".equals(role.getName()) || "ADMIN".equals(role.getName()))) {
-            return Set.of(Role.ROLE_ADMIN);
+            return new HashSet<>(Set.of(Role.ROLE_ADMIN));
         }
-        return Set.of(Role.ROLE_STAFF);
+        return new HashSet<>(Set.of(Role.ROLE_STAFF));
     }
 }
