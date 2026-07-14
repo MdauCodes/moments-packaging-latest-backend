@@ -14,6 +14,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderSta
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecord;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecordStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.service.PaymentService;
 import com.mdau.momentspackagingbackendjavafirstclient.product.service.InventoryService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class OrderService {
     private final NotificationService          notificationService;
     private final PaymentRecordRepository      paymentRecordRepository;
     private final InventoryService             inventoryService;
+    private final PaymentService               paymentService;
 
     // -- Queries ----------------------------------------------------------------
 
@@ -105,10 +107,23 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
         OrderStatus newStatus = OrderStatus.valueOf(newStatusStr);
-        OrderStatus oldStatus = order.getStatus();
 
+        if (staffNotes != null) {
+            order.setStaffNotes(staffNotes);
+            orderRepository.save(order);
+        }
+
+        // A manual transition to PAID (bank transfer / COD, confirmed by staff) must get
+        // the exact same treatment as an M-Pesa callback — referral payout, order points,
+        // inventory deduction, invoice number, paid notification — not just a bare status
+        // flip. This used to silently skip all of that for non-M-Pesa payment methods.
+        if (newStatus == OrderStatus.PAID && order.getPaymentStatus() != PaymentStatus.PAID) {
+            paymentService.markOrderPaidManually(id, null, changedBy);
+            return new OrderDto(orderReader.loadFresh(id));
+        }
+
+        OrderStatus oldStatus = order.getStatus();
         order.setStatus(newStatus);
-        if (staffNotes != null) order.setStaffNotes(staffNotes);
         orderRepository.save(order);
 
         historyRepository.save(OrderStatusHistory.builder()

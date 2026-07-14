@@ -14,11 +14,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.security.SecureRandom;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -183,14 +185,22 @@ public class ReferralService {
     public void processOrderForReferral(User buyer, Order order) {
         if (!isFeatureUnlocked() || !isProgramEnabled()) return;
 
-        BigDecimal orderTotal = order.getTotalAmount();
-        ReferralTierConfig tier = tierRepo.findMatchingTier(orderTotal).orElse(null);
-        if (tier == null) return;
-
+        // Check for a pending referral FIRST — this is a rare, cheap lookup that only
+        // matches actually-referred buyers, so logging past this point is meaningful
+        // rather than spamming every ordinary order that was never referred at all.
         ReferralEvent event = referralEventRepo
                 .findByRefereeAndStatus(buyer, ReferralEventStatus.PENDING)
                 .orElse(null);
         if (event == null) return;
+
+        BigDecimal orderTotal = order.getTotalAmount();
+        ReferralTierConfig tier = tierRepo.findMatchingTier(orderTotal).orElse(null);
+        if (tier == null) {
+            log.warn("Referral for {} (order {}) NOT confirmed — no active tier band covers order " +
+                            "amount KES {}. The referral event stays PENDING; check for gaps in Referral Payout Tiers.",
+                    buyer.getEmail(), order.getReference(), orderTotal);
+            return;
+        }
 
         if (tier.getRefereeCredits() > 0) {
             awardCredits(buyer, tier.getRefereeCredits(),
@@ -274,7 +284,13 @@ public class ReferralService {
         if (wallet.getBalance() < creditsToRedeem) {
             throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
         }
-        return creditsToKes(creditsToRedeem);
+        BigDecimal discount = creditsToKes(creditsToRedeem);
+        if (discount.compareTo(BigDecimal.ZERO) <= 0) {
+            int creditsPerKes = Integer.parseInt(settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+            throw new IllegalArgumentException(
+                    "That many points round to a KES 0 discount — redeem at least " + creditsPerKes + " points.");
+        }
+        return discount;
     }
 
     /**
@@ -285,7 +301,15 @@ public class ReferralService {
      * those were already fixed at checkout time and re-deriving them off the
      * now-discounted order total would produce a smaller, inconsistent cap.
      */
-    @Transactional
+    // REQUIRES_NEW: CheckoutService already validates the balance (via
+    // calculateRedemptionDiscount, before the order is ever built) and calls this only
+    // after the order is saved. If this still somehow throws — a genuine race between
+    // that check and this commit — it must NOT mark the outer checkout() transaction
+    // rollback-only, which would otherwise destroy the whole order over a redemption
+    // problem alone. Running in its own transaction means a failure here rolls back
+    // only the wallet debit, and CheckoutService's existing catch-and-log is what
+    // actually then applies, as originally intended.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void commitRedemption(User user, int creditsToRedeem, BigDecimal discountKes, Order order) {
         CreditWallet wallet = getOrCreateWallet(user);
         if (wallet.getBalance() < creditsToRedeem) {
@@ -457,6 +481,7 @@ public class ReferralService {
      */
     @Transactional
     public List<ReferralTierConfigDto> seedTiers(List<ReferralTierConfigDto> tiers) {
+        validateNoOverlaps(tiers);
         tierRepo.deleteAll();
         List<ReferralTierConfig> saved = tiers.stream()
                 .map(req -> ReferralTierConfig.builder()
@@ -471,6 +496,31 @@ public class ReferralService {
                 .map(tierRepo::save)
                 .collect(Collectors.toList());
         return saved.stream().map(ReferralTierConfigDto::new).collect(Collectors.toList());
+    }
+
+    /**
+     * Rejects a tier list with two active bands whose order-value ranges overlap —
+     * that's silent, ambiguous config (findMatchingTier deterministically picks the
+     * highest-minOrderAmount match with no warning), not a legitimate "gap is fine"
+     * case. Gaps between bands are allowed (an admin may deliberately exclude very
+     * small orders) but overlaps are always a mistake.
+     */
+    private void validateNoOverlaps(List<ReferralTierConfigDto> tiers) {
+        List<ReferralTierConfigDto> active = tiers.stream()
+                .filter(t -> t.getIsActive() == null || t.getIsActive())
+                .sorted(Comparator.comparing(ReferralTierConfigDto::getMinOrderAmount))
+                .collect(Collectors.toList());
+        for (int i = 0; i < active.size() - 1; i++) {
+            ReferralTierConfigDto a = active.get(i);
+            ReferralTierConfigDto b = active.get(i + 1);
+            BigDecimal aMax = a.getMaxOrderAmount();
+            if (aMax == null || aMax.compareTo(b.getMinOrderAmount()) > 0) {
+                throw new IllegalArgumentException(
+                        "Tiers \"" + a.getTierName() + "\" and \"" + b.getTierName() + "\" overlap — " +
+                        "an order could match both, and only the higher-minimum one would ever apply. " +
+                        "Fix the ranges before seeding.");
+            }
+        }
     }
 
     // ── Admin: credit adjustment ──────────────────────────────────────────────

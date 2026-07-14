@@ -4,6 +4,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.entity.CourierType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentMethod;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -37,6 +38,7 @@ public class CheckoutRequest {
     private String sessionId;
 
     /** Sole Merchant rewards points to redeem against this order — optional, capped server-side. */
+    @Min(value = 1, message = "redeemPoints must be positive")
     private Integer redeemPoints;
 
     @NotNull(message = "Payment method is required")

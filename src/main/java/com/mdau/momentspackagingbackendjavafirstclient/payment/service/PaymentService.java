@@ -271,47 +271,7 @@ public class PaymentService {
             record.setStatus(PaymentRecordStatus.SUCCESS);
             record.setReceiptNumber(receiptNumber);
             paymentRecordRepository.save(record);
-
-            Order order = record.getOrder();
-            order.setPaymentStatus(PaymentStatus.PAID);
-            order.setStatus(OrderStatus.PAID);
-            if (order.getInvoiceNumber() == null) {
-                order.setInvoiceNumber(invoiceNumberGenerator.generate());
-                order.setPaidAt(Instant.now());
-            }
-            orderRepository.save(order);
-
-            if (order.getCustomer() != null) {
-                try {
-                    referralService.processOrderForReferral(order.getCustomer(), order);
-                    referralService.awardOrderPoints(order.getCustomer(), order);
-                } catch (Exception e) {
-                    log.error("Rewards processing failed for order {}: {}",
-                            order.getReference(), e.getMessage(), e);
-                }
-            }
-
-            historyRepository.save(OrderStatusHistory.builder()
-                    .order(order).fromStatus(OrderStatus.PENDING_PAYMENT)
-                    .toStatus(OrderStatus.PAID)
-                    .note("Payment received. Receipt: " + receiptNumber)
-                    .changedBy(changedBy).build());
-
-            Cache paymentCache = cacheManager.getCache("payment-idempotency");
-            if (paymentCache != null) paymentCache.evict(order.getId().toString());
-
-            try {
-                inventoryService.deductForOrder(order);
-            } catch (Exception e) {
-                log.error("Stock deduction failed for order {} after payment: {}",
-                        order.getReference(), e.getMessage(), e);
-            }
-
-            Order paidOrder = orderReader.loadFresh(order.getId());
-            notificationService.onOrderPaid(paidOrder);
-            log.info("Payment SUCCESS [{}] for order {}, receipt={}",
-                    changedBy, order.getReference(), receiptNumber);
-
+            applySuccessfulPayment(record.getOrder(), receiptNumber, changedBy);
         } else {
             record.setStatus(PaymentRecordStatus.FAILED);
             record.setFailureReason(resultDesc);
@@ -329,6 +289,86 @@ public class PaymentService {
             log.info("Payment FAILED [{}] for order {}: {}",
                     changedBy, order.getReference(), resultDesc);
         }
+    }
+
+    /**
+     * The single source of truth for "an order just became paid" — sets payment/order
+     * status, invoice number, triggers referral payout + order points + inventory
+     * deduction + the paid notification, and records the status-history row. Used by
+     * both the M-Pesa callback path (processPaymentResult) and the manual
+     * bank-transfer/COD confirmation path (markOrderPaidManually) so every payment
+     * method gets identical treatment — previously only M-Pesa orders triggered any
+     * of this.
+     */
+    private void applySuccessfulPayment(Order order, String receiptNumber, String changedBy) {
+        OrderStatus fromStatus = order.getStatus();
+        order.setPaymentStatus(PaymentStatus.PAID);
+        order.setStatus(OrderStatus.PAID);
+        if (order.getInvoiceNumber() == null) {
+            order.setInvoiceNumber(invoiceNumberGenerator.generate());
+            order.setPaidAt(Instant.now());
+        }
+        orderRepository.save(order);
+
+        if (order.getCustomer() != null) {
+            try {
+                referralService.processOrderForReferral(order.getCustomer(), order);
+                referralService.awardOrderPoints(order.getCustomer(), order);
+            } catch (Exception e) {
+                log.error("Rewards processing failed for order {}: {}",
+                        order.getReference(), e.getMessage(), e);
+            }
+        }
+
+        historyRepository.save(OrderStatusHistory.builder()
+                .order(order).fromStatus(fromStatus)
+                .toStatus(OrderStatus.PAID)
+                .note("Payment received. Receipt: " + receiptNumber)
+                .changedBy(changedBy).build());
+
+        Cache paymentCache = cacheManager.getCache("payment-idempotency");
+        if (paymentCache != null) paymentCache.evict(order.getId().toString());
+
+        try {
+            inventoryService.deductForOrder(order);
+        } catch (Exception e) {
+            log.error("Stock deduction failed for order {} after payment: {}",
+                    order.getReference(), e.getMessage(), e);
+        }
+
+        Order paidOrder = orderReader.loadFresh(order.getId());
+        notificationService.onOrderPaid(paidOrder);
+        log.info("Payment SUCCESS [{}] for order {}, receipt={}",
+                changedBy, order.getReference(), receiptNumber);
+    }
+
+    /**
+     * Confirms payment for an order that isn't paid via the M-Pesa STK flow — bank
+     * transfer or cash on delivery, where staff manually verify payment arrived and
+     * confirm it in the admin panel. Runs the exact same side effects as a successful
+     * M-Pesa callback (referral payout, order points, inventory deduction, invoice,
+     * notification) so these payment methods are never second-class.
+     */
+    @Transactional
+    public void markOrderPaidManually(UUID orderId, String receiptReference, String changedBy) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            log.warn("markOrderPaidManually called for order {} which is already PAID — ignoring.",
+                    order.getReference());
+            return;
+        }
+
+        List<PaymentRecord> records = paymentRecordRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+        for (PaymentRecord record : records) {
+            if (record.getStatus() != PaymentRecordStatus.SUCCESS) {
+                record.setStatus(PaymentRecordStatus.SUCCESS);
+                if (receiptReference != null) record.setReceiptNumber(receiptReference);
+                paymentRecordRepository.save(record);
+            }
+        }
+
+        applySuccessfulPayment(order, receiptReference != null ? receiptReference : "MANUAL", changedBy);
     }
 
     // -- Status -----------------------------------------------------------
