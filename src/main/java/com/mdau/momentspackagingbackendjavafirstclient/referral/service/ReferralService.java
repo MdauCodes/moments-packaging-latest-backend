@@ -385,6 +385,15 @@ public class ReferralService {
                 .orElse(null);
     }
 
+    /** Public, non-personal config for the cart/checkout "spend X more to unlock Y" FAB banner. */
+    @Transactional(readOnly = true)
+    public RewardsProgressConfigDto getRewardsProgressConfig() {
+        int pointsPer100Kes = Integer.parseInt(settingsService.getValue(KEY_POINTS_PER_100_KES, "1"));
+        List<RewardsTierConfigDto> tiers = rewardsTierRepo.findByIsActiveTrueOrderBySortOrderAsc().stream()
+                .map(RewardsTierConfigDto::new).collect(Collectors.toList());
+        return new RewardsProgressConfigDto(pointsPer100Kes, tiers);
+    }
+
     // ── Admin: VIP rewards tier CRUD ──────────────────────────────────────────
 
     @Transactional(readOnly = true)

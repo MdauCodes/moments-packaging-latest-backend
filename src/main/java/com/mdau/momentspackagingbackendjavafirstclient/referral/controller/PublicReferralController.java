@@ -1,6 +1,7 @@
 package com.mdau.momentspackagingbackendjavafirstclient.referral.controller;
 
 import com.mdau.momentspackagingbackendjavafirstclient.referral.dto.ReferralFeatureStatusDto;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.dto.RewardsProgressConfigDto;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,5 +25,11 @@ public class PublicReferralController {
     @GetMapping("/status")
     public ResponseEntity<ReferralFeatureStatusDto> getStatus() {
         return ResponseEntity.ok(referralService.getFeatureStatus());
+    }
+
+    /** Public config the cart/checkout FAB banner needs — no personal data. */
+    @GetMapping("/rewards-progress-config")
+    public ResponseEntity<RewardsProgressConfigDto> getRewardsProgressConfig() {
+        return ResponseEntity.ok(referralService.getRewardsProgressConfig());
     }
 }
