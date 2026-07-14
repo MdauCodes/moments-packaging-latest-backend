@@ -128,6 +128,18 @@ public class Product extends BaseEntity {
     @Column(name = "original_base_price", precision = 12, scale = 2)
     private BigDecimal originalBasePrice;
 
+    /**
+     * Unit cost (excl. VAT), synced from Riseller's CostInc/UnitCostEx.
+     * Null when Riseller hasn't reported a cost for this item yet.
+     * Drives margin-aware reward/referral tier calculations — never shown to customers.
+     */
+    @Column(name = "cost_price", precision = 12, scale = 2)
+    private BigDecimal costPrice;
+
+    /** Riseller's own gross-profit percent for this item, synced alongside costPrice. */
+    @Column(name = "gross_profit_percent", precision = 6, scale = 2)
+    private BigDecimal grossProfitPercent;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "price_unit", length = 20)
     @Builder.Default

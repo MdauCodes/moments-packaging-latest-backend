@@ -110,6 +110,23 @@ public class RisellerSyncService {
                                     existing.getName(), existing.getBasePrice(), risellerPrice);
                         }
                     }
+                    // Keep cost/margin in sync — feeds margin-aware reward/referral calculations
+                    if (item.getCostInc() != null && item.getCostInc() > 0) {
+                        BigDecimal risellerCost = BigDecimal.valueOf(item.getCostInc())
+                                .setScale(2, java.math.RoundingMode.HALF_UP);
+                        if (!risellerCost.equals(existing.getCostPrice())) {
+                            existing.setCostPrice(risellerCost);
+                            changed = true;
+                        }
+                    }
+                    if (item.getGpPercent() != null) {
+                        BigDecimal risellerGp = BigDecimal.valueOf(item.getGpPercent())
+                                .setScale(2, java.math.RoundingMode.HALF_UP);
+                        if (!risellerGp.equals(existing.getGrossProfitPercent())) {
+                            existing.setGrossProfitPercent(risellerGp);
+                            changed = true;
+                        }
+                    }
                     // Fill in description/category only if admin hasn't set them yet
                     if (existing.getDescription() == null || existing.getDescription().isBlank()) {
                         existing.setDescription(generateDescription(item));
@@ -373,6 +390,14 @@ public class RisellerSyncService {
                 ? BigDecimal.valueOf(item.getPriceInc()).setScale(2, java.math.RoundingMode.HALF_UP)
                 : null;
 
+        BigDecimal cost = (item.getCostInc() != null && item.getCostInc() > 0)
+                ? BigDecimal.valueOf(item.getCostInc()).setScale(2, java.math.RoundingMode.HALF_UP)
+                : null;
+
+        BigDecimal gpPercent = (item.getGpPercent() != null)
+                ? BigDecimal.valueOf(item.getGpPercent()).setScale(2, java.math.RoundingMode.HALF_UP)
+                : null;
+
         BigDecimal vat = (item.getVatRate() != null)
                 ? BigDecimal.valueOf(item.getVatRate()).setScale(4, java.math.RoundingMode.HALF_UP)
                 : new BigDecimal("0.1600");
@@ -385,6 +410,8 @@ public class RisellerSyncService {
                 .stockStatus(StockStatus.OUT_OF_STOCK)
                 .stockCount(0)
                 .basePrice(price)
+                .costPrice(cost)
+                .grossProfitPercent(gpPercent)
                 .vatRate(vat)
                 .vatExempt(false)
                 .category(inferCategory(item.getName()))

@@ -38,6 +38,14 @@ public class RisellerCatalogItem {
     @JsonProperty("PriceInc")
     private Double priceInc;
 
+    /** Unit cost including VAT — never shown to customers, used for margin calculations. */
+    @JsonProperty("CostInc")
+    private Double costInc;
+
+    /** Gross profit percent, already computed by Riseller for this item. */
+    @JsonProperty("GpPercent")
+    private Double gpPercent;
+
     /** VAT rate as a decimal (e.g. 0.16 for 16%). */
     @JsonProperty("VatRate")
     private Double vatRate;
