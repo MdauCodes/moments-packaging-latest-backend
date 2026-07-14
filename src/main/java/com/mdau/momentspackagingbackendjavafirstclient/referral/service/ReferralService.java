@@ -36,6 +36,7 @@ public class ReferralService {
     private final RewardsTierConfigRepository  rewardsTierRepo;
     private final UserRepository               userRepository;
     private final SettingsService              settingsService;
+    private final com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository productRepository;
 
     @Value("${app.frontend.url:https://moments-connect-hub.lovable.app}")
     private String frontendUrl;
@@ -430,6 +431,46 @@ public class ReferralService {
         if (!tierRepo.existsById(id))
             throw new ResourceNotFoundException("Tier not found: " + id);
         tierRepo.deleteById(id);
+    }
+
+    /**
+     * One-shot snapshot for the frontend's margin-aware tier calculator —
+     * everything the Auto/Manual Mode UI needs to run entirely client-side
+     * until the admin explicitly seeds tiers.
+     */
+    @Transactional(readOnly = true)
+    public MarginSummaryDto getMarginSummary() {
+        BigDecimal blendedGp = productRepository.averageGrossProfitPercent();
+        long withCost  = productRepository.countWithCostData();
+        long totalActive = productRepository.countActiveNotSuspended();
+        int creditsPerKes = Integer.parseInt(
+                settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+        List<ReferralTierConfigDto> existing = getAllTiers();
+        return new MarginSummaryDto(blendedGp, withCost, totalActive, creditsPerKes, existing);
+    }
+
+    /**
+     * Replaces every existing referral tier with the given list in one shot —
+     * the "Seed into system" action from Auto Mode. Caller (controller) is
+     * responsible for requiring an explicit admin confirmation before calling
+     * this, since it is destructive to whatever tiers currently exist.
+     */
+    @Transactional
+    public List<ReferralTierConfigDto> seedTiers(List<ReferralTierConfigDto> tiers) {
+        tierRepo.deleteAll();
+        List<ReferralTierConfig> saved = tiers.stream()
+                .map(req -> ReferralTierConfig.builder()
+                        .tierName(req.getTierName())
+                        .minOrderAmount(req.getMinOrderAmount())
+                        .maxOrderAmount(req.getMaxOrderAmount())
+                        .referrerCredits(req.getReferrerCredits())
+                        .refereeCredits(req.getRefereeCredits())
+                        .isActive(req.getIsActive() != null ? req.getIsActive() : true)
+                        .sortOrder(req.getSortOrder() != null ? req.getSortOrder() : 0)
+                        .build())
+                .map(tierRepo::save)
+                .collect(Collectors.toList());
+        return saved.stream().map(ReferralTierConfigDto::new).collect(Collectors.toList());
     }
 
     // ── Admin: credit adjustment ──────────────────────────────────────────────

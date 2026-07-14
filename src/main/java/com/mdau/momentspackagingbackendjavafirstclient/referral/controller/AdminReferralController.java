@@ -163,4 +163,22 @@ public class AdminReferralController {
     public ResponseEntity<RewardsSummaryDto> getRewardsSummary() {
         return ResponseEntity.ok(referralService.getRewardsSummary());
     }
+
+    @GetMapping("/margin-summary")
+    public ResponseEntity<MarginSummaryDto> getMarginSummary() {
+        return ResponseEntity.ok(referralService.getMarginSummary());
+    }
+
+    /**
+     * Auto Mode "Seed into system" — replaces every existing tier with the
+     * given list. Destructive by design; the frontend must confirm with the
+     * admin before calling this.
+     */
+    @PostMapping("/tiers/seed")
+    public ResponseEntity<List<ReferralTierConfigDto>> seedTiers(
+            @Valid @RequestBody List<@Valid ReferralTierConfigDto> tiers,
+            @AuthenticationPrincipal User user) {
+        log.info("Referral tiers seeded by admin {} ({} tiers)", user.getEmail(), tiers.size());
+        return ResponseEntity.ok(referralService.seedTiers(tiers));
+    }
 }

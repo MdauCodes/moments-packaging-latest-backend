@@ -76,6 +76,17 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("SELECT COUNT(p) FROM Product p WHERE p.deleted = false")
     long countActive();
 
+    @Query("SELECT AVG(p.grossProfitPercent) FROM Product p " +
+           "WHERE p.deleted = false AND p.risellerSuspended = false AND p.grossProfitPercent IS NOT NULL")
+    java.math.BigDecimal averageGrossProfitPercent();
+
+    @Query("SELECT COUNT(p) FROM Product p " +
+           "WHERE p.deleted = false AND p.risellerSuspended = false AND p.costPrice IS NOT NULL")
+    long countWithCostData();
+
+    @Query("SELECT COUNT(p) FROM Product p WHERE p.deleted = false AND p.risellerSuspended = false")
+    long countActiveNotSuspended();
+
     @Query("""
     SELECT p FROM Product p
     LEFT JOIN FETCH p.imageUrls
