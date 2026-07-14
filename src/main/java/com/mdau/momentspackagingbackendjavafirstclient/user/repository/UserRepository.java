@@ -53,7 +53,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     /** One-time backfill for accounts created before AccountType existed. */
     @Modifying
     @Query("""
-        UPDATE User u SET u.accountType = com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.SOLE_MERCHANT
+        UPDATE User u SET u.accountType = com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType.INDIVIDUAL_SHOPPER
         WHERE u.accountType IS NULL AND u.isStaff = false AND u.deleted = false
         """)
     int backfillMissingAccountTypeAsSoleMerchant();

@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * A Sole Merchant's VIP tier ladder (Silver/Gold/Platinum) — deliberately
+ * An Individual Shopper's VIP tier ladder (Silver/Gold/Platinum) — deliberately
  * separate from ReferralTierConfig, which sizes a referral *payout* by order
  * value, a different concept from a customer's overall status level.
  */

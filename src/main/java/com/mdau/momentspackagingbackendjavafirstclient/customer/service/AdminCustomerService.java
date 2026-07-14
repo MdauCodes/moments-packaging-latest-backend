@@ -85,7 +85,7 @@ public class AdminCustomerService {
                 ? lifetimeValue.divide(BigDecimal.valueOf(orderCount), 2, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO;
 
-        Integer rewardsPoints = user.getAccountType() == AccountType.SOLE_MERCHANT
+        Integer rewardsPoints = user.getAccountType() == AccountType.INDIVIDUAL_SHOPPER
                 ? creditWalletRepository.findByUser(user).map(CreditWallet::getBalance).orElse(0)
                 : null;
 

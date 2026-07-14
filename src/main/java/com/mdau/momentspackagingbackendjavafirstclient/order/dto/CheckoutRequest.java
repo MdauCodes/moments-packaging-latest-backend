@@ -37,7 +37,7 @@ public class CheckoutRequest {
     private String promoCode;
     private String sessionId;
 
-    /** Sole Merchant rewards points to redeem against this order — optional, capped server-side. */
+    /** Individual Shopper rewards points to redeem against this order — optional, capped server-side. */
     @Min(value = 1, message = "redeemPoints must be positive")
     private Integer redeemPoints;
 

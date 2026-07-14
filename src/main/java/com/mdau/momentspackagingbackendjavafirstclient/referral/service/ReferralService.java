@@ -96,7 +96,7 @@ public class ReferralService {
     // ── Rewards program — wallet/ledger are the same tables the referral
     //    system already uses; these are the general (non-referral) earning
     //    triggers: welcome bonus, review bonus, spend-based accrual. Earned
-    //    by every customer regardless of account type (Sole Merchant or
+    //    by every customer regardless of account type (Individual Shopper or
     //    Business) — the two account types differ in what other features
     //    they get, not in whether they participate in rewards.
 
@@ -376,7 +376,7 @@ public class ReferralService {
                 .stream().map(ReferralEventDto::new).collect(Collectors.toList());
     }
 
-    /** A Sole Merchant's resolved VIP tier — computed from lifetime points earned, never stored. */
+    /** An Individual Shopper's resolved VIP tier — computed from lifetime points earned, never stored. */
     @Transactional(readOnly = true)
     public RewardsTierConfigDto getMyRewardsTier(User user) {
         CreditWallet wallet = getOrCreateWallet(user);

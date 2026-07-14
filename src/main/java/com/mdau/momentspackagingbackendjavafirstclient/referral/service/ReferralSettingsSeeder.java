@@ -34,13 +34,13 @@ public class ReferralSettingsSeeder implements ApplicationRunner {
         seedIfAbsent("referral.max.active.referrals.per.user", "50",
                 "Max pending referrals one user can have at a time");
 
-        // Sole Merchant rewards program — same wallet/ledger, new earning triggers.
+        // Individual Shopper rewards program — same wallet/ledger, new earning triggers.
         seedIfAbsent("rewards.welcome.points", "100",
-                "Points awarded when a Sole Merchant Account is opened");
+                "Points awarded when an Individual Shopper Account is opened");
         seedIfAbsent("rewards.review.points", "50",
                 "Points awarded for submitting a product review");
         seedIfAbsent("rewards.points.per.100kes", "1",
-                "Points earned per KES 100 spent on a paid order (Sole Merchant accounts only)");
+                "Points earned per KES 100 spent on a paid order (Individual Shopper accounts only)");
 
         launchRewardsProgramOnce();
         log.info("Referral settings seeded");
@@ -48,8 +48,8 @@ public class ReferralSettingsSeeder implements ApplicationRunner {
 
     /**
      * The referral system was built but deliberately left locked while
-     * unfinished. It's now fully wired into checkout/orders as the Sole
-     * Merchant rewards ledger, so this flips the two gates to enabled —
+     * unfinished. It's now fully wired into checkout/orders as the Individual
+     * Shopper rewards ledger, so this flips the two gates to enabled —
      * exactly once, tracked by a sentinel key, so it never fights an admin
      * who later turns the program off again via the Settings UI.
      */
@@ -62,7 +62,7 @@ public class ReferralSettingsSeeder implements ApplicationRunner {
         settingRepository.save(AppSetting.builder()
                 .key(sentinelKey)
                 .value("true")
-                .description("Internal — marks that the Sole Merchant rewards launch flip has run. Do not edit.")
+                .description("Internal — marks that the Individual Shopper rewards launch flip has run. Do not edit.")
                 .build());
         log.info("Rewards program launched: referral.feature.unlocked and referral.program.enabled set to true");
     }

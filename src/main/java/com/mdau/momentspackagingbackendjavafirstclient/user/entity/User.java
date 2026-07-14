@@ -66,7 +66,7 @@ public class User extends BaseEntity implements UserDetails {
     private String businessName;
 
     /**
-     * Chosen at registration: SOLE_MERCHANT or BUSINESS. Null only for
+     * Chosen at registration: INDIVIDUAL_SHOPPER or BUSINESS. Null only for
      * legacy accounts created before this field existed — backfilled by
      * AccountTypeMigrationSeeder on the first startup after this change.
      * Never set for staff/admin accounts.

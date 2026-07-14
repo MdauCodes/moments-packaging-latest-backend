@@ -7,7 +7,7 @@ public enum CreditTransactionType {
     REFUNDED,           // credits returned after order cancellation
     ADJUSTED,           // manual admin adjustment
     EXPIRED,            // credits expired (future feature)
-    EARNED_SIGNUP,      // welcome bonus on opening a Sole Merchant Account
+    EARNED_SIGNUP,      // welcome bonus on opening an Individual Shopper Account
     EARNED_REVIEW,      // credited for submitting a product review
-    EARNED_ORDER        // general points accrual on any paid order (Sole Merchant, not tied to a referral)
+    EARNED_ORDER        // general points accrual on any paid order (Individual Shopper, not tied to a referral)
 }

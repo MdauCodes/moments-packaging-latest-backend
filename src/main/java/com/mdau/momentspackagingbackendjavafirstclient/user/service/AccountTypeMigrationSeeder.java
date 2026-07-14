@@ -11,10 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Registration used to create plain, type-less customer accounts. Every
- * customer now must pick Sole Merchant or Business at signup — this backfills
- * pre-existing accounts as Sole Merchant (per Mdau's decision: silent
- * auto-conversion, no forced re-onboarding). Idempotent — only touches rows
- * still null, so it's a no-op after the first run.
+ * customer now must pick Individual Shopper or Business at signup — this
+ * backfills pre-existing accounts as Individual Shopper (per Mdau's decision:
+ * silent auto-conversion, no forced re-onboarding). Idempotent — only touches
+ * rows still null, so it's a no-op after the first run.
  */
 @Slf4j
 @Component
@@ -29,7 +29,7 @@ public class AccountTypeMigrationSeeder implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         int updated = userRepository.backfillMissingAccountTypeAsSoleMerchant();
         if (updated > 0) {
-            log.info("Backfilled accountType=SOLE_MERCHANT for {} existing customer account(s)", updated);
+            log.info("Backfilled accountType=INDIVIDUAL_SHOPPER for {} existing customer account(s)", updated);
         }
     }
 }
