@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -15,8 +16,8 @@ public interface CreditTransactionRepository extends JpaRepository<CreditTransac
     Page<CreditTransaction> findByUserOrderByCreatedAtDesc(User user, Pageable pageable);
     Page<CreditTransaction> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
-    /** [0] = total points earned (sum of positive amounts), [1] = total points redeemed (sum of |negative amounts|). */
+    /** Single row: [0] = total points earned (sum of positive amounts), [1] = total points redeemed (sum of |negative amounts|). */
     @Query("SELECT COALESCE(SUM(CASE WHEN t.amount > 0 THEN t.amount ELSE 0 END), 0), " +
            "COALESCE(SUM(CASE WHEN t.amount < 0 THEN -t.amount ELSE 0 END), 0) FROM CreditTransaction t")
-    Object[] sumEarnedAndRedeemed();
+    List<Object[]> sumEarnedAndRedeemed();
 }

@@ -516,7 +516,8 @@ public class ReferralService {
 
     @Transactional(readOnly = true)
     public RewardsSummaryDto getRewardsSummary() {
-        Object[] row = txRepo.sumEarnedAndRedeemed();
+        List<Object[]> rows = txRepo.sumEarnedAndRedeemed();
+        Object[] row = rows.isEmpty() ? new Object[]{0L, 0L} : rows.get(0);
         long totalEarned = ((Number) row[0]).longValue();
         long totalRedeemed = ((Number) row[1]).longValue();
         long netOutstanding = totalEarned - totalRedeemed;
