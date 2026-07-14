@@ -7,6 +7,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.auth.entity.RefreshToken;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.EmailVerificationTokenRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.PasswordResetTokenRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.RefreshTokenRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.cart.service.CartService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.security.JwtService;
@@ -42,12 +43,13 @@ public class CustomerAuthService {
     private final PasswordEncoder                  passwordEncoder;
     private final EmailService                     emailService;
     private final ReferralService                  referralService;
+    private final CartService                      cartService;
 
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
 
     @Transactional
-    public AuthResponse register(CustomerRegisterRequest request) {
+    public AuthResponse register(CustomerRegisterRequest request, String guestSessionId) {
         // Only blocks registration if a non-deleted account exists with this email
         if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new ConflictException("An account with this email already exists");
@@ -76,6 +78,7 @@ public class CustomerAuthService {
         }
 
         emailService.sendWelcomeEmail(saved);
+        cartService.mergeGuestCart(guestSessionId, saved);
 
         String accessToken  = jwtService.generateAccessToken(saved);
         String refreshToken = createRefreshToken(saved);

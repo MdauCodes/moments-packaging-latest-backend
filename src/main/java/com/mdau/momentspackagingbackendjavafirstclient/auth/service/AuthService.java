@@ -8,6 +8,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.RefreshRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.dto.TokenResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.entity.RefreshToken;
 import com.mdau.momentspackagingbackendjavafirstclient.auth.repository.RefreshTokenRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.cart.service.CartService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.security.JwtService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
@@ -37,12 +38,13 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final CartService cartService;
 
     @Value("${app.jwt.refresh-token-expiration-ms}")
     private long refreshTokenExpirationMs;
 
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, String guestSessionId) {
         Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
         );
@@ -51,6 +53,12 @@ public class AuthService {
 
         String accessToken  = jwtService.generateAccessToken(user);
         String refreshToken = createRefreshToken(user);
+
+        // Fold whatever the visitor added to cart while browsing anonymously into their
+        // real account cart — previously never happened, so a guest's cart silently
+        // vanished the moment they logged in (the account cart, not the guest one, is
+        // what every later /cart call resolves against).
+        cartService.mergeGuestCart(guestSessionId, user);
 
         auditLogService.logSystem("AUTH", user.getId().toString(), user.getEmail(), "LOGIN", null, null);
         return new AuthResponse(accessToken, refreshToken, new AuthUserDto(user));

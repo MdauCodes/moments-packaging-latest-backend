@@ -18,8 +18,9 @@ public class PublicCustomerAuthController {
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(
-            @Valid @RequestBody CustomerRegisterRequest request) {
-        return ResponseEntity.status(201).body(customerAuthService.register(request));
+            @Valid @RequestBody CustomerRegisterRequest request,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
+        return ResponseEntity.status(201).body(customerAuthService.register(request, sessionId));
     }
 
     @PostMapping("/verify-email")
