@@ -27,4 +27,9 @@ public class CreditWallet extends BaseEntity {
     @Column(name = "lifetime_redeemed", nullable = false)
     @Builder.Default
     private Integer lifetimeRedeemed = 0;
+
+    /** How many times this user has redeemed points — gates redemption behind email verification after a free allowance. */
+    @Column(name = "redemption_count", nullable = false)
+    @Builder.Default
+    private Integer redemptionCount = 0;
 }

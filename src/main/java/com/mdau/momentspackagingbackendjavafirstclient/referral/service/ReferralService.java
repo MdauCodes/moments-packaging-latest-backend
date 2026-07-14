@@ -49,6 +49,8 @@ public class ReferralService {
     private static final String KEY_CREDITS_PER_KES     = "referral.credits.per.kes";
     private static final String KEY_MAX_REDEMPTION_PCT  = "referral.max.redemption.percent";
     private static final String KEY_MAX_ACTIVE_REFERRALS= "referral.max.active.referrals.per.user";
+    /** Redemptions allowed before the customer must verify their email to redeem again. */
+    public  static final int    FREE_REDEMPTION_LIMIT    = 3;
     private static final String KEY_WELCOME_POINTS      = "rewards.welcome.points";
     private static final String KEY_REVIEW_POINTS       = "rewards.review.points";
     private static final String KEY_POINTS_PER_100_KES  = "rewards.points.per.100kes";
@@ -284,6 +286,11 @@ public class ReferralService {
         if (wallet.getBalance() < creditsToRedeem) {
             throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
         }
+        if (!Boolean.TRUE.equals(user.getEmailVerified()) && wallet.getRedemptionCount() >= FREE_REDEMPTION_LIMIT) {
+            throw new IllegalArgumentException(
+                    "You've used your " + FREE_REDEMPTION_LIMIT + " free redemptions — verify your email " +
+                    "in your account dashboard to keep redeeming points.");
+        }
         BigDecimal discount = creditsToKes(creditsToRedeem);
         if (discount.compareTo(BigDecimal.ZERO) <= 0) {
             int creditsPerKes = Integer.parseInt(settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
@@ -315,8 +322,12 @@ public class ReferralService {
         if (wallet.getBalance() < creditsToRedeem) {
             throw new IllegalArgumentException("Insufficient credits. Balance: " + wallet.getBalance());
         }
+        if (!Boolean.TRUE.equals(user.getEmailVerified()) && wallet.getRedemptionCount() >= FREE_REDEMPTION_LIMIT) {
+            throw new IllegalArgumentException("Free redemption limit reached — email verification required.");
+        }
         wallet.setBalance(wallet.getBalance() - creditsToRedeem);
         wallet.setLifetimeRedeemed(wallet.getLifetimeRedeemed() + creditsToRedeem);
+        wallet.setRedemptionCount(wallet.getRedemptionCount() + 1);
         walletRepo.save(wallet);
 
         CreditTransaction tx = CreditTransaction.builder()
@@ -348,7 +359,8 @@ public class ReferralService {
         CreditWallet wallet = getOrCreateWallet(user);
         int creditsPerKes = Integer.parseInt(
                 settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
-        return new CreditWalletDto(wallet, creditsPerKes);
+        return new CreditWalletDto(wallet, creditsPerKes,
+                Boolean.TRUE.equals(user.getEmailVerified()), FREE_REDEMPTION_LIMIT);
     }
 
     @Transactional(readOnly = true)
@@ -551,7 +563,8 @@ public class ReferralService {
 
         int creditsPerKes = Integer.parseInt(
                 settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
-        return new CreditWalletDto(wallet, creditsPerKes);
+        return new CreditWalletDto(wallet, creditsPerKes,
+                Boolean.TRUE.equals(user.getEmailVerified()), FREE_REDEMPTION_LIMIT);
     }
 
     @Transactional(readOnly = true)

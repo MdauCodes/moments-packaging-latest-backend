@@ -62,7 +62,7 @@ public class CustomerAuthService {
                 .lastName(request.getLastName())
                 .phone(request.getPhone())
                 .accountType(request.getAccountType())
-                .emailVerified(true)
+                .emailVerified(false)
                 .enabled(true)
                 .deleted(false)
                 .roles(Set.of(Role.ROLE_CUSTOMER))
@@ -78,6 +78,7 @@ public class CustomerAuthService {
         }
 
         emailService.sendWelcomeEmail(saved);
+        sendVerificationOtp(saved);
         cartService.mergeGuestCart(guestSessionId, saved);
 
         String accessToken  = jwtService.generateAccessToken(saved);
@@ -116,24 +117,33 @@ public class CustomerAuthService {
 
     @Transactional
     public Map<String, String> resendOtp(ResendOtpRequest request) {
-        userRepository.findByEmailAndDeletedFalse(request.getEmail()).ifPresent(user -> {
-            if (!user.getEmailVerified()) {
-                evTokenRepository.findByUserAndUsedFalse(user).ifPresent(t -> {
-                    t.setUsed(true);
-                    evTokenRepository.save(t);
-                });
-                String otp = generateOtp();
-                EmailVerificationToken token = EmailVerificationToken.builder()
-                        .user(user)
-                        .token(otp)
-                        .expiresAt(Instant.now().plusSeconds(900))
-                        .used(false)
-                        .build();
-                evTokenRepository.save(token);
-                emailService.sendOtpEmail(user, otp);
-            }
-        });
+        userRepository.findByEmailAndDeletedFalse(request.getEmail())
+                .ifPresent(this::sendVerificationOtp);
         return Map.of("message", "Code sent if account exists");
+    }
+
+    /**
+     * Generates and emails a fresh verification OTP, invalidating any unused one.
+     * Called both right after registration (so a code is ready the moment a
+     * customer chooses to verify from their dashboard) and from the dashboard's
+     * "resend code" action. Registration itself is never blocked on this —
+     * verification stays optional until the free-redemption limit is reached.
+     */
+    private void sendVerificationOtp(User user) {
+        if (Boolean.TRUE.equals(user.getEmailVerified())) return;
+        evTokenRepository.findByUserAndUsedFalse(user).ifPresent(t -> {
+            t.setUsed(true);
+            evTokenRepository.save(t);
+        });
+        String otp = generateOtp();
+        EmailVerificationToken token = EmailVerificationToken.builder()
+                .user(user)
+                .token(otp)
+                .expiresAt(Instant.now().plusSeconds(900))
+                .used(false)
+                .build();
+        evTokenRepository.save(token);
+        emailService.sendOtpEmail(user, otp);
     }
 
     @Transactional
