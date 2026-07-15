@@ -63,6 +63,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     userDetails, null, userDetails.getAuthorities());
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                    String impersonatedBy = jwtService.extractImpersonatedBy(jwt);
+                    if (impersonatedBy != null) {
+                        request.setAttribute("impersonatedBy", impersonatedBy);
+                    }
                 }
             }
         } catch (Exception e) {

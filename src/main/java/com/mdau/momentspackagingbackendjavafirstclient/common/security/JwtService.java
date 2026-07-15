@@ -33,6 +33,25 @@ public class JwtService {
     }
 
     public String generateAccessToken(UserDetails userDetails) {
+        Map<String, Object> claims = baseClaims(userDetails);
+        return buildToken(claims, userDetails.getUsername(), accessTokenExpirationMs);
+    }
+
+    /**
+     * Mints a real access token for {@code target} (same claim shape a normal login would
+     * produce, so the existing frontend AuthContext/ProtectedRoute/every "/me" endpoint works
+     * completely unmodified), but flagged with {@code impersonatedBy} so the backend can tell
+     * this session apart from the customer's own login and force an audit trail on every
+     * mutating action. Deliberately short-lived and never issues a refresh token — an admin
+     * previewing a dashboard should have to explicitly re-issue, not silently stay in forever.
+     */
+    public String generateImpersonationToken(UserDetails target, java.util.UUID adminId, long expirationMs) {
+        Map<String, Object> claims = baseClaims(target);
+        claims.put("impersonatedBy", adminId.toString());
+        return buildToken(claims, target.getUsername(), expirationMs);
+    }
+
+    private Map<String, Object> baseClaims(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("type", "access");
 
@@ -62,8 +81,16 @@ public class JwtService {
                     .map(Enum::name)
                     .collect(Collectors.toList()));
         }
+        return claims;
+    }
 
-        return buildToken(claims, userDetails.getUsername(), accessTokenExpirationMs);
+    /** True if this token was minted for an admin previewing/impersonating another account. */
+    public boolean isImpersonation(String token) {
+        return extractClaim(token, c -> c.get("impersonatedBy", String.class)) != null;
+    }
+
+    public String extractImpersonatedBy(String token) {
+        return extractClaim(token, c -> c.get("impersonatedBy", String.class));
     }
 
     private String buildToken(Map<String, Object> claims, String subject, long expirationMs) {

@@ -65,6 +65,15 @@ public class AuditLog {
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
+    /**
+     * When an admin is impersonating a customer (see JwtService.generateImpersonationToken),
+     * this is the customer's user ID and actorId is the admin's — so "who really did this" and
+     * "whose account was it done to" are both always recoverable. Null for normal, non-
+     * impersonated actions.
+     */
+    @Column(name = "on_behalf_of_user_id")
+    private UUID onBehalfOfUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

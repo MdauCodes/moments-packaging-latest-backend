@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * Central service for writing audit log entries.
  *
@@ -39,6 +41,21 @@ public class AuditLogService {
                     String reason,
                     String changesJson,
                     String ipAddress) {
+        log(actor, entityType, entityId, entityLabel, action, reason, changesJson, ipAddress, null);
+    }
+
+    /** Same as above, plus onBehalfOfUserId when actor is an admin impersonating that customer. */
+    @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void log(User actor,
+                    String entityType,
+                    String entityId,
+                    String entityLabel,
+                    String action,
+                    String reason,
+                    String changesJson,
+                    String ipAddress,
+                    UUID onBehalfOfUserId) {
 
         try {
             AuditLog entry = AuditLog.builder()
@@ -52,6 +69,7 @@ public class AuditLogService {
                     .reason(reason)
                     .changes(changesJson)
                     .ipAddress(ipAddress)
+                    .onBehalfOfUserId(onBehalfOfUserId)
                     .build();
             auditLogRepository.save(entry);
         } catch (Exception e) {
@@ -94,5 +112,23 @@ public class AuditLogService {
             return forwarded.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * Request attribute key JwtAuthFilter sets when the bearer token carries an
+     * impersonatedBy claim — read this synchronously in the controller, same as extractIp,
+     * since the request object isn't safe to touch from the @Async log() call.
+     */
+    public static final String IMPERSONATED_BY_ATTR = "impersonatedBy";
+
+    public static UUID extractOnBehalfOf(HttpServletRequest request) {
+        if (request == null) return null;
+        Object attr = request.getAttribute(IMPERSONATED_BY_ATTR);
+        if (attr == null) return null;
+        try {
+            return UUID.fromString(attr.toString());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }
