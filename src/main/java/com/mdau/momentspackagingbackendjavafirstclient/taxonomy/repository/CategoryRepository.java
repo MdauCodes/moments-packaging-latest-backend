@@ -18,4 +18,6 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
     List<Category> findBySegmentId(UUID segmentId);
 
     long countBySegmentId(UUID segmentId);
+
+    List<Category> findByIndustries_Id(UUID industryId);
 }

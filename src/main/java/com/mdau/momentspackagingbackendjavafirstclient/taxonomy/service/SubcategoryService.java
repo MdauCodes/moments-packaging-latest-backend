@@ -48,6 +48,20 @@ public class SubcategoryService {
                 .collect(Collectors.toList());
     }
 
+    /** Subcategories don't carry their own industry tag — they inherit it from their parent Category. */
+    @Transactional(readOnly = true)
+    public List<SubcategoryDto> getByIndustry(UUID industryId) {
+        List<UUID> categoryIds = categoryRepository.findByIndustries_Id(industryId)
+                .stream()
+                .map(Category::getId)
+                .collect(Collectors.toList());
+        if (categoryIds.isEmpty()) return List.of();
+        return subcategoryRepository.findByCategoryIdIn(categoryIds)
+                .stream()
+                .map(SubcategoryDto::new)
+                .collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public SubcategoryDto getById(UUID id) {
         return subcategoryRepository.findById(id)

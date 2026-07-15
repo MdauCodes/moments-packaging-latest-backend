@@ -32,7 +32,12 @@ public class PublicTaxonomyController {
     }
 
     @GetMapping("/categories")
-    public ResponseEntity<List<CategoryDto>> getCategories(@RequestParam(required = false) UUID segmentId) {
+    public ResponseEntity<List<CategoryDto>> getCategories(
+            @RequestParam(required = false) UUID segmentId,
+            @RequestParam(required = false) UUID industryId) {
+        if (industryId != null) {
+            return ResponseEntity.ok(categoryService.getByIndustry(industryId));
+        }
         if (segmentId != null) {
             return ResponseEntity.ok(categoryService.getBySegment(segmentId));
         }
@@ -40,7 +45,12 @@ public class PublicTaxonomyController {
     }
 
     @GetMapping("/subcategories")
-    public ResponseEntity<List<SubcategoryDto>> getSubcategories(@RequestParam(required = false) UUID categoryId) {
+    public ResponseEntity<List<SubcategoryDto>> getSubcategories(
+            @RequestParam(required = false) UUID categoryId,
+            @RequestParam(required = false) UUID industryId) {
+        if (industryId != null) {
+            return ResponseEntity.ok(subcategoryService.getByIndustry(industryId));
+        }
         if (categoryId != null) {
             return ResponseEntity.ok(subcategoryService.getByCategory(categoryId));
         }

@@ -1,8 +1,11 @@
 package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity;
 
+import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -44,4 +47,19 @@ public class Category {
     @Column(name = "sort_order", nullable = false)
     @Builder.Default
     private Integer sortOrder = 0;
+
+    /**
+     * Which industries this category is relevant to — drives the homepage
+     * industry tiles: clicking one filters both products AND the category/
+     * subcategory browse list to just what's tagged here. Mirrors the
+     * product_industries join table pattern on Product.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "category_industries",
+        joinColumns        = @JoinColumn(name = "category_id"),
+        inverseJoinColumns = @JoinColumn(name = "industry_id")
+    )
+    @Builder.Default
+    private Set<Industry> industries = new HashSet<>();
 }

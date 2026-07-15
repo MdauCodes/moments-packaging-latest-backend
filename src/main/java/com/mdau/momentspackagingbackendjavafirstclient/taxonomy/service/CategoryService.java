@@ -3,6 +3,8 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
+import com.mdau.momentspackagingbackendjavafirstclient.industry.repository.IndustryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.CategoryCreateRequest;
@@ -20,7 +22,9 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -33,6 +37,7 @@ public class CategoryService {
     private final SegmentRepository segmentRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final ProductRepository productRepository;
+    private final IndustryRepository industryRepository;
 
     @Cacheable("categories")
     @Transactional(readOnly = true)
@@ -49,6 +54,23 @@ public class CategoryService {
                 .stream()
                 .map(CategoryDto::new)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<CategoryDto> getByIndustry(UUID industryId) {
+        return categoryRepository.findByIndustries_Id(industryId)
+                .stream()
+                .map(CategoryDto::new)
+                .collect(Collectors.toList());
+    }
+
+    private Set<Industry> resolveIndustries(List<UUID> industryIds) {
+        Set<Industry> industries = new HashSet<>();
+        for (UUID industryId : industryIds) {
+            industries.add(industryRepository.findById(industryId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Industry not found: " + industryId)));
+        }
+        return industries;
     }
 
     @Transactional(readOnly = true)
@@ -73,6 +95,7 @@ public class CategoryService {
                 .slug(slug)
                 .description(request.getDescription())
                 .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
+                .industries(request.getIndustryIds() != null ? resolveIndustries(request.getIndustryIds()) : new HashSet<>())
                 .build();
         return new CategoryDto(categoryRepository.save(category));
     }
@@ -93,6 +116,7 @@ public class CategoryService {
         }
         if (request.getDescription() != null) category.setDescription(request.getDescription());
         if (request.getSortOrder()   != null) category.setSortOrder(request.getSortOrder());
+        if (request.getIndustryIds() != null) category.setIndustries(resolveIndustries(request.getIndustryIds()));
         return new CategoryDto(categoryRepository.save(category));
     }
 
