@@ -27,6 +27,50 @@ public class UploadService {
     @Value("${app.cloudinary.upload-folder}")
     private String uploadFolder;
 
+    /**
+     * Uploads a non-image file (e.g. a generated PDF) as a Cloudinary "raw" resource — the
+     * image-only validate/transform pipeline in uploadImage() doesn't apply here. publicId is
+     * returned alongside the URL since deleting a raw asset later (see the tax-document cleanup
+     * job) requires it, not just the URL.
+     */
+    public UploadResponse uploadRaw(byte[] bytes, String entity, String filename) {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("File is empty");
+        }
+        if (bytes.length > MAX_SIZE_BYTES) {
+            throw new IllegalArgumentException("File size exceeds 5MB limit");
+        }
+        try {
+            String folder = uploadFolder + "/" + entity;
+            Map<?, ?> result = cloudinary.uploader().upload(
+                    bytes,
+                    ObjectUtils.asMap(
+                            "folder",        folder,
+                            "resource_type", "raw",
+                            "public_id",     filename
+                    )
+            );
+            String url      = (String) result.get("secure_url");
+            String publicId = (String) result.get("public_id");
+            log.info("Uploaded raw file to Cloudinary: {}", publicId);
+            return new UploadResponse(url, publicId);
+        } catch (IOException e) {
+            log.error("Cloudinary raw upload failed: {}", e.getMessage());
+            throw new RuntimeException("File upload failed: " + e.getMessage());
+        }
+    }
+
+    /** Deletes a previously uploaded raw resource (see the weekly tax-document cleanup job). */
+    public void deleteRaw(String publicId) {
+        try {
+            cloudinary.uploader().destroy(publicId, ObjectUtils.asMap("resource_type", "raw"));
+            log.info("Deleted raw file from Cloudinary: {}", publicId);
+        } catch (IOException e) {
+            log.error("Cloudinary raw delete failed for {}: {}", publicId, e.getMessage());
+            throw new RuntimeException("File delete failed: " + e.getMessage());
+        }
+    }
+
     public UploadResponse uploadImage(MultipartFile file, String entity) {
         validateFile(file);
 

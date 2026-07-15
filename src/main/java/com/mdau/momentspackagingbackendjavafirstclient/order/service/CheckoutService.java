@@ -22,6 +22,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.product.repository.Produc
 import com.mdau.momentspackagingbackendjavafirstclient.referral.service.ReferralService;
 import com.mdau.momentspackagingbackendjavafirstclient.settings.service.MockModeService;
 import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
+import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service.TaxDocumentService;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +55,7 @@ public class CheckoutService {
     private final ProductRepository       productRepository;
     private final CacheManager            cacheManager;
     private final ReferralService         referralService;
+    private final TaxDocumentService      taxDocumentService;
 
     @Transactional
     public OrderDto checkout(User customer, String sessionId, CheckoutRequest request) {
@@ -218,6 +220,11 @@ public class CheckoutService {
                 .courierType(request.getCourierType())
                 .courierServiceName(request.getCourierServiceName())
                 .courierStageOrOffice(request.getCourierStageOrOffice())
+                .taxInvoiceRequested(request.isTaxInvoiceRequested())
+                .taxInvoiceEmail(request.isTaxInvoiceRequested()
+                        ? (request.getTaxInvoiceEmail() != null && !request.getTaxInvoiceEmail().isBlank()
+                                ? request.getTaxInvoiceEmail() : request.getEmail())
+                        : null)
                 .build();
 
         // â”€â”€ Resolve items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -315,6 +322,17 @@ public class CheckoutService {
         }
 
         notificationService.onOrderCreated(saved);
+
+        if (Boolean.TRUE.equals(saved.getTaxInvoiceRequested())) {
+            try {
+                taxDocumentService.requestForOrder(saved);
+            } catch (Exception e) {
+                // A tax-invoice generation hiccup must never take the whole checkout down —
+                // it's retryable from the admin tax-documents tab once that exists (Phase 3).
+                log.error("Tax invoice request failed for order {}: {}", saved.getReference(), e.getMessage(), e);
+            }
+        }
+
         log.info("Order created: {} fulfillment={} (source: {})",
                 reference, fulfillmentType, cartItems.isEmpty() ? "inline" : "cart");
         return new OrderDto(saved);

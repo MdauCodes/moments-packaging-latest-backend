@@ -170,6 +170,14 @@ public class Order {
     @Column(name = "promo_code", length = 50)
     private String promoCode;
 
+    /** Customer ticked "I need a tax invoice / VAT document" at checkout. See TaxDocument. */
+    @Column(name = "tax_invoice_requested", nullable = false)
+    @Builder.Default
+    private Boolean taxInvoiceRequested = false;
+
+    @Column(name = "tax_invoice_email", length = 255)
+    private String taxInvoiceEmail;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

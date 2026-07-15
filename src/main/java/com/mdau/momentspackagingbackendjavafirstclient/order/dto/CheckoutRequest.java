@@ -37,6 +37,13 @@ public class CheckoutRequest {
     private String promoCode;
     private String sessionId;
 
+    /** Customer ticked "I need a tax invoice / VAT document" — see TaxDocumentService. */
+    private boolean taxInvoiceRequested;
+
+    /** Where to email the tax invoice PDF; defaults to `email` above if blank. */
+    @Email(message = "Tax invoice email must be valid")
+    private String taxInvoiceEmail;
+
     /** Individual Shopper rewards points to redeem against this order — optional, capped server-side. */
     @Min(value = 1, message = "redeemPoints must be positive")
     private Integer redeemPoints;

@@ -26,6 +26,7 @@
         <shedlock.version>5.13.0</shedlock.version>
         <springdoc.version>2.6.0</springdoc.version>
         <caffeine.version>3.1.8</caffeine.version>
+        <openhtmltopdf.version>1.1.40</openhtmltopdf.version>
     </properties>
 
     <dependencies>
@@ -113,6 +114,15 @@
             <groupId>com.cloudinary</groupId>
             <artifactId>cloudinary-http45</artifactId>
             <version>${cloudinary.version}</version>
+        </dependency>
+
+        <!-- openhtmltopdf — renders a Thymeleaf-produced HTML string to PDF, so the
+             tax-invoice template can reuse the same templating engine already used
+             for emails instead of pulling in a second one. -->
+        <dependency>
+            <groupId>io.github.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>${openhtmltopdf.version}</version>
         </dependency>
 
         <!-- ShedLock -->

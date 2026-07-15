@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  @page { size: A4; margin: 24mm 18mm; }
+  body { font-family: Helvetica, Arial, sans-serif; color: #222; font-size: 11px; }
+  .band { background: #2d5016; height: 6px; width: 100%; }
+  .title { font-size: 20px; font-weight: bold; color: #2d5016; margin: 18px 0 2px; }
+  .subtitle { font-size: 10px; color: #777; margin-bottom: 18px; }
+  .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  .meta-table td { padding: 2px 0; font-size: 10.5px; vertical-align: top; }
+  .meta-label { color: #777; width: 120px; }
+  .meta-value { font-weight: bold; color: #222; }
+  table.items { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  table.items th { background: #2d5016; color: #fff; padding: 7px 8px; text-align: left; font-size: 10px; }
+  table.items td { padding: 7px 8px; border-bottom: 1px solid #eee; font-size: 10.5px; }
+  table.items td.num { text-align: right; }
+  .totals { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .totals td { padding: 4px 8px; font-size: 11px; }
+  .totals td.label { text-align: right; color: #555; }
+  .totals td.value { text-align: right; width: 110px; font-weight: bold; }
+  .totals tr.grand td { border-top: 2px solid #2d5016; font-size: 13px; color: #2d5016; }
+  .disclaimer { margin-top: 26px; padding: 10px 12px; background: #f7f4ee; border-left: 3px solid #c9a227; font-size: 9.5px; color: #555; }
+  .footer { margin-top: 20px; font-size: 9px; color: #999; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="band"></div>
+  <div class="title">Tax Invoice / VAT Breakdown</div>
+  <div class="subtitle">Moments Packaging Kenya &mdash; for your own tax records</div>
+
+  <table class="meta-table">
+    <tr>
+      <td class="meta-label">Order reference</td>
+      <td class="meta-value" th:text="${order.reference}">ORD-2026-05-0001</td>
+    </tr>
+    <tr>
+      <td class="meta-label">Date</td>
+      <td class="meta-value" th:text="${issuedAt}">14 Jul 2026</td>
+    </tr>
+    <tr>
+      <td class="meta-label">Billed to</td>
+      <td class="meta-value" th:text="${order.contactName}">Customer Name</td>
+    </tr>
+    <tr th:if="${kraPin != null and !kraPin.isEmpty()}">
+      <td class="meta-label">Seller KRA PIN</td>
+      <td class="meta-value" th:text="${kraPin}">P000000000A</td>
+    </tr>
+  </table>
+
+  <table class="items">
+    <tr><th>Item</th><th>Qty</th><th style="text-align:right">Line total (KES)</th></tr>
+    <tr th:each="item : ${order.items}">
+      <td th:text="${item.productNameSnapshot}">Product</td>
+      <td th:text="${item.quantity}">1</td>
+      <td class="num" th:text="${item.lineTotal}">0</td>
+    </tr>
+  </table>
+
+  <table class="totals">
+    <tr>
+      <td class="label">Vatable amount (VAT-exclusive)</td>
+      <td class="value" th:text="${'KES ' + order.taxableAmount}">KES 0</td>
+    </tr>
+    <tr>
+      <td class="label">VAT (16%)</td>
+      <td class="value" th:text="${'KES ' + order.vatAmount}">KES 0</td>
+    </tr>
+    <tr class="grand">
+      <td class="label">Total (VAT-inclusive)</td>
+      <td class="value" th:text="${'KES ' + order.totalAmount}">KES 0</td>
+    </tr>
+  </table>
+
+  <div class="disclaimer">
+    This is a tax invoice / VAT breakdown for your own record-keeping. Moments Packaging Kenya
+    is not yet integrated with KRA's eTIMS system, so this document is not an eTIMS-verified
+    receipt. Available for download for 2 weeks from the date above &mdash; after that, contact
+    us with your order reference for a resend.
+  </div>
+
+  <div class="footer">Moments Packaging Kenya &middot; Nairobi, Kenya &middot; +254 119 556 688</div>
+</body>
+</html>
