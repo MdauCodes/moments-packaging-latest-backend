@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Map;
 
 @Slf4j
@@ -58,6 +59,23 @@ public class UploadService {
             log.error("Cloudinary raw upload failed: {}", e.getMessage());
             throw new RuntimeException("File upload failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * Signs a direct-to-Cloudinary upload for a raw file the frontend will render and upload
+     * itself (see TaxDocumentService) — the API secret never leaves the backend, only a
+     * short-lived signature scoped to this exact folder/public_id/timestamp does.
+     */
+    public UploadSignature signRawUpload(String entity, String filename) {
+        long timestamp = Instant.now().getEpochSecond();
+        String folder = uploadFolder + "/" + entity;
+        Map<String, Object> paramsToSign = ObjectUtils.asMap(
+                "timestamp",  timestamp,
+                "folder",     folder,
+                "public_id",  filename
+        );
+        String signature = cloudinary.apiSignRequest(paramsToSign, cloudinary.config.apiSecret);
+        return new UploadSignature(cloudinary.config.cloudName, cloudinary.config.apiKey, signature, timestamp, folder, filename);
     }
 
     /** Deletes a previously uploaded raw resource (see the weekly tax-document cleanup job). */

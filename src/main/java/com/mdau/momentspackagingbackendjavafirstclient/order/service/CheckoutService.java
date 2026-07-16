@@ -327,9 +327,11 @@ public class CheckoutService {
 
         notificationService.onOrderCreated(saved);
 
+        OrderDto dto = new OrderDto(saved);
+
         if (Boolean.TRUE.equals(saved.getTaxInvoiceRequested())) {
             try {
-                taxDocumentService.requestForOrder(saved);
+                dto.setTaxInvoiceUploadToken(taxDocumentService.requestForOrder(saved).getUploadToken());
             } catch (Exception e) {
                 // A tax-invoice generation hiccup must never take the whole checkout down —
                 // it's retryable from the admin tax-documents tab once that exists (Phase 3).
@@ -339,6 +341,6 @@ public class CheckoutService {
 
         log.info("Order created: {} fulfillment={} (source: {})",
                 reference, fulfillmentType, cartItems.isEmpty() ? "inline" : "cart");
-        return new OrderDto(saved);
+        return dto;
     }
 }

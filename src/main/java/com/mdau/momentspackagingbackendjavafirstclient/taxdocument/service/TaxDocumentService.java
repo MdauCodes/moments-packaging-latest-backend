@@ -8,6 +8,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDoc
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.repository.TaxDocumentRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadService;
+import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadSignature;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,7 +19,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Phase 1: create the TaxDocument row and get the PDF generated + uploaded to Cloudinary.
+ * Phase 1: create the TaxDocument row with a one-time uploadToken. The PDF itself is generated
+ * client-side (checkout.tsx / lib/pdf.ts) while the customer's browser is still present — the
+ * frontend calls getUploadSignature() then completeUpload() once it's uploaded the file to
+ * Cloudinary directly. generateAndUpload() (the original server-side Thymeleaf/openhtmltopdf
+ * renderer) is kept as the fallback for cases with no browser attached: the payment webhook path
+ * (sendIfRequested, below) still calls it if the frontend never completed the upload — e.g. a
+ * delayed bank-transfer/COD confirmation, or the customer closing the tab right after checkout.
  * Phase 2 (this file's sendIfRequested): triggered from PaymentService once payment succeeds —
  * emails the Cloudinary link and flips status to SENT/FAILED. The admin retry/WhatsApp-helper UI
  * (Phase 3) builds on top of this — generateAndUpload() and sendIfRequested() are both
@@ -41,9 +48,54 @@ public class TaxDocumentService {
                 .order(order)
                 .recipientEmail(order.getTaxInvoiceEmail() != null ? order.getTaxInvoiceEmail() : order.getEmail())
                 .status(TaxDocumentStatus.PENDING)
+                .uploadToken(UUID.randomUUID().toString())
                 .build();
-        doc = taxDocumentRepository.save(doc);
-        generateAndUpload(doc.getId());
+        return taxDocumentRepository.save(doc);
+    }
+
+    /**
+     * Issues a signed Cloudinary upload for the frontend to use directly — the backend never
+     * touches the PDF bytes for this path. Scoped to a dedicated folder ("tax-invoices", distinct
+     * from the "tax-documents" folder the server-side fallback renderer uploads to) so the two
+     * paths are easy to tell apart in Cloudinary if needed, and gated by the one-time token so
+     * only the browser that just placed this order can request one.
+     */
+    @Transactional(readOnly = true)
+    public UploadSignature getUploadSignature(String orderReference, String token) {
+        TaxDocument doc = requireByReferenceAndToken(orderReference, token);
+        if (doc.getCloudinaryUrl() != null) {
+            throw new IllegalStateException("Tax invoice already uploaded for this order");
+        }
+        String filename = "tax-invoice-" + orderReference;
+        return uploadService.signRawUpload("tax-invoices", filename);
+    }
+
+    /**
+     * Records the frontend-uploaded PDF's Cloudinary location. First writer wins — if the
+     * payment-webhook fallback (generateAndUpload) already produced a URL by the time this
+     * arrives (a race between the two paths), the frontend's own upload is deleted instead of
+     * silently orphaning a Cloudinary asset nothing points to.
+     */
+    @Transactional
+    public void completeUpload(String orderReference, String token, String cloudinaryUrl, String cloudinaryPublicId) {
+        TaxDocument doc = requireByReferenceAndToken(orderReference, token);
+        if (doc.getCloudinaryUrl() != null) {
+            log.warn("Tax invoice for order {} already generated (likely webhook fallback beat the frontend upload); discarding client-uploaded copy", orderReference);
+            uploadService.deleteRaw(cloudinaryPublicId);
+            return;
+        }
+        doc.setCloudinaryUrl(cloudinaryUrl);
+        doc.setCloudinaryPublicId(cloudinaryPublicId);
+        taxDocumentRepository.save(doc);
+        log.info("Tax invoice uploaded client-side for order {}: {}", orderReference, cloudinaryUrl);
+    }
+
+    private TaxDocument requireByReferenceAndToken(String orderReference, String token) {
+        TaxDocument doc = taxDocumentRepository.findByOrder_Reference(orderReference)
+                .orElseThrow(() -> new ResourceNotFoundException("No tax document requested for order: " + orderReference));
+        if (token == null || !token.equals(doc.getUploadToken())) {
+            throw new IllegalArgumentException("Invalid upload token");
+        }
         return doc;
     }
 

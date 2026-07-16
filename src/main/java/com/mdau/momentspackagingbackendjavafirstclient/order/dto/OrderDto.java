@@ -52,6 +52,10 @@ public class OrderDto {
     private final Instant createdAt;
     private final Instant updatedAt;
 
+    /** One-time secret for the frontend's Cloudinary tax-invoice upload flow — null unless taxInvoiceRequested. */
+    @lombok.Setter
+    private String taxInvoiceUploadToken;
+
     public OrderDto(Order order) {
         this.id                        = order.getId();
         this.reference                 = order.getReference();

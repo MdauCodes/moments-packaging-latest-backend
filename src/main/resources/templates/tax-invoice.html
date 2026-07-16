@@ -43,10 +43,8 @@
       <td class="meta-label">Billed to</td>
       <td class="meta-value" th:text="${order.contactName}">Customer Name</td>
     </tr>
-    <tr th:if="${kraPin != null and !kraPin.isEmpty()}">
-      <td class="meta-label">Seller KRA PIN</td>
-      <td class="meta-value" th:text="${kraPin}">P000000000A</td>
-    </tr>
+    <!-- Seller KRA PIN intentionally omitted for now — business isn't eTIMS-registered yet,
+         so printing our own PIN on this document risks implying more validity than it has. -->
     <tr th:if="${order.taxInvoiceKraPin != null and !order.taxInvoiceKraPin.isEmpty()}">
       <td class="meta-label">Buyer KRA PIN</td>
       <td class="meta-value" th:text="${order.taxInvoiceKraPin}">A123456789Z</td>
@@ -54,15 +52,23 @@
   </table>
 
   <table class="items">
-    <tr><th>Item</th><th>Qty</th><th style="text-align:right">Line total (KES)</th></tr>
+    <tr>
+      <th>Item</th><th style="text-align:right">Qty</th>
+      <th style="text-align:right">Price (KES)</th><th style="text-align:right">Total (KES)</th>
+    </tr>
     <tr th:each="item : ${order.items}">
       <td th:text="${item.productNameSnapshot}">Product</td>
-      <td th:text="${item.quantity}">1</td>
+      <td class="num" th:text="${item.quantity}">1</td>
+      <td class="num" th:text="${item.unitPrice}">0</td>
       <td class="num" th:text="${item.lineTotal}">0</td>
     </tr>
   </table>
 
   <table class="totals">
+    <tr>
+      <td class="label">No. of items</td>
+      <td class="value" th:text="${order.items.size()}">0</td>
+    </tr>
     <tr>
       <td class="label">Vatable amount (VAT-exclusive)</td>
       <td class="value" th:text="${'KES ' + order.taxableAmount}">KES 0</td>
@@ -84,6 +90,6 @@
     us with your order reference for a resend.
   </div>
 
-  <div class="footer">Moments Packaging Kenya &middot; Nairobi, Kenya &middot; +254 119 556 688</div>
+  <div class="footer">Moments Packaging Kenya &middot; Kamukunji Bldg, Ukwara Road, Nairobi &middot; +254 119 556 688</div>
 </body>
 </html>

@@ -47,4 +47,12 @@ public class TaxDocument extends BaseEntity {
 
     @Column(name = "sent_at")
     private java.time.Instant sentAt;
+
+    /**
+     * One-time secret returned to the frontend at checkout so it (not just anyone who guesses
+     * the order reference) can request a Cloudinary upload signature and report the result back.
+     * See TaxDocumentController.
+     */
+    @Column(name = "upload_token", length = 40)
+    private String uploadToken;
 }

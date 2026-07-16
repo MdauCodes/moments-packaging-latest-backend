@@ -1,7 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
-import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,18 +21,15 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class TaxInvoicePdfService {
 
-    private static final String KEY_BUSINESS_KRA_PIN = "business.kraPin";
     private static final DateTimeFormatter ISSUED_AT_FORMAT =
             DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH).withZone(ZoneId.of("Africa/Nairobi"));
 
     private final TemplateEngine templateEngine;
-    private final SettingsService settingsService;
 
     public byte[] render(Order order) {
         Context ctx = new Context();
         ctx.setVariable("order", order);
         ctx.setVariable("issuedAt", ISSUED_AT_FORMAT.format(order.getCreatedAt()));
-        ctx.setVariable("kraPin", settingsService.getValue(KEY_BUSINESS_KRA_PIN, ""));
 
         String html = templateEngine.process("tax-invoice", ctx);
 
