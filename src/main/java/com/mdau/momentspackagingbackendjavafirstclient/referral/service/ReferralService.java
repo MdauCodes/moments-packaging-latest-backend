@@ -100,8 +100,14 @@ public class ReferralService {
     //    Business) — the two account types differ in what other features
     //    they get, not in whether they participate in rewards.
 
+    /**
+     * Idempotent by design (checks for an existing EARNED_SIGNUP transaction first) so it's safe
+     * to call both at registration and opportunistically from getMyWallet() to backfill accounts
+     * that existed before the rewards program launched and so never got this at signup time.
+     */
     @Transactional
     public void awardWelcomeBonus(User user) {
+        if (txRepo.existsByUserAndType(user, CreditTransactionType.EARNED_SIGNUP)) return;
         int points = Integer.parseInt(settingsService.getValue(KEY_WELCOME_POINTS, "100"));
         if (points <= 0) return;
         awardCredits(user, points, CreditTransactionType.EARNED_SIGNUP,
@@ -368,9 +374,15 @@ public class ReferralService {
         return new ReferralCodeDto(rc, frontendUrl);
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * Backfills the welcome bonus for pre-existing accounts that predate the rewards program
+     * (awardWelcomeBonus no-ops instantly once it's already been granted), same rationale as the
+     * lazy referral-code creation in getMyReferralCode above.
+     */
+    @Transactional
     public CreditWalletDto getMyWallet(User user) {
         CreditWallet wallet = getOrCreateWallet(user);
+        awardWelcomeBonus(user);
         int creditsPerKes = Integer.parseInt(
                 settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
         return new CreditWalletDto(wallet, creditsPerKes,
