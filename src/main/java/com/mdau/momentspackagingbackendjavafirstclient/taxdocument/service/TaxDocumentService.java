@@ -90,6 +90,15 @@ public class TaxDocumentService {
         log.info("Tax invoice uploaded client-side for order {}: {}", orderReference, cloudinaryUrl);
     }
 
+    /** Admin retry button (Phase 3) — re-runs the exact same regenerate-then-email path sendIfRequested uses. */
+    @Transactional
+    public TaxDocument retry(UUID taxDocumentId) {
+        TaxDocument doc = taxDocumentRepository.findById(taxDocumentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tax document not found: " + taxDocumentId));
+        sendIfRequested(doc.getOrder());
+        return taxDocumentRepository.findById(taxDocumentId).orElseThrow();
+    }
+
     private TaxDocument requireByReferenceAndToken(String orderReference, String token) {
         TaxDocument doc = taxDocumentRepository.findByOrder_Reference(orderReference)
                 .orElseThrow(() -> new ResourceNotFoundException("No tax document requested for order: " + orderReference));
