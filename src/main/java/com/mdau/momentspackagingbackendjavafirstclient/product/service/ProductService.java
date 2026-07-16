@@ -284,7 +284,9 @@ public class ProductService {
         if (request.getVatExempt()             != null) product.setVatExempt(request.getVatExempt());
         if (request.getIndustryIds()           != null) product.setIndustries(resolveIndustries(request.getIndustryIds()));
         if (request.getTagIds()                != null) product.setCuratedTags(resolveTags(request.getTagIds()));
-        if (request.getSubcategoryId()         != null) {
+        if (Boolean.TRUE.equals(request.getClearSubcategory())) {
+            product.setSubcategory(null);
+        } else if (request.getSubcategoryId()  != null) {
             product.setSubcategory(subcategoryRepository.findById(request.getSubcategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found: " + request.getSubcategoryId())));
         }
@@ -311,8 +313,9 @@ public class ProductService {
     @CacheEvict(value = "recommended-products", allEntries = true)
     @Transactional
     public BulkClassifyResponse bulkClassify(BulkClassifyRequest request) {
-        if (request.getSubcategoryId() == null && request.getIndustryIds() == null && request.getTagIds() == null) {
-            throw new IllegalArgumentException("At least one of subcategoryId, industryIds or tagIds must be provided");
+        if (request.getSubcategoryId() == null && request.getIndustryIds() == null && request.getTagIds() == null
+                && !Boolean.TRUE.equals(request.getClearSubcategory())) {
+            throw new IllegalArgumentException("At least one of subcategoryId, industryIds, tagIds or clearSubcategory must be provided");
         }
 
         List<Product> products = productRepository.findAllById(request.getProductIds());
@@ -333,7 +336,8 @@ public class ProductService {
                 : null;
 
         for (Product product : products) {
-            if (subcategory != null) product.setSubcategory(subcategory);
+            if (Boolean.TRUE.equals(request.getClearSubcategory())) product.setSubcategory(null);
+            else if (subcategory != null) product.setSubcategory(subcategory);
             if (industries != null) product.setIndustries(new HashSet<>(industries));
             if (tags != null) product.setCuratedTags(new HashSet<>(tags));
         }

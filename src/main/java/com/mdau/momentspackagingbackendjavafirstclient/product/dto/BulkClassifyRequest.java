@@ -22,6 +22,9 @@ public class BulkClassifyRequest {
 
     private UUID subcategoryId;
 
+    /** Pass Boolean.TRUE to un-assign the subcategory back to Unclassified on every selected product. */
+    private Boolean clearSubcategory;
+
     private List<UUID> industryIds;
 
     private List<UUID> tagIds;

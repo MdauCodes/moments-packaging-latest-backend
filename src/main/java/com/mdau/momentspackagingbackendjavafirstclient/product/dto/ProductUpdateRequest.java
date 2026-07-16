@@ -56,5 +56,7 @@ public class ProductUpdateRequest {
 
     /** Real Segment/Category/Subcategory classification — optional, can also be set via Classify Products. */
     private UUID       subcategoryId;
+    /** Pass Boolean.TRUE to explicitly un-assign the subcategory back to Unclassified. */
+    private Boolean    clearSubcategory;
     private List<UUID> tagIds;
 }
