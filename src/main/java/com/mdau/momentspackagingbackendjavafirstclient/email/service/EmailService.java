@@ -5,6 +5,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.enquiry.entity.Enquiry;
 import com.mdau.momentspackagingbackendjavafirstclient.lead.entity.Lead;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocument;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -307,6 +308,19 @@ public class EmailService {
             log.error("Failed to send payment failed email for {}: {}",
                     order.getReference(), e.getMessage());
         }
+    }
+
+    /**
+     * Synchronous (not @Async) and throws on failure, unlike the order-status emails above —
+     * TaxDocumentService needs to know whether the send actually succeeded so it can set the
+     * TaxDocument's status to SENT or FAILED accordingly, rather than fire-and-forget.
+     */
+    public void sendTaxInvoiceReadyEmail(TaxDocument doc) throws Exception {
+        Context ctx = new Context(Locale.ENGLISH);
+        ctx.setVariable("order", doc.getOrder());
+        ctx.setVariable("pdfUrl", doc.getCloudinaryUrl());
+        String html = templateEngine.process("email/tax-invoice-ready", ctx);
+        sendHtml(doc.getRecipientEmail(), "Your tax invoice - " + doc.getOrder().getReference(), html);
     }
 
     private void sendOrderEmail(Order order, String template, String subject) {

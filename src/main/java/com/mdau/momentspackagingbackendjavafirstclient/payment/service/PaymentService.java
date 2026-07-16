@@ -41,6 +41,7 @@ public class PaymentService {
     private final InventoryService             inventoryService;
     private final InvoiceNumberGenerator       invoiceNumberGenerator;
     private final ReferralService              referralService;
+    private final com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service.TaxDocumentService taxDocumentService;
 
     // -- Initiate ---------------------------------------------------------
 
@@ -338,6 +339,15 @@ public class PaymentService {
 
         Order paidOrder = orderReader.loadFresh(order.getId());
         notificationService.onOrderPaid(paidOrder);
+
+        if (Boolean.TRUE.equals(paidOrder.getTaxInvoiceRequested())) {
+            try {
+                taxDocumentService.sendIfRequested(paidOrder);
+            } catch (Exception e) {
+                log.error("Tax invoice send failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
+            }
+        }
+
         log.info("Payment SUCCESS [{}] for order {}, receipt={}",
                 changedBy, order.getReference(), receiptNumber);
     }

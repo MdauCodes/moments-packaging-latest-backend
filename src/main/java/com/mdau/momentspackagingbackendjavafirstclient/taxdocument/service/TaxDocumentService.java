@@ -1,6 +1,7 @@
 package com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
+import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocument;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocumentStatus;
@@ -12,13 +13,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Phase 1 scope: create the TaxDocument row and get the PDF generated + uploaded to Cloudinary.
- * Emailing it (Phase 2) and the admin retry/WhatsApp-helper UI (Phase 3) build on top of this —
- * generateAndUpload() is deliberately re-triggerable from just the TaxDocument/Order (not a
- * one-shot tied to checkout) since Phase 3's retry needs to call the exact same path.
+ * Phase 1: create the TaxDocument row and get the PDF generated + uploaded to Cloudinary.
+ * Phase 2 (this file's sendIfRequested): triggered from PaymentService once payment succeeds —
+ * emails the Cloudinary link and flips status to SENT/FAILED. The admin retry/WhatsApp-helper UI
+ * (Phase 3) builds on top of this — generateAndUpload() and sendIfRequested() are both
+ * deliberately re-triggerable from just the Order/TaxDocument, not one-shot, since Phase 3's
+ * retry button needs to call the exact same paths.
  */
 @Slf4j
 @Service
@@ -28,6 +33,7 @@ public class TaxDocumentService {
     private final TaxDocumentRepository taxDocumentRepository;
     private final TaxInvoicePdfService taxInvoicePdfService;
     private final UploadService uploadService;
+    private final EmailService emailService;
 
     @Transactional
     public TaxDocument requestForOrder(Order order) {
@@ -71,6 +77,45 @@ public class TaxDocumentService {
             doc.setFailureReason(e.getMessage());
             taxDocumentRepository.save(doc);
             log.error("Tax invoice generation failed for order {}: {}", doc.getOrder().getReference(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Called from PaymentService once an order's payment succeeds. If checkout's initial
+     * generateAndUpload() failed (e.g. a transient Cloudinary hiccup), retries it here — payment
+     * confirmation often follows checkout by only seconds to minutes, so this is a natural
+     * second chance before giving up and requiring an admin to notice and retry manually.
+     */
+    @Transactional
+    public void sendIfRequested(Order order) {
+        Optional<TaxDocument> maybeDoc = taxDocumentRepository.findByOrder_Reference(order.getReference());
+        if (maybeDoc.isEmpty()) {
+            log.warn("Order {} has taxInvoiceRequested=true but no TaxDocument row exists", order.getReference());
+            return;
+        }
+        TaxDocument doc = maybeDoc.get();
+
+        if (doc.getCloudinaryUrl() == null) {
+            generateAndUpload(doc.getId());
+            doc = taxDocumentRepository.findById(doc.getId()).orElseThrow();
+        }
+        if (doc.getCloudinaryUrl() == null) {
+            // generateAndUpload already recorded the failure reason on the doc — nothing more to do here.
+            return;
+        }
+
+        try {
+            emailService.sendTaxInvoiceReadyEmail(doc);
+            doc.setStatus(TaxDocumentStatus.SENT);
+            doc.setSentAt(Instant.now());
+            doc.setFailureReason(null);
+            taxDocumentRepository.save(doc);
+            log.info("Tax invoice emailed for order {} to {}", order.getReference(), doc.getRecipientEmail());
+        } catch (Exception e) {
+            doc.setStatus(TaxDocumentStatus.FAILED);
+            doc.setFailureReason("Email send failed: " + e.getMessage());
+            taxDocumentRepository.save(doc);
+            log.error("Tax invoice email failed for order {}: {}", order.getReference(), e.getMessage(), e);
         }
     }
 }

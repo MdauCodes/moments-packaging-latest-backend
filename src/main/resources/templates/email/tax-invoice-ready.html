@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/>
+<style>
+body{font-family:Arial,sans-serif;background:#f5f0eb;margin:0;padding:0}
+.wrapper{max-width:580px;margin:40px auto;background:#fffdf9;border-radius:8px;overflow:hidden}
+.header{background:#2d5016;padding:28px 40px;text-align:center}
+.header h1{color:#f5f0eb;margin:0;font-size:20px;letter-spacing:1px}
+.header p{color:#c8e6c9;margin:6px 0 0;font-size:13px;letter-spacing:0.5px}
+.body{padding:36px 40px;color:#333}
+.ref{background:#f0ebe3;border-left:4px solid #2d5016;padding:12px 16px;margin:20px 0;font-size:18px;font-weight:bold;color:#2d5016}
+.cta{display:inline-block;background:#2d5016;color:#fff;text-decoration:none;padding:12px 28px;border-radius:24px;font-weight:bold;font-size:14px;margin:16px 0}
+.expiry{background:#fdf6e3;border:1px solid #e8d9a0;border-radius:4px;padding:12px 16px;margin:16px 0;font-size:13px;color:#7a6018}
+.footer{background:#f0ebe3;padding:16px 40px;text-align:center;font-size:12px;color:#888}
+a.link{color:#2d5016;font-weight:bold}
+</style></head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <h1>Moments Packaging Kenya</h1>
+    <p>Your tax invoice is ready</p>
+  </div>
+  <div class="body">
+    <p>Hi <strong th:text="${order.contactName}">Customer</strong>,</p>
+    <p>As requested, here's the tax invoice / VAT breakdown for your order:</p>
+    <div class="ref" th:text="${order.reference}">ORD-2026-05-0001</div>
+    <p style="text-align:center">
+      <a class="cta" th:href="${pdfUrl}" href="#">Download tax invoice (PDF)</a>
+    </p>
+    <div class="expiry">
+      This link is available for <strong>2 weeks</strong> from today. After that, contact us with
+      your order reference and we'll resend it.
+    </div>
+    <p style="font-size:12.5px;color:#666">
+      This is a tax invoice / VAT breakdown for your own record-keeping — Moments Packaging Kenya
+      is not yet integrated with KRA's eTIMS system, so this is not an eTIMS-verified receipt.
+    </p>
+    <p style="margin-top:24px">Have a question? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a> or WhatsApp <a class="link" href="https://wa.me/254733797412">+254 733 797 412</a></p>
+  </div>
+  <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a href="mailto:pkihara2008@gmail.com" style="color:#888">pkihara2008@gmail.com</a></div>
+</div>
+</body></html>
