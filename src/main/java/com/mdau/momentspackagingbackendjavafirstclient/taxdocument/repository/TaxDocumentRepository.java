@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxdocument.repository;
 
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocument;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocumentStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,4 +25,7 @@ public interface TaxDocumentRepository extends JpaRepository<TaxDocument, UUID> 
 
     /** Used by the weekly cleanup job — 2 weeks is measured from when the customer was emailed the link, not from checkout. */
     List<TaxDocument> findByStatusAndSentAtBefore(TaxDocumentStatus status, Instant cutoff);
+
+    /** Powers the customer-facing Documents tab — every tax invoice a customer has ever requested, across all their orders. */
+    Page<TaxDocument> findByOrder_CustomerOrderByCreatedAtDesc(User customer, Pageable pageable);
 }
