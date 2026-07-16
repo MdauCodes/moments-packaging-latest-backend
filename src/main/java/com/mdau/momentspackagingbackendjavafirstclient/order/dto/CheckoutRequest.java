@@ -44,6 +44,10 @@ public class CheckoutRequest {
     @Email(message = "Tax invoice email must be valid")
     private String taxInvoiceEmail;
 
+    /** Customer's own KRA PIN, printed on the tax invoice for their own remittance records. */
+    @Pattern(regexp = "^$|^[A-Za-z]\\d{9}[A-Za-z]$", message = "KRA PIN must be in the format A123456789Z")
+    private String taxInvoiceKraPin;
+
     /** Individual Shopper rewards points to redeem against this order — optional, capped server-side. */
     @Min(value = 1, message = "redeemPoints must be positive")
     private Integer redeemPoints;

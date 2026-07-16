@@ -225,6 +225,10 @@ public class CheckoutService {
                         ? (request.getTaxInvoiceEmail() != null && !request.getTaxInvoiceEmail().isBlank()
                                 ? request.getTaxInvoiceEmail() : request.getEmail())
                         : null)
+                .taxInvoiceKraPin(request.isTaxInvoiceRequested()
+                        && request.getTaxInvoiceKraPin() != null && !request.getTaxInvoiceKraPin().isBlank()
+                        ? request.getTaxInvoiceKraPin().toUpperCase()
+                        : null)
                 .build();
 
         // â”€â”€ Resolve items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

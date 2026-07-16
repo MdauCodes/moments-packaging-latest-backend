@@ -178,6 +178,10 @@ public class Order {
     @Column(name = "tax_invoice_email", length = 255)
     private String taxInvoiceEmail;
 
+    /** Customer's own KRA PIN (distinct from business.kraPin, which is Moments' seller PIN), printed on the tax invoice. */
+    @Column(name = "tax_invoice_kra_pin", length = 20)
+    private String taxInvoiceKraPin;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
