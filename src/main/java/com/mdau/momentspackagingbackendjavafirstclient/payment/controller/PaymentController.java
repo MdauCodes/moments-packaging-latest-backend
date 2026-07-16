@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mdau.momentspackagingbackendjavafirstclient.common.config.RateLimitConfig;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.*;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.service.DarajaService;
-import com.mdau.momentspackagingbackendjavafirstclient.payment.service.PayHeroService;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.service.PaymentService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -22,7 +21,6 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService  paymentService;
-    private final PayHeroService  payHeroService;
     private final DarajaService   darajaService;
     private final RateLimitConfig rateLimitConfig;
     private final ObjectMapper    objectMapper;
@@ -38,33 +36,6 @@ public class PaymentController {
     @GetMapping("/status/{orderId}")
     public ResponseEntity<PaymentStatusResponse> getStatus(@PathVariable UUID orderId) {
         return ResponseEntity.ok(paymentService.getPaymentStatus(orderId));
-    }
-
-    /**
-     * PayHero async callback — must return 200 regardless.
-     * Rejects (silently, still 200) any callback whose Authorization header
-     * doesn't match our PayHero API credentials — isValidCallback() already
-     * existed but was never actually invoked here, so every callback was
-     * processed unauthenticated.
-     */
-    @PostMapping("/payhero/callback")
-    public ResponseEntity<String> handlePayHeroCallback(
-            @RequestBody String rawJson,
-            @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        log.info("PayHero callback received. Auth header present: {}", authHeader != null);
-        log.debug("PayHero callback raw payload: {}", rawJson);
-        if (!payHeroService.isValidCallback(authHeader)) {
-            log.warn("PayHero callback rejected — Authorization header missing or invalid");
-            return ResponseEntity.ok("Callback received");
-        }
-        try {
-            PayHeroCallbackDto callback = objectMapper.readValue(rawJson, PayHeroCallbackDto.class);
-            paymentService.handleCallback(callback);
-            return ResponseEntity.ok("Callback processed");
-        } catch (Exception e) {
-            log.error("Failed to process PayHero callback: {}", e.getMessage());
-            return ResponseEntity.ok("Callback received");
-        }
     }
 
     /**

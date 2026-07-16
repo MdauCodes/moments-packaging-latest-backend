@@ -128,12 +128,6 @@ app:
   features:
     blogs-enabled: true
     email-capture-enabled: true
-  payhero:
-    api-username: ${PAYHERO_API_USERNAME:}
-    api-password: ${PAYHERO_API_PASSWORD:}
-    channel-id: ${PAYHERO_CHANNEL_ID:4260}
-    base-url: ${PAYHERO_BASE_URL:https://backend.payhero.co.ke/api/v2/payments}
-    callback-url: ${PAYHERO_CALLBACK_URL:https://your-domain.com/api/v1/payments/payhero/callback}
   daraja:
     consumer-key: ${DARAJA_CONSUMER_KEY:}
     consumer-secret: ${DARAJA_CONSUMER_SECRET:}

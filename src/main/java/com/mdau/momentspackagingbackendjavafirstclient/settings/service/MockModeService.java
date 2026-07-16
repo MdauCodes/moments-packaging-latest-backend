@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
  * Mock / Test Mode — controlled by SUPER_ADMIN only.
  *
  * When mock mode is ON, the system behaves EXACTLY like production:
- *   - Real M-Pesa / PayHero STK pushes are sent.
+ *   - Real M-Pesa (Daraja) STK pushes are sent.
  *   - Real emails and SMS are delivered.
  *   - All order, payment, checkout, and notification flows run normally.
  *   - Staff experience the full live customer journey end-to-end.

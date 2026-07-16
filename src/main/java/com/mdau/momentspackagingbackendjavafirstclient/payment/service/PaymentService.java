@@ -33,7 +33,6 @@ public class PaymentService {
     private final PaymentRecordRepository      paymentRecordRepository;
     private final OrderRepository              orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
-    private final PayHeroService               payHeroService;
     private final DarajaService                darajaService;
     private final NotificationService          notificationService;
     private final OrderReader                  orderReader;
@@ -203,25 +202,6 @@ public class PaymentService {
                 .status("COD_PENDING")
                 .message("Pay KES " + order.getTotalAmount() + " on delivery")
                 .amount(order.getTotalAmount()).build();
-    }
-
-    // -- PayHero Callback -------------------------------------------------
-
-    @Transactional
-    public void handleCallback(PayHeroCallbackDto callback) {
-        if (callback.getResponse() == null) {
-            log.error("PayHero callback has no response data");
-            return;
-        }
-        PayHeroCallbackDto.PayHeroCallbackResponse response = callback.getResponse();
-        processPaymentResult(
-                response.getCheckoutRequestId(),
-                response.getMerchantRequestId(),
-                response.getResultCode(),
-                response.getResultDesc(),
-                response.getMpesaReceiptNumber(),
-                "payhero-callback"
-        );
     }
 
     // -- Daraja Callback --------------------------------------------------

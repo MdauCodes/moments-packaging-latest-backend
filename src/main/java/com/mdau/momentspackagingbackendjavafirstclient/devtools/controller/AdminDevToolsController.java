@@ -42,6 +42,12 @@ public class AdminDevToolsController {
         return Map.of("checkoutRequestId", checkoutRequestId, "status", "SENT");
     }
 
+    @PostMapping("/stk-push-test/simulate-callback")
+    public Map<String, String> simulateCallback(@RequestBody SimulateCallbackRequest request) {
+        String message = devToolsService.simulateDarajaCallback(request.getCheckoutRequestId(), request.isSuccess());
+        return Map.of("message", message);
+    }
+
     @GetMapping("/tax-invoice-preview/{orderReference}")
     public ResponseEntity<byte[]> previewTaxInvoice(@PathVariable String orderReference) {
         byte[] pdf = devToolsService.previewTaxInvoice(orderReference);
@@ -59,5 +65,13 @@ public class AdminDevToolsController {
         @NotNull
         @Positive
         private BigDecimal amount;
+    }
+
+    @Getter
+    @Setter
+    public static class SimulateCallbackRequest {
+        @NotBlank
+        private String checkoutRequestId;
+        private boolean success;
     }
 }

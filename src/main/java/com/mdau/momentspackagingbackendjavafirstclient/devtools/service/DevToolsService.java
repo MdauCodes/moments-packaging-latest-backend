@@ -8,7 +8,9 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.order.service.DeliveryZoneService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.service.PromoCodeService;
-import com.mdau.momentspackagingbackendjavafirstclient.payment.service.PayHeroService;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.dto.DarajaCallbackDto;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.service.DarajaService;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.service.PaymentService;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service.TaxInvoicePdfService;
@@ -38,7 +40,8 @@ public class DevToolsService {
     private final ProductRepository    productRepository;
     private final DeliveryZoneService  deliveryZoneService;
     private final PromoCodeService     promoCodeService;
-    private final PayHeroService       payHeroService;
+    private final DarajaService        darajaService;
+    private final PaymentService       paymentService;
     private final OrderRepository      orderRepository;
     private final TaxInvoicePdfService taxInvoicePdfService;
 
@@ -118,13 +121,54 @@ public class DevToolsService {
     }
 
     /**
-     * Fires a real STK push via PayHero with a synthetic external_reference — no PaymentRecord or
-     * Order is ever created, so the eventual callback (whatever the tester does on their phone)
+     * Fires a real STK push via Daraja (the live M-Pesa integration — there is no PayHero
+     * fallback anymore) with a synthetic external_reference. No PaymentRecord or Order is ever
+     * created, so the eventual real Safaricom callback (whatever the tester does on their phone)
      * finds no matching record and safely no-ops (see PaymentService.processPaymentResult).
+     * Returns the real Daraja CheckoutRequestID so the caller can also exercise
+     * simulateDarajaCallback() against it.
      */
     public String testStkPush(String phone, BigDecimal amount) {
         String testReference = "DEV-TEST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        return payHeroService.initiateSTKPush(phone, amount, testReference);
+        return darajaService.initiateSTKPush(phone, amount, testReference);
+    }
+
+    /**
+     * Builds and feeds a synthetic Daraja STK callback payload straight into
+     * PaymentService.handleDarajaCallback — the exact same code path Safaricom's real callback
+     * hits — without going through the public HTTP endpoint or its secret-path check. Since no
+     * PaymentRecord was ever created for a dev-tools checkoutRequestId, this always resolves to
+     * the "no matching record" no-op branch: it proves the callback handler parses the payload
+     * and returns cleanly for both success and failure result codes without writing to any real
+     * Order/PaymentRecord.
+     */
+    public String simulateDarajaCallback(String checkoutRequestId, boolean success) {
+        DarajaCallbackDto callback = new DarajaCallbackDto();
+        DarajaCallbackDto.Body body = new DarajaCallbackDto.Body();
+        DarajaCallbackDto.StkCallback stk = new DarajaCallbackDto.StkCallback();
+        stk.setCheckoutRequestId(checkoutRequestId);
+        stk.setMerchantRequestId("DEV-TEST-MERCHANT-REQ");
+        if (success) {
+            stk.setResultCode(0);
+            stk.setResultDesc("The service request is processed successfully.");
+            DarajaCallbackDto.CallbackMetadata metadata = new DarajaCallbackDto.CallbackMetadata();
+            DarajaCallbackDto.MetadataItem receiptItem = new DarajaCallbackDto.MetadataItem();
+            receiptItem.setName("MpesaReceiptNumber");
+            receiptItem.setValue("DEV" + UUID.randomUUID().toString().substring(0, 6).toUpperCase());
+            metadata.setItem(List.of(receiptItem));
+            stk.setCallbackMetadata(metadata);
+        } else {
+            stk.setResultCode(1032);
+            stk.setResultDesc("Request cancelled by user.");
+        }
+        body.setStkCallback(stk);
+        callback.setBody(body);
+
+        paymentService.handleDarajaCallback(callback);
+        return "Callback processed for checkoutRequestId=" + checkoutRequestId
+                + " (resultCode=" + stk.getResultCode() + "). No PaymentRecord existed for this "
+                + "dev-tools push, so PaymentService safely logged a \"no matching record\" "
+                + "warning and made no database changes — that's the expected, correct behavior.";
     }
 
     /**
