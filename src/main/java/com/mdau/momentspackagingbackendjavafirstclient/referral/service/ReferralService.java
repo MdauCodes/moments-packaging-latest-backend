@@ -346,11 +346,25 @@ public class ReferralService {
 
     // ── Customer endpoints ────────────────────────────────────────────────────
 
-    @Transactional(readOnly = true)
+    /**
+     * Self-healing: accounts created before the rewards program was unlocked (or before this
+     * feature existed at all) never got a ReferralCode row from initializeNewUser, since that
+     * only runs once, at registration time. Rather than 404 those accounts forever, generate
+     * their code lazily on first request here — same generation logic initializeNewUser uses.
+     */
+    @Transactional
     public ReferralCodeDto getMyReferralCode(User user) {
         assertFeatureAvailable();
-        ReferralCode rc = referralCodeRepo.findByUser(user)
-                .orElseThrow(() -> new ResourceNotFoundException("Referral code not found"));
+        ReferralCode rc = referralCodeRepo.findByUser(user).orElseGet(() -> {
+            ReferralCode created = ReferralCode.builder()
+                    .user(user)
+                    .code(generateUniqueCode(user))
+                    .isActive(true)
+                    .build();
+            referralCodeRepo.save(created);
+            log.info("Backfilled referral code {} for pre-existing account {}", created.getCode(), user.getEmail());
+            return created;
+        });
         return new ReferralCodeDto(rc, frontendUrl);
     }
 
