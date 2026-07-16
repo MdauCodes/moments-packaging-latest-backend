@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -97,6 +98,32 @@ public class TaxDocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tax document not found: " + taxDocumentId));
         sendIfRequested(doc.getOrder());
         return taxDocumentRepository.findById(taxDocumentId).orElseThrow();
+    }
+
+    /**
+     * Phase 4 — called weekly by TaxDocumentCleanupJob. Deletes the Cloudinary asset for every
+     * SENT document whose email went out more than 2 weeks ago (matching the "available for 2
+     * weeks" promise in the email itself) and flips it to EXPIRED. Recoverable afterwards only
+     * via the admin retry button, which regenerates a fresh PDF from the order.
+     */
+    @Transactional
+    public int expireOldSentDocuments() {
+        Instant cutoff = Instant.now().minus(14, java.time.temporal.ChronoUnit.DAYS);
+        List<TaxDocument> due = taxDocumentRepository.findByStatusAndSentAtBefore(TaxDocumentStatus.SENT, cutoff);
+        for (TaxDocument doc : due) {
+            try {
+                if (doc.getCloudinaryPublicId() != null) {
+                    uploadService.deleteRaw(doc.getCloudinaryPublicId());
+                }
+                doc.setCloudinaryUrl(null);
+                doc.setCloudinaryPublicId(null);
+                doc.setStatus(TaxDocumentStatus.EXPIRED);
+                taxDocumentRepository.save(doc);
+            } catch (Exception e) {
+                log.error("Failed to expire tax document {} (order {}): {}", doc.getId(), doc.getOrder().getReference(), e.getMessage(), e);
+            }
+        }
+        return due.size();
     }
 
     private TaxDocument requireByReferenceAndToken(String orderReference, String token) {

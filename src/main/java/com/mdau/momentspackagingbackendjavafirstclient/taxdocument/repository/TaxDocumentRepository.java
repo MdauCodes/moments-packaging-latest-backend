@@ -21,4 +21,7 @@ public interface TaxDocumentRepository extends JpaRepository<TaxDocument, UUID> 
     Optional<TaxDocument> findByOrder_Reference(String orderReference);
 
     List<TaxDocument> findByStatusAndCreatedAtBefore(TaxDocumentStatus status, Instant cutoff);
+
+    /** Used by the weekly cleanup job — 2 weeks is measured from when the customer was emailed the link, not from checkout. */
+    List<TaxDocument> findByStatusAndSentAtBefore(TaxDocumentStatus status, Instant cutoff);
 }
