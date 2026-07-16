@@ -56,9 +56,8 @@ public class AdminIndustryController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(
             @PathVariable UUID id,
-            @RequestParam(required = false) UUID reassignTo,
-            @RequestParam(required = false, defaultValue = "false") boolean cascade) {
-        industryService.deleteIndustry(id, reassignTo, cascade);
+            @RequestParam(required = false) UUID reassignTo) {
+        industryService.deleteIndustry(id, reassignTo);
         return ResponseEntity.noContent().build();
     }
 }

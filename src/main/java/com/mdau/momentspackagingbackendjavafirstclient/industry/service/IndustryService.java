@@ -9,6 +9,8 @@ import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
 import com.mdau.momentspackagingbackendjavafirstclient.industry.repository.IndustryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Category;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -27,6 +29,7 @@ public class IndustryService {
 
     private final IndustryRepository industryRepository;
     private final ProductRepository productRepository;
+    private final CategoryRepository categoryRepository;
 
     @Cacheable("industries")
     @Transactional(readOnly = true)
@@ -75,40 +78,40 @@ public class IndustryService {
     }
 
     /**
-     * @param reassignTo if products are still tagged with this industry and this is set,
-     *                    they're re-tagged with the other industry first instead of
-     *                    blocking the delete.
-     * @param cascade     if products are still tagged with this industry and this is true
-     *                    (and reassignTo isn't set), the tag is simply removed from those
-     *                    products — the products themselves are never touched otherwise.
+     * Deleting an industry only ever deletes the industry itself. Every product and category
+     * tagged with it simply loses that one tag — nothing else about them changes, and nothing
+     * is ever deleted as a side effect. Pass reassignTo to re-tag everything with a replacement
+     * industry instead of just untagging.
      */
     @CacheEvict(value = "industries", allEntries = true)
     @Transactional
-    public void deleteIndustry(UUID id, UUID reassignTo, boolean cascade) {
+    public void deleteIndustry(UUID id, UUID reassignTo) {
         Industry industry = industryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Industry not found: " + id));
 
-        List<Product> tagged = productRepository.findByIndustries_IdAndDeletedFalse(id);
-        if (!tagged.isEmpty()) {
-            if (reassignTo != null) {
-                if (reassignTo.equals(id)) {
-                    throw new ConflictException("Cannot reassign an industry's products to itself.");
-                }
-                Industry target = industryRepository.findById(reassignTo)
-                        .orElseThrow(() -> new ResourceNotFoundException("Reassignment target industry not found: " + reassignTo));
-                tagged.forEach(p -> {
-                    p.getIndustries().remove(industry);
-                    p.getIndustries().add(target);
-                });
-                productRepository.saveAll(tagged);
-            } else if (cascade) {
-                tagged.forEach(p -> p.getIndustries().remove(industry));
-                productRepository.saveAll(tagged);
-            } else {
-                throw new ConflictException(
-                        "Cannot delete industry: " + tagged.size() + " products are still tagged with it. Reassign or untag them first.");
+        List<Product> taggedProducts = productRepository.findByIndustries_IdAndDeletedFalse(id);
+        List<Category> taggedCategories = categoryRepository.findByIndustries_Id(id);
+
+        if (reassignTo != null) {
+            if (reassignTo.equals(id)) {
+                throw new ConflictException("Cannot reassign an industry's products to itself.");
             }
+            Industry target = industryRepository.findById(reassignTo)
+                    .orElseThrow(() -> new ResourceNotFoundException("Reassignment target industry not found: " + reassignTo));
+            taggedProducts.forEach(p -> {
+                p.getIndustries().remove(industry);
+                p.getIndustries().add(target);
+            });
+            taggedCategories.forEach(c -> {
+                c.getIndustries().remove(industry);
+                c.getIndustries().add(target);
+            });
+        } else {
+            taggedProducts.forEach(p -> p.getIndustries().remove(industry));
+            taggedCategories.forEach(c -> c.getIndustries().remove(industry));
         }
+        productRepository.saveAll(taggedProducts);
+        categoryRepository.saveAll(taggedCategories);
         industryRepository.delete(industry);
     }
 }
