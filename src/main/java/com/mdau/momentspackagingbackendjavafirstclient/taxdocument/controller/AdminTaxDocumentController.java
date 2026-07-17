@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -31,6 +32,7 @@ public class AdminTaxDocumentController {
     private final TaxInvoicePdfService  taxInvoicePdfService;
 
     @GetMapping
+    @Transactional(readOnly = true)
     public Page<TaxDocumentAdminDto> list(
             @RequestParam(required = false) TaxDocumentStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -52,6 +54,7 @@ public class AdminTaxDocumentController {
      * been deleted by the weekly cleanup job, since it never depends on that asset existing.
      */
     @GetMapping("/{id}/preview")
+    @Transactional(readOnly = true)
     public ResponseEntity<byte[]> preview(@PathVariable UUID id) {
         TaxDocument doc = taxDocumentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tax document not found: " + id));
