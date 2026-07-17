@@ -65,10 +65,22 @@ public class JwtService {
                 claims.put("accountType", user.getAccountType().name());
             }
 
-            // Legacy roles for backward compat
-            claims.put("roles", user.getRoles().stream()
+            // Legacy roles for backward compat — mirrors User.getAuthorities() so an ADMIN/SUPER_ADMIN
+            // staffRole always yields ROLE_ADMIN here too, even if the stored `roles` set drifted out
+            // of sync (it's only written at account create/update time, not self-healing).
+            java.util.Set<String> effectiveRoles = user.getRoles().stream()
                     .map(Enum::name)
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+            if (user.getStaffRole() != null) {
+                String staffRoleName = user.getStaffRole().getName();
+                if ("SUPER_ADMIN".equals(staffRoleName)) {
+                    effectiveRoles.add("ROLE_SUPER_ADMIN");
+                    effectiveRoles.add("ROLE_ADMIN");
+                } else if ("ADMIN".equals(staffRoleName)) {
+                    effectiveRoles.add("ROLE_ADMIN");
+                }
+            }
+            claims.put("roles", new java.util.ArrayList<>(effectiveRoles));
 
             // Staff role name — frontend uses this for dashboard routing
             if (user.getStaffRole() != null) {

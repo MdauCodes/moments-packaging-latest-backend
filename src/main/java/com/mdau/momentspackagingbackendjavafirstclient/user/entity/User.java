@@ -142,9 +142,14 @@ public class User extends BaseEntity implements UserDetails {
                     authorities.add(new SimpleGrantedAuthority("PERM_" + permission.name())));
         }
 
-        // Add SUPER_ADMIN authority if staffRole name matches
+        // Derive ROLE_ADMIN straight from staffRole rather than relying on the legacy `roles`
+        // set staying in sync — that set is only written at account create/update time, so any
+        // ADMIN-tier staff account created or edited outside that path could otherwise end up
+        // missing delete authority despite having the right staffRole.
         if (staffRole != null && "SUPER_ADMIN".equals(staffRole.getName())) {
             authorities.add(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        } else if (staffRole != null && "ADMIN".equals(staffRole.getName())) {
             authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
         }
 
