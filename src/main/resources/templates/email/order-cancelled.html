@@ -19,10 +19,10 @@ a.link{color:#2d5016;font-weight:bold}
     <p>Your order has been cancelled.</p>
     <div class="ref" th:text="${order.reference}">ORD-2026-05-0001</div>
     <p>If you have any questions or would like to place a new order, please reach out to us.</p>
-    <p>WhatsApp: <a class="link" href="https://wa.me/254733797412">+254733797412</a></p>
-    <p>Email: <a class="link" href="mailto:pkihara2008@gmail.com">pkihara2008@gmail.com</a></p>
+    <p>WhatsApp: <a class="link" th:href="'https://wa.me/' + ${companyWhatsapp}" th:text="'+' + ${companyWhatsapp}">+254119556688</a></p>
+    <p>Email: <a class="link" th:href="'mailto:' + ${companyEmail}" th:text="${companyEmail}">info@momentspackaging.com</a></p>
     <p style="margin-top:24px">Or <a class="link" href="https://www.momentspackaging.com/customers/enquiries">send us an enquiry here</a></p>
   </div>
-  <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a href="mailto:pkihara2008@gmail.com" style="color:#888">pkihara2008@gmail.com</a></div>
+  <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>
 </div>
 </body></html>

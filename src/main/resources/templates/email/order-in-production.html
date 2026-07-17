@@ -23,6 +23,6 @@ a.link{color:#2d5016;font-weight:bold}
     <p>Track your order at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
     <p style="margin-top:24px">Have a question about your order? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a> and our team will get back to you shortly.</p>
   </div>
-  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; <a href="mailto:info@momentspackaging.com" style="color:#888">info@momentspackaging.com</a></div>
+  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>
 </div>
 </body></html>

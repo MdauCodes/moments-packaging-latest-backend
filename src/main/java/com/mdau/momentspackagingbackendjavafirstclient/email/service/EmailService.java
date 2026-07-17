@@ -58,6 +58,25 @@ public class EmailService {
     @Value("${app.email.use-brevo-api:true}")
     private boolean useBrevoApi;
 
+    // Same values the frontend footer/WhatsApp button use (app.company.*), so every email's
+    // footer matches what a customer already sees on the site instead of a separately
+    // hardcoded (and easily stale) number/address per template.
+    @Value("${app.company.email}")
+    private String companyEmail;
+
+    @Value("${app.company.phone}")
+    private String companyPhone;
+
+    @Value("${app.company.whatsapp-number}")
+    private String companyWhatsapp;
+
+    /** Sets the footer contact variables every customer-facing email template reads. */
+    private void addCompanyContext(Context ctx) {
+        ctx.setVariable("companyEmail", companyEmail);
+        ctx.setVariable("companyPhone", companyPhone);
+        ctx.setVariable("companyWhatsapp", companyWhatsapp);
+    }
+
     // ---- Staff invite & password reset ----
 
     @Async
@@ -135,6 +154,7 @@ public class EmailService {
     public void sendOtpEmail(User user, String otp) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
             ctx.setVariable("firstName", user.getFirstName());
             ctx.setVariable("otp", otp);
             String html = templateEngine.process("email/otp-verification", ctx);
@@ -148,6 +168,7 @@ public class EmailService {
     public void sendPasswordResetOtpEmail(User user, String otp) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
             ctx.setVariable("firstName", user.getFirstName());
             ctx.setVariable("otp", otp);
             String html = templateEngine.process("email/password-reset", ctx);
@@ -161,6 +182,7 @@ public class EmailService {
     public void sendWelcomeEmail(User user) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
             ctx.setVariable("firstName", user.getFirstName());
             String html = templateEngine.process("email/welcome", ctx);
             sendHtml(user.getEmail(), "Welcome to Moments Packaging Kenya!", html);
@@ -200,6 +222,7 @@ public class EmailService {
     public void sendEnquiryAcknowledgement(Enquiry enquiry) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
             ctx.setVariable("name", enquiry.getContactName());
             String html = templateEngine.process("email/enquiry-received", ctx);
             sendHtml(enquiry.getEmail(),
@@ -299,6 +322,7 @@ public class EmailService {
     public void sendPaymentFailedEmail(Order order, String failureReason) {
         try {
             Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
             ctx.setVariable("order", order);
             ctx.setVariable("failureReason", failureReason);
             String html = templateEngine.process("email/payment-failed", ctx);
@@ -317,6 +341,7 @@ public class EmailService {
      */
     public void sendTaxInvoiceReadyEmail(TaxDocument doc) throws Exception {
         Context ctx = new Context(Locale.ENGLISH);
+        addCompanyContext(ctx);
         ctx.setVariable("order", doc.getOrder());
         ctx.setVariable("pdfUrl", doc.getCloudinaryUrl());
         String html = templateEngine.process("email/tax-invoice-ready", ctx);
@@ -337,6 +362,7 @@ public class EmailService {
                 org.hibernate.Hibernate.initialize(order.getCustomer());
             }
             Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
             ctx.setVariable("order", order);
             String html = templateEngine.process(template, ctx);
             sendHtml(order.getEmail(), subject, html);

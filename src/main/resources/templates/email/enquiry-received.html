@@ -19,6 +19,6 @@ a.link{color:#2d5016;font-weight:bold}
     <p>In the meantime, feel free to browse our products or submit another question at <a class="link" href="https://www.momentspackaging.com/customers/enquiries">momentspackaging.com/customers/enquiries</a>.</p>
     <p>Talk soon,<br/><strong>Moments Packaging Kenya Team</strong></p>
   </div>
-  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; <a href="mailto:info@momentspackaging.com" style="color:#888">info@momentspackaging.com</a></div>
+  <div class="footer">&copy; 2025 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>
 </div>
 </body></html>

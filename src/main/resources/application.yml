@@ -121,10 +121,9 @@ app:
     brevo-api-url: https://api.brevo.com/v3/smtp/email
     use-brevo-api: ${USE_BREVO_API:true}
   company:
-    whatsapp-number: "+254733797412"
-#    email: pkihara2008@gmail.com
+    whatsapp-number: "254119556688"
     email: info@momentspackaging.com
-    phone: "+254733797412"
+    phone: "+254119556688"
   features:
     blogs-enabled: true
     email-capture-enabled: true

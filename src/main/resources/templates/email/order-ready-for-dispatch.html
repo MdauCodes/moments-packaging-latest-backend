@@ -20,9 +20,9 @@ a.link{color:#2d5016;font-weight:bold}
     <div class="ref" th:text="${order.reference}">ORD-2026-05-0001</div>
     <p>Our delivery team will pick it up shortly and you will receive another update once it is on its way.</p>
     <p>Track your order at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
-    <p>Questions? WhatsApp us: <a class="link" href="https://wa.me/254733797412">+254733797412</a></p>
+    <p>Questions? WhatsApp us: <a class="link" th:href="'https://wa.me/' + ${companyWhatsapp}" th:text="'+' + ${companyWhatsapp}">+254119556688</a></p>
     <p style="margin-top:24px">Or <a class="link" href="https://www.momentspackaging.com/customers/enquiries">send us an enquiry here</a></p>
   </div>
-  <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a href="mailto:pkihara2008@gmail.com" style="color:#888">pkihara2008@gmail.com</a></div>
+  <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>
 </div>
 </body></html>
