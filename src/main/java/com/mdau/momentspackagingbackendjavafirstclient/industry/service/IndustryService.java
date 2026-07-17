@@ -92,7 +92,9 @@ public class IndustryService {
         Industry industry = industryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Industry not found: " + id));
 
-        List<Product> taggedProducts = productRepository.findByIndustries_IdAndDeletedFalse(id);
+        // Not the AndDeletedFalse variant — a soft-deleted product still holding a product_industries
+        // row would otherwise survive untagging and block the FK delete below.
+        List<Product> taggedProducts = productRepository.findByIndustries_Id(id);
         List<Category> taggedCategories = categoryRepository.findByIndustries_Id(id);
         List<Subcategory> taggedSubcategories = subcategoryRepository.findByIndustries_Id(id);
 

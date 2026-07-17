@@ -5,6 +5,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.dto.OrderDto;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,8 +31,11 @@ public class OrderReader {
         // Force-initialize lazy collections while session is open
         order.getItems().size();
         order.getStatusHistory().size();
+        // Hibernate special-cases the @Id getter on a lazy proxy to avoid a DB round-trip, so
+        // calling .getId() alone does NOT initialize it — must use Hibernate.initialize() directly,
+        // or the proxy is still unresolved once this leaves the transaction (e.g. for async emails).
         if (order.getCustomer() != null) {
-            order.getCustomer().getId(); // touch to initialize proxy
+            Hibernate.initialize(order.getCustomer());
         }
         return order;
     }

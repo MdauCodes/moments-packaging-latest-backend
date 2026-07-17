@@ -178,4 +178,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findByIndustries_IdAndDeletedFalse(UUID industryId);
 
+    /** Includes soft-deleted products — used when untagging an industry so no stale product_industries row survives to block the FK delete. */
+    List<Product> findByIndustries_Id(UUID industryId);
+
 }
