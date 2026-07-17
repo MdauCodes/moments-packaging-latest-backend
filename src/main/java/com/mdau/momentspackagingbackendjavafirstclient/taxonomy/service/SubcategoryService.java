@@ -3,6 +3,8 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.util.SlugUtil;
+import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
+import com.mdau.momentspackagingbackendjavafirstclient.industry.repository.IndustryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.dto.SubcategoryCreateRequest;
@@ -18,7 +20,11 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,6 +36,7 @@ public class SubcategoryService {
     private final SubcategoryRepository subcategoryRepository;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final IndustryRepository industryRepository;
 
     @Cacheable("subcategories")
     @Transactional(readOnly = true)
@@ -48,18 +55,33 @@ public class SubcategoryService {
                 .collect(Collectors.toList());
     }
 
-    /** Subcategories don't carry their own industry tag — they inherit it from their parent Category. */
+    /**
+     * A subcategory shows up under an industry either because it's directly tagged with it, or
+     * because it inherits the tag from its parent Category — union of both, deduplicated by id.
+     */
     @Transactional(readOnly = true)
     public List<SubcategoryDto> getByIndustry(UUID industryId) {
         List<UUID> categoryIds = categoryRepository.findByIndustries_Id(industryId)
                 .stream()
                 .map(Category::getId)
                 .collect(Collectors.toList());
-        if (categoryIds.isEmpty()) return List.of();
-        return subcategoryRepository.findByCategoryIdIn(categoryIds)
-                .stream()
-                .map(SubcategoryDto::new)
-                .collect(Collectors.toList());
+
+        Map<UUID, Subcategory> byId = new LinkedHashMap<>();
+        if (!categoryIds.isEmpty()) {
+            subcategoryRepository.findByCategoryIdIn(categoryIds).forEach(sc -> byId.put(sc.getId(), sc));
+        }
+        subcategoryRepository.findByIndustries_Id(industryId).forEach(sc -> byId.put(sc.getId(), sc));
+
+        return byId.values().stream().map(SubcategoryDto::new).collect(Collectors.toList());
+    }
+
+    private Set<Industry> resolveIndustries(List<UUID> industryIds) {
+        Set<Industry> industries = new HashSet<>();
+        for (UUID industryId : industryIds) {
+            industries.add(industryRepository.findById(industryId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Industry not found: " + industryId)));
+        }
+        return industries;
     }
 
     @Transactional(readOnly = true)
@@ -84,6 +106,7 @@ public class SubcategoryService {
                 .slug(slug)
                 .description(request.getDescription())
                 .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
+                .industries(request.getIndustryIds() != null ? resolveIndustries(request.getIndustryIds()) : new HashSet<>())
                 .build();
         return new SubcategoryDto(subcategoryRepository.save(subcategory));
     }
@@ -104,6 +127,7 @@ public class SubcategoryService {
         }
         if (request.getDescription() != null) subcategory.setDescription(request.getDescription());
         if (request.getSortOrder()   != null) subcategory.setSortOrder(request.getSortOrder());
+        if (request.getIndustryIds() != null) subcategory.setIndustries(resolveIndustries(request.getIndustryIds()));
         return new SubcategoryDto(subcategoryRepository.save(subcategory));
     }
 

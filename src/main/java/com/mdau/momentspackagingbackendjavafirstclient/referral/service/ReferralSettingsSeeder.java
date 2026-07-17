@@ -35,14 +35,15 @@ public class ReferralSettingsSeeder implements ApplicationRunner {
                 "Max pending referrals one user can have at a time");
 
         // Individual Shopper rewards program — same wallet/ledger, new earning triggers.
-        seedIfAbsent("rewards.welcome.points", "100",
-                "Points awarded when an Individual Shopper Account is opened");
+        seedIfAbsent("rewards.welcome.points", "1000",
+                "Points awarded when an account is opened");
         seedIfAbsent("rewards.review.points", "50",
                 "Points awarded for submitting a product review");
         seedIfAbsent("rewards.points.per.100kes", "1",
                 "Points earned per KES 100 spent on a paid order (Individual Shopper accounts only)");
 
         launchRewardsProgramOnce();
+        raiseWelcomeBonusTo1000Once();
         log.info("Referral settings seeded");
     }
 
@@ -65,6 +66,24 @@ public class ReferralSettingsSeeder implements ApplicationRunner {
                 .description("Internal — marks that the Individual Shopper rewards launch flip has run. Do not edit.")
                 .build());
         log.info("Rewards program launched: referral.feature.unlocked and referral.program.enabled set to true");
+    }
+
+    /**
+     * seedIfAbsent only sets rewards.welcome.points on a fresh install — this DB already has a
+     * row (old value 100), so it needs a one-time forced bump, tracked by its own sentinel so it
+     * never fights an admin who later changes it again via the Settings UI.
+     */
+    private void raiseWelcomeBonusTo1000Once() {
+        String sentinelKey = "rewards.welcome.points.1000.migration.done";
+        if (settingRepository.findByKey(sentinelKey).isPresent()) return;
+
+        forceSet("rewards.welcome.points", "1000");
+        settingRepository.save(AppSetting.builder()
+                .key(sentinelKey)
+                .value("true")
+                .description("Internal — marks that the one-time bump of rewards.welcome.points to 1000 has run. Do not edit.")
+                .build());
+        log.info("Welcome bonus raised to 1000 points");
     }
 
     private void forceSet(String key, String value) {

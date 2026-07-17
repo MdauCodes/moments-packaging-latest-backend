@@ -1,8 +1,11 @@
 package com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity;
 
+import com.mdau.momentspackagingbackendjavafirstclient.industry.entity.Industry;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -46,4 +49,20 @@ public class Subcategory {
     @Column(name = "sort_order", nullable = false)
     @Builder.Default
     private Integer sortOrder = 0;
+
+    /**
+     * Direct industry tags, independent of the parent Category's own industries — a subcategory
+     * can be relevant to an industry its category isn't (or vice versa). Mirrors Category's own
+     * industries field/join-table pattern. Product-industry matching and the browse directory
+     * union this with what's inherited via the parent Category (see ProductRepository and
+     * SubcategoryService.getByIndustry).
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "subcategory_industries",
+        joinColumns        = @JoinColumn(name = "subcategory_id"),
+        inverseJoinColumns = @JoinColumn(name = "industry_id")
+    )
+    @Builder.Default
+    private Set<Industry> industries = new HashSet<>();
 }

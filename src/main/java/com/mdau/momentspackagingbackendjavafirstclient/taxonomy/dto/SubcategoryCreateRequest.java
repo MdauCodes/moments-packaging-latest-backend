@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -19,4 +20,6 @@ public class SubcategoryCreateRequest {
 
     private String description;
     private Integer sortOrder;
+    /** Null means "don't touch industries" on update; empty list clears them. Optional on create. */
+    private List<UUID> industryIds;
 }

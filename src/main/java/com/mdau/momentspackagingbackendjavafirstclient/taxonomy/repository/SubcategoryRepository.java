@@ -21,4 +21,6 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, UUID> 
     List<Subcategory> findByCategoryIdIn(Collection<UUID> categoryIds);
 
     long countByCategoryId(UUID categoryId);
+
+    List<Subcategory> findByIndustries_Id(UUID industryId);
 }

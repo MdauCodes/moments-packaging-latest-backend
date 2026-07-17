@@ -10,7 +10,9 @@ import com.mdau.momentspackagingbackendjavafirstclient.industry.repository.Indus
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Category;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.entity.Subcategory;
 import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.CategoryRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.taxonomy.repository.SubcategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -30,6 +32,7 @@ public class IndustryService {
     private final IndustryRepository industryRepository;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final SubcategoryRepository subcategoryRepository;
 
     @Cacheable("industries")
     @Transactional(readOnly = true)
@@ -78,10 +81,10 @@ public class IndustryService {
     }
 
     /**
-     * Deleting an industry only ever deletes the industry itself. Every product and category
-     * tagged with it simply loses that one tag — nothing else about them changes, and nothing
-     * is ever deleted as a side effect. Pass reassignTo to re-tag everything with a replacement
-     * industry instead of just untagging.
+     * Deleting an industry only ever deletes the industry itself. Every product, category and
+     * subcategory tagged with it simply loses that one tag — nothing else about them changes,
+     * and nothing is ever deleted as a side effect. Pass reassignTo to re-tag everything with a
+     * replacement industry instead of just untagging.
      */
     @CacheEvict(value = "industries", allEntries = true)
     @Transactional
@@ -91,6 +94,7 @@ public class IndustryService {
 
         List<Product> taggedProducts = productRepository.findByIndustries_IdAndDeletedFalse(id);
         List<Category> taggedCategories = categoryRepository.findByIndustries_Id(id);
+        List<Subcategory> taggedSubcategories = subcategoryRepository.findByIndustries_Id(id);
 
         if (reassignTo != null) {
             if (reassignTo.equals(id)) {
@@ -106,12 +110,18 @@ public class IndustryService {
                 c.getIndustries().remove(industry);
                 c.getIndustries().add(target);
             });
+            taggedSubcategories.forEach(sc -> {
+                sc.getIndustries().remove(industry);
+                sc.getIndustries().add(target);
+            });
         } else {
             taggedProducts.forEach(p -> p.getIndustries().remove(industry));
             taggedCategories.forEach(c -> c.getIndustries().remove(industry));
+            taggedSubcategories.forEach(sc -> sc.getIndustries().remove(industry));
         }
         productRepository.saveAll(taggedProducts);
         categoryRepository.saveAll(taggedCategories);
+        subcategoryRepository.saveAll(taggedSubcategories);
         industryRepository.delete(industry);
     }
 }

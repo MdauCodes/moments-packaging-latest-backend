@@ -31,9 +31,10 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
         LEFT JOIN p.subcategory sc
         LEFT JOIN sc.category cat
         LEFT JOIN cat.industries ci
+        LEFT JOIN sc.industries si
         WHERE p.deleted = false
         AND p.risellerSuspended = false
-        AND (:industryId IS NULL OR i.id = :industryId OR ci.id = :industryId)
+        AND (:industryId IS NULL OR i.id = :industryId OR ci.id = :industryId OR si.id = :industryId)
         AND (:tagId IS NULL OR t.id = :tagId)
         AND (:isDiscount IS NULL OR p.isDiscount = :isDiscount)
         AND (:isNewArrival IS NULL OR p.isNewArrival = :isNewArrival)
