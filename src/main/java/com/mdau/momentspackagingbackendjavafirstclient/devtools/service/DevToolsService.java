@@ -4,6 +4,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.common.exception.Resource
 import com.mdau.momentspackagingbackendjavafirstclient.devtools.dto.CheckoutDryRunItem;
 import com.mdau.momentspackagingbackendjavafirstclient.devtools.dto.CheckoutDryRunRequest;
 import com.mdau.momentspackagingbackendjavafirstclient.devtools.dto.CheckoutDryRunResult;
+import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.order.service.DeliveryZoneService;
@@ -13,7 +14,10 @@ import com.mdau.momentspackagingbackendjavafirstclient.payment.service.DarajaSer
 import com.mdau.momentspackagingbackendjavafirstclient.payment.service.PaymentService;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocument;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service.TaxInvoicePdfService;
+import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadResponse;
+import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -44,6 +48,8 @@ public class DevToolsService {
     private final PaymentService       paymentService;
     private final OrderRepository      orderRepository;
     private final TaxInvoicePdfService taxInvoicePdfService;
+    private final UploadService        uploadService;
+    private final EmailService         emailService;
 
     @Transactional(readOnly = true)
     public CheckoutDryRunResult dryRunCheckout(CheckoutDryRunRequest request) {
@@ -181,5 +187,35 @@ public class DevToolsService {
         Order order = orderRepository.findByReference(orderReference)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderReference));
         return taxInvoicePdfService.render(order);
+    }
+
+    /**
+     * Renders the tax-invoice PDF for a real, already-placed order and actually emails it to
+     * whatever test address is given — the one part of the "email/PDF" flow that previewTaxInvoice()
+     * above can't exercise, since that method deliberately never touches Cloudinary or email.
+     * Uploads to a distinct "dev-test" Cloudinary folder (never the real "tax-documents" one) and
+     * never creates or touches a TaxDocument row, so it can't be confused with (or interfere with)
+     * a real customer's tax invoice history.
+     */
+    @Transactional(readOnly = true)
+    public String sendTestTaxInvoiceEmail(String orderReference, String testEmail) {
+        Order order = orderRepository.findByReference(orderReference)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderReference));
+        byte[] pdfBytes = taxInvoicePdfService.render(order);
+        String filename = "dev-test-tax-invoice-" + orderReference + "-" + System.currentTimeMillis() + ".pdf";
+        UploadResponse uploaded = uploadService.uploadRaw(pdfBytes, "dev-test", filename);
+
+        TaxDocument transientDoc = TaxDocument.builder()
+                .order(order)
+                .recipientEmail(testEmail)
+                .cloudinaryUrl(uploaded.getUrl())
+                .cloudinaryPublicId(uploaded.getPublicId())
+                .build();
+        try {
+            emailService.sendTaxInvoiceReadyEmail(transientDoc);
+        } catch (Exception e) {
+            throw new RuntimeException("Test email failed: " + e.getMessage(), e);
+        }
+        return "Test tax invoice email sent to " + testEmail + " for order " + orderReference;
     }
 }

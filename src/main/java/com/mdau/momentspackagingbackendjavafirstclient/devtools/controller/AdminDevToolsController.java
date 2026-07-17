@@ -57,6 +57,12 @@ public class AdminDevToolsController {
                 .body(pdf);
     }
 
+    @PostMapping("/test-tax-invoice-email")
+    public Map<String, String> sendTestTaxInvoiceEmail(@RequestBody TestTaxInvoiceEmailRequest request) {
+        String message = devToolsService.sendTestTaxInvoiceEmail(request.getOrderReference(), request.getEmail());
+        return Map.of("message", message);
+    }
+
     @Getter
     @Setter
     public static class StkPushTestRequest {
@@ -73,5 +79,14 @@ public class AdminDevToolsController {
         @NotBlank
         private String checkoutRequestId;
         private boolean success;
+    }
+
+    @Getter
+    @Setter
+    public static class TestTaxInvoiceEmailRequest {
+        @NotBlank
+        private String orderReference;
+        @NotBlank
+        private String email;
     }
 }

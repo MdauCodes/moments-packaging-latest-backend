@@ -43,8 +43,10 @@
       <td class="meta-label">Billed to</td>
       <td class="meta-value" th:text="${order.contactName}">Customer Name</td>
     </tr>
-    <!-- Seller KRA PIN intentionally omitted for now — business isn't eTIMS-registered yet,
-         so printing our own PIN on this document risks implying more validity than it has. -->
+    <tr>
+      <td class="meta-label">Seller KRA PIN</td>
+      <td class="meta-value">P052508336K</td>
+    </tr>
     <tr th:if="${order.taxInvoiceKraPin != null and !order.taxInvoiceKraPin.isEmpty()}">
       <td class="meta-label">Buyer KRA PIN</td>
       <td class="meta-value" th:text="${order.taxInvoiceKraPin}">A123456789Z</td>
