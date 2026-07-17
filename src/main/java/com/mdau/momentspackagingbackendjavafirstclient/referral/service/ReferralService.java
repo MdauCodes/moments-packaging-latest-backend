@@ -361,7 +361,17 @@ public class ReferralService {
     @Transactional
     public ReferralCodeDto getMyReferralCode(User user) {
         assertFeatureAvailable();
-        ReferralCode rc = referralCodeRepo.findByUser(user).orElseGet(() -> {
+        return new ReferralCodeDto(getOrCreateReferralCode(user), frontendUrl);
+    }
+
+    /**
+     * Same self-healing lazily-create-on-first-request pattern as getMyReferralCode above,
+     * factored out so getMyWallet (below) can include the code too — CreditWalletDto is what the
+     * dashboard's Rewards & Referrals tab actually renders from, and it had no referralCode field
+     * at all until this fix, so every account's referral code/share link showed blank.
+     */
+    private ReferralCode getOrCreateReferralCode(User user) {
+        return referralCodeRepo.findByUser(user).orElseGet(() -> {
             ReferralCode created = ReferralCode.builder()
                     .user(user)
                     .code(generateUniqueCode(user))
@@ -371,7 +381,6 @@ public class ReferralService {
             log.info("Backfilled referral code {} for pre-existing account {}", created.getCode(), user.getEmail());
             return created;
         });
-        return new ReferralCodeDto(rc, frontendUrl);
     }
 
     /**
@@ -385,7 +394,12 @@ public class ReferralService {
         awardWelcomeBonus(user);
         int creditsPerKes = Integer.parseInt(
                 settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
-        return new CreditWalletDto(wallet, creditsPerKes,
+        // Referral code is optional here (unlike getMyReferralCode) — the wallet/coupons half of
+        // this feature must keep working even if the referral half is feature-flagged off.
+        String referralCode = (isFeatureUnlocked() && isProgramEnabled())
+                ? getOrCreateReferralCode(user).getCode()
+                : null;
+        return new CreditWalletDto(wallet, creditsPerKes, referralCode,
                 Boolean.TRUE.equals(user.getEmailVerified()), FREE_REDEMPTION_LIMIT);
     }
 
@@ -598,7 +612,7 @@ public class ReferralService {
 
         int creditsPerKes = Integer.parseInt(
                 settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
-        return new CreditWalletDto(wallet, creditsPerKes,
+        return new CreditWalletDto(wallet, creditsPerKes, null,
                 Boolean.TRUE.equals(user.getEmailVerified()), FREE_REDEMPTION_LIMIT);
     }
 
