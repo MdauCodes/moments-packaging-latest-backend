@@ -44,7 +44,7 @@
       <td class="meta-value" th:text="${order.contactName}">Customer Name</td>
     </tr>
     <tr>
-      <td class="meta-label">Seller KRA PIN</td>
+      <td class="meta-label">Business (Seller) KRA PIN</td>
       <td class="meta-value">P052508336K</td>
     </tr>
     <tr th:if="${order.taxInvoiceKraPin != null and !order.taxInvoiceKraPin.isEmpty()}">
@@ -66,7 +66,8 @@
     </tr>
   </table>
 
-  <table class="totals">
+  <table class="totals"
+         th:with="exemptAmount=${order.subtotal - order.taxableAmount}">
     <tr>
       <td class="label">No. of items</td>
       <td class="value" th:text="${order.items.size()}">0</td>
@@ -78,6 +79,18 @@
     <tr>
       <td class="label">VAT (16%)</td>
       <td class="value" th:text="${'KES ' + order.vatAmount}">KES 0</td>
+    </tr>
+    <tr th:if="${exemptAmount != null and exemptAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+      <td class="label">VAT-exempt items</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(exemptAmount, 1, 2)}">KES 0</td>
+    </tr>
+    <tr th:if="${order.deliveryFee != null and order.deliveryFee.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+      <td class="label">Delivery fee (not vatable)</td>
+      <td class="value" th:text="${'KES ' + order.deliveryFee}">KES 0</td>
+    </tr>
+    <tr th:if="${order.discount != null and order.discount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+      <td class="label">Discount</td>
+      <td class="value" th:text="${'-KES ' + order.discount}">-KES 0</td>
     </tr>
     <tr class="grand">
       <td class="label">Total (VAT-inclusive)</td>
