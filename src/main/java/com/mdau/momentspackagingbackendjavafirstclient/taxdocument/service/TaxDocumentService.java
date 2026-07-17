@@ -67,7 +67,7 @@ public class TaxDocumentService {
         if (doc.getCloudinaryUrl() != null) {
             throw new IllegalStateException("Tax invoice already uploaded for this order");
         }
-        String filename = "tax-invoice-" + orderReference;
+        String filename = "tax-invoice-" + orderReference + ".pdf";
         return uploadService.signRawUpload("tax-invoices", filename);
     }
 
@@ -150,7 +150,7 @@ public class TaxDocumentService {
 
         try {
             byte[] pdfBytes = taxInvoicePdfService.render(doc.getOrder());
-            String filename = "tax-invoice-" + doc.getOrder().getReference();
+            String filename = "tax-invoice-" + doc.getOrder().getReference() + ".pdf";
             UploadResponse uploaded = uploadService.uploadRaw(pdfBytes, "tax-documents", filename);
             doc.setCloudinaryUrl(uploaded.getUrl());
             doc.setCloudinaryPublicId(uploaded.getPublicId());
