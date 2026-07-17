@@ -128,6 +128,16 @@ public class CheckoutService {
             deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
         }
 
+        // â”€â”€ Promo codes cannot be combined with a Reward Coupons redemption on the same order â”€â”€
+        // Every promo code (including a Business Account's auto-issued welcome code) carries this
+        // as an explicit written term, so it's enforced here rather than left to the frontend to
+        // remember to hide the other option.
+        if (request.getPromoCode() != null && !request.getPromoCode().isBlank()
+                && request.getRedeemPoints() != null && request.getRedeemPoints() > 0) {
+            throw new IllegalArgumentException(
+                    "A promo code can't be combined with a Reward Coupons redemption on the same order. Remove one to continue.");
+        }
+
         // â”€â”€ Promo code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         BigDecimal discount = BigDecimal.ZERO;
         String appliedPromo = null;
