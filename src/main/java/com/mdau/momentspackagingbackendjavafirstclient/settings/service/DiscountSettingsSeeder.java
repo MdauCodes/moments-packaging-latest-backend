@@ -28,6 +28,8 @@ public class DiscountSettingsSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        seedIfAbsent("discounts.welcomeCodeEnabled", "true",
+                "Whether a new Business Account automatically gets an auto-issued welcome code. Off means no welcome code is issued at signup.");
         seedIfAbsent("discounts.welcomeCodePercent", "5",
                 "Percent-off applied by a Business Account's auto-issued welcome code.");
         seedIfAbsent("discounts.welcomeCodeMinOrderAmount", "5000",

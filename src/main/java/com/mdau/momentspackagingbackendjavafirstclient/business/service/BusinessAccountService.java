@@ -34,6 +34,7 @@ public class BusinessAccountService {
 
     // Admin-editable via the generic /api/v1/admin/settings endpoint —
     // seeded by DiscountSettingsSeeder so they're visible there from boot.
+    private static final String WELCOME_DISCOUNT_ENABLED_KEY = "discounts.welcomeCodeEnabled";
     private static final String WELCOME_DISCOUNT_PERCENT_KEY = "discounts.welcomeCodePercent";
     private static final String WELCOME_DISCOUNT_MIN_ORDER_KEY = "discounts.welcomeCodeMinOrderAmount";
     private static final String WELCOME_DISCOUNT_VALID_DAYS_KEY = "discounts.welcomeCodeValidDays";
@@ -64,7 +65,9 @@ public class BusinessAccountService {
                 .contactPersonRole(request.getContactPersonRole())
                 .phone(request.getPhone())
                 .build();
-        account.setWelcomeCode(issueWelcomeCode(user));
+        if (Boolean.parseBoolean(settingsService.getValue(WELCOME_DISCOUNT_ENABLED_KEY, "true"))) {
+            account.setWelcomeCode(issueWelcomeCode(user));
+        }
         return new BusinessAccountDto(businessAccountRepository.save(account));
     }
 
