@@ -71,7 +71,7 @@
     </tr>
     <tr>
       <td class="label">Vatable amount (VAT-exclusive)</td>
-      <td class="value" th:text="${'KES ' + order.taxableAmount}">KES 0</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.taxableAmount - order.vatAmount, 1, 2)}">KES 0</td>
     </tr>
     <tr>
       <td class="label">VAT (16%)</td>
