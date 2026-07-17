@@ -102,6 +102,18 @@ public class CheckoutService {
             throw new IllegalArgumentException("Cart is empty");
         }
 
+        // Guards against a zero-value order ever reaching payment — e.g. a lost auth context
+        // mid-checkout falling back to inline request.getItems() without a unitPrice, or any other
+        // pricing-resolution failure. A real product always costs more than KES 0; silently
+        // proceeding here would create an order Daraja's own amount validation happens to reject,
+        // but that's luck, not a guarantee, and the customer sees a confusing "Invalid Amount"
+        // error with no idea why. Fail clearly instead.
+        if (subtotal.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "We couldn't price your order correctly — please refresh the page and try again. " +
+                    "If this keeps happening, contact us with your cart contents.");
+        }
+
         // â”€â”€ Fulfillment validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         FulfillmentType fulfillmentType = request.getFulfillmentType() != null
                 ? request.getFulfillmentType() : FulfillmentType.ZONE_DELIVERY;
