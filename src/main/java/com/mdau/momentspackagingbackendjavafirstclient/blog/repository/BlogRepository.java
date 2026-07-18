@@ -23,9 +23,9 @@ public interface BlogRepository extends JpaRepository<Blog, UUID> {
 
     @Query("""
         SELECT b FROM Blog b
-        WHERE b.status = :status
+        WHERE (:status IS NULL OR b.status = :status)
         AND (:template IS NULL OR b.template = :template)
-        ORDER BY b.publishedAt DESC
+        ORDER BY b.createdAt DESC
         """)
     List<Blog> findAllByStatusAndTemplate(
             @Param("status")   BlogStatus status,
