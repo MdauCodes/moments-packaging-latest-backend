@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.order.service;
 
+import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ConflictException;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.DeliveryZone;
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.DeliveryZoneRepository;
@@ -40,6 +41,10 @@ public class DeliveryZoneService {
     @Transactional
     public DeliveryZone create(String zoneName, String county,
                                 BigDecimal fee, String description) {
+        deliveryZoneRepository.findByCountyIgnoreCase(county).ifPresent(existing -> {
+            throw new ConflictException("A delivery zone already exists for " + county
+                    + " (\"" + existing.getZoneName() + "\") — edit that one instead of creating a duplicate.");
+        });
         DeliveryZone zone = DeliveryZone.builder()
                 .zoneName(zoneName)
                 .county(county)
@@ -55,6 +60,12 @@ public class DeliveryZoneService {
                                 BigDecimal fee, Boolean active, String description) {
         DeliveryZone zone = deliveryZoneRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Delivery zone not found"));
+        if (county != null && !county.equalsIgnoreCase(zone.getCounty())) {
+            deliveryZoneRepository.findByCountyIgnoreCase(county).ifPresent(existing -> {
+                throw new ConflictException("A delivery zone already exists for " + county
+                        + " (\"" + existing.getZoneName() + "\") — edit that one instead of creating a duplicate.");
+            });
+        }
         if (zoneName    != null) zone.setZoneName(zoneName);
         if (county      != null) zone.setCounty(county);
         if (fee         != null) zone.setFeeAmount(fee);
