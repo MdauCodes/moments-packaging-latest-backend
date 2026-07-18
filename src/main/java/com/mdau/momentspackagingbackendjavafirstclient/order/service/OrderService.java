@@ -80,7 +80,14 @@ public class OrderService {
                         .toList(),
                 order.getTotalAmount(),
                 order.getDeliveryFee(),
-                order.getFulfillmentType() != null ? order.getFulfillmentType().name() : null);
+                order.getFulfillmentType() != null ? order.getFulfillmentType().name() : null,
+                order.getSubtotal(),
+                order.getDiscount(),
+                order.getVatAmount(),
+                order.getInvoiceNumber(),
+                order.getCreatedAt(),
+                order.getPaidAt(),
+                order.getTaxInvoiceKraPin());
     }
 
     @Transactional(readOnly = true)

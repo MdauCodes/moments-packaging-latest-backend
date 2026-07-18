@@ -23,6 +23,16 @@ public class OrderTrackingDto {
     private BigDecimal totalAmount;
     private BigDecimal deliveryFee;
     private String     fulfillmentType;
+    // Financial breakdown — not PII, safe on the public tracking endpoint. Needed so a
+    // customer's own "Download receipt" reconciles correctly from any device, not just
+    // the one that placed the order (which has the fuller checkout-time record cached).
+    private BigDecimal subtotal;
+    private BigDecimal discount;
+    private BigDecimal vatAmount;
+    private String     invoiceNumber;
+    private Instant    createdAt;
+    private Instant    paidAt;
+    private String     taxInvoiceKraPin;
 
     @Getter
     @AllArgsConstructor

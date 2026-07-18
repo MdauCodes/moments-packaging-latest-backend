@@ -47,9 +47,9 @@
       <td class="meta-label">Business (Seller) KRA PIN</td>
       <td class="meta-value">P052508336K</td>
     </tr>
-    <tr th:if="${order.taxInvoiceKraPin != null and !order.taxInvoiceKraPin.isEmpty()}">
+    <tr>
       <td class="meta-label">Buyer KRA PIN</td>
-      <td class="meta-value" th:text="${order.taxInvoiceKraPin}">A123456789Z</td>
+      <td class="meta-value" th:text="${order.taxInvoiceKraPin != null and !order.taxInvoiceKraPin.isEmpty()} ? ${order.taxInvoiceKraPin} : '—'">A123456789Z</td>
     </tr>
   </table>
 
