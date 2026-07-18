@@ -183,10 +183,13 @@ public class TaxDocumentService {
         }
         TaxDocument doc = maybeDoc.get();
 
-        if (doc.getCloudinaryUrl() == null) {
-            generateAndUpload(doc.getId());
-            doc = taxDocumentRepository.findById(doc.getId()).orElseThrow();
-        }
+        // Always regenerate here, even if a Cloudinary asset already exists — the frontend's
+        // own checkout-time upload (see checkout.tsx uploadTaxInvoicePdf) necessarily fires
+        // before payment is confirmed, so it captures a PENDING/pre-discount snapshot that can
+        // never be corrected client-side. This runs once payment actually succeeds and has the
+        // real, final order data, so it overwrites that early snapshot with an accurate one.
+        generateAndUpload(doc.getId());
+        doc = taxDocumentRepository.findById(doc.getId()).orElseThrow();
         if (doc.getCloudinaryUrl() == null) {
             // generateAndUpload already recorded the failure reason on the doc — nothing more to do here.
             return;
