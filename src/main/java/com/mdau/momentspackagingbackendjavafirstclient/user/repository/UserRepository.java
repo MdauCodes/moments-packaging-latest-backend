@@ -25,6 +25,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     boolean existsByEmailAndDeletedFalse(String email);
 
+    boolean existsByPhoneAndDeletedFalse(String phone);
+
     Page<User> findByDeletedFalse(Pageable pageable);
 
     /** Staff users only — excludes customers. Used in all admin user management. */

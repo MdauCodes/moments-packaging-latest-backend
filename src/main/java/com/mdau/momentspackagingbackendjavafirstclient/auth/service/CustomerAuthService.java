@@ -54,6 +54,12 @@ public class CustomerAuthService {
         if (userRepository.existsByEmailAndDeletedFalse(request.getEmail())) {
             throw new ConflictException("An account with this email already exists");
         }
+        // phone has a DB-level unique constraint — without this check, a reused phone number
+        // fails as an uncaught DataIntegrityViolationException (raw 500) instead of a clear error.
+        if (request.getPhone() != null && !request.getPhone().isBlank()
+                && userRepository.existsByPhoneAndDeletedFalse(request.getPhone())) {
+            throw new ConflictException("An account with this phone number already exists");
+        }
 
         User user = User.builder()
                 .email(request.getEmail())
