@@ -40,6 +40,12 @@ public class OrderTrackingDto {
         private String  productName;
         private Integer quantity;
         private BigDecimal lineTotal;
+        // Not PII — needed so a receipt downloaded on a device without the checkout-time
+        // local cache still shows real per-unit pricing instead of falling back to 0.
+        private BigDecimal unitPrice;
+        private String  size;
+        private String  material;
+        private String  finish;
     }
 
     @Getter

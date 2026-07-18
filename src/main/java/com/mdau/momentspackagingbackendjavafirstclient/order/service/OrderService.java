@@ -72,7 +72,8 @@ public class OrderService {
                 maskEmail(order.getEmail()),
                 order.getItems().stream()
                         .map(i -> new OrderTrackingDto.TrackingItemDto(
-                                i.getProductNameSnapshot(), i.getQuantity(), i.getLineTotal()))
+                                i.getProductNameSnapshot(), i.getQuantity(), i.getLineTotal(),
+                                i.getUnitPrice(), i.getSizeSnapshot(), i.getMaterialSnapshot(), i.getFinishSnapshot()))
                         .toList(),
                 order.getStatusHistory().stream()
                         .map(h -> new OrderTrackingDto.TrackingHistoryDto(
