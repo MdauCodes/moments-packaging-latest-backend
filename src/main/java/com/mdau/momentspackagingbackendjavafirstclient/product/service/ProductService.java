@@ -335,11 +335,14 @@ public class ProductService {
                 ? new HashSet<>(tagRepository.findAllById(request.getTagIds()))
                 : null;
 
+        // Additive, not a replace — the admin UI's own copy promises "leave unchecked to keep
+        // unchanged," which only holds if checking one industry/tag ADDS it rather than wiping
+        // out every other industry/tag a product already had.
         for (Product product : products) {
             if (Boolean.TRUE.equals(request.getClearSubcategory())) product.setSubcategory(null);
             else if (subcategory != null) product.setSubcategory(subcategory);
-            if (industries != null) product.setIndustries(new HashSet<>(industries));
-            if (tags != null) product.setCuratedTags(new HashSet<>(tags));
+            if (industries != null) product.getIndustries().addAll(industries);
+            if (tags != null) product.getCuratedTags().addAll(tags);
         }
         productRepository.saveAll(products);
 
