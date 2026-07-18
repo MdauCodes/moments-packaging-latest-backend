@@ -95,17 +95,62 @@ public class AdminOrderController {
         return ResponseEntity.ok(updated);
     }
 
+    /**
+     * Logs a refund complaint for an admin to review — deliberately makes no financial or
+     * inventory changes by itself. Any staff member can log one; only an Admin can act on it
+     * via the endpoints below.
+     */
+    @IsStaffOrAdmin
+    @PatchMapping("/{id}/refund-request")
+    public ResponseEntity<OrderDto> requestRefund(
+            @PathVariable UUID id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
+        String reason = body.getOrDefault("reason", "Refund requested");
+        OrderDto updated = orderService.requestRefund(id, reason, user.getEmail());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "REFUND_REQUESTED", reason, null, AuditLogService.extractIp(httpRequest));
+        return ResponseEntity.ok(updated);
+    }
+
+    @IsStaffOrAdmin
+    @PatchMapping("/{id}/refund-request/resolve")
+    public ResponseEntity<OrderDto> resolveRefundRequest(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
+        OrderDto updated = orderService.resolveRefundRequest(id, user.getEmail());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "REFUND_REQUEST_RESOLVED", null, null, AuditLogService.extractIp(httpRequest));
+        return ResponseEntity.ok(updated);
+    }
+
+    /** Explicit, admin-only action — marks the order's payment as refunded/failed. Never automatic. */
     @IsAdmin
-    @PatchMapping("/{id}/refund")
-    public ResponseEntity<OrderDto> refund(
+    @PatchMapping("/{id}/mark-payment-refunded")
+    public ResponseEntity<OrderDto> markPaymentFailed(
             @PathVariable UUID id,
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal User user,
             HttpServletRequest httpRequest) {
         String reason = body.getOrDefault("reason", "Refund processed");
-        OrderDto updated = orderService.processRefund(id, reason, user.getEmail());
+        OrderDto updated = orderService.markPaymentFailed(id, reason, user.getEmail());
         auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
-                "REFUND", reason, null, AuditLogService.extractIp(httpRequest));
+                "PAYMENT_MARKED_REFUNDED", reason, null, AuditLogService.extractIp(httpRequest));
+        return ResponseEntity.ok(updated);
+    }
+
+    /** Explicit, admin-only action — restores stock for this order. Never automatic. */
+    @IsAdmin
+    @PatchMapping("/{id}/restore-inventory")
+    public ResponseEntity<OrderDto> restoreInventory(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user,
+            HttpServletRequest httpRequest) {
+        OrderDto updated = orderService.restoreInventory(id, user.getEmail());
+        auditLogService.log(user, "ORDER", id.toString(), updated.getReference(),
+                "INVENTORY_RESTORED", null, null, AuditLogService.extractIp(httpRequest));
         return ResponseEntity.ok(updated);
     }
 }

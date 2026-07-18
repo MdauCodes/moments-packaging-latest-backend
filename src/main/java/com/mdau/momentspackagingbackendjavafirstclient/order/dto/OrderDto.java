@@ -47,6 +47,11 @@ public class OrderDto {
     private final String  courierServiceName;
     private final String  courierStageOrOffice;
 
+    private final Instant refundRequestedAt;
+    private final String  refundRequestReason;
+    private final String  refundRequestedBy;
+    private final Instant refundResolvedAt;
+
     private final List<OrderItemDto>          items;
     private final List<OrderStatusHistoryDto> statusHistory;
     private final Instant createdAt;
@@ -91,6 +96,10 @@ public class OrderDto {
                 ? order.getCourierType().name() : null;
         this.courierServiceName        = order.getCourierServiceName();
         this.courierStageOrOffice      = order.getCourierStageOrOffice();
+        this.refundRequestedAt         = order.getRefundRequestedAt();
+        this.refundRequestReason       = order.getRefundRequestReason();
+        this.refundRequestedBy         = order.getRefundRequestedBy();
+        this.refundResolvedAt          = order.getRefundResolvedAt();
         this.createdAt                 = order.getCreatedAt();
         this.updatedAt                 = order.getUpdatedAt();
         this.items                     = order.getItems().stream()

@@ -182,6 +182,25 @@ public class Order {
     @Column(name = "tax_invoice_kra_pin", length = 20)
     private String taxInvoiceKraPin;
 
+    /**
+     * Refund handling is deliberately NOT automated: logging a request here never touches
+     * status/paymentStatus/inventory by itself. An admin reviews it and, separately, decides
+     * whether to move the order to REFUNDED (manual override), mark the payment record failed,
+     * and/or restore stock — each its own explicit action. See OrderService.requestRefund /
+     * markPaymentFailed / restoreInventory / resolveRefundRequest.
+     */
+    @Column(name = "refund_requested_at")
+    private Instant refundRequestedAt;
+
+    @Column(name = "refund_request_reason", columnDefinition = "TEXT")
+    private String refundRequestReason;
+
+    @Column(name = "refund_requested_by", length = 255)
+    private String refundRequestedBy;
+
+    @Column(name = "refund_resolved_at")
+    private Instant refundResolvedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

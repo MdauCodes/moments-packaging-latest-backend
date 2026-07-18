@@ -192,44 +192,76 @@ public class OrderService {
         return new OrderDto(fresh);
     }
 
+    /**
+     * Logs a refund request as a complaint for an admin to review — deliberately does NOT touch
+     * order status, payment status, payment records, or inventory. Those are separate, explicit
+     * admin actions (see markPaymentFailed / restoreInventory / manual status override) so a
+     * refund never happens as an automatic side effect of someone just flagging that one might
+     * be needed.
+     */
     @Transactional
-    public OrderDto processRefund(UUID id, String reason, String changedBy) {
+    public OrderDto requestRefund(UUID id, String reason, String requestedBy) {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
 
-        OrderStatus old = order.getStatus();
-        order.setStatus(OrderStatus.REFUNDED);
-        order.setPaymentStatus(PaymentStatus.REFUNDED);
-        order.setStaffNotes(reason);
+        order.setRefundRequestedAt(java.time.Instant.now());
+        order.setRefundRequestReason(reason);
+        order.setRefundRequestedBy(requestedBy);
+        order.setRefundResolvedAt(null);
         orderRepository.save(order);
 
-        historyRepository.save(OrderStatusHistory.builder()
-                .order(order)
-                .fromStatus(old)
-                .toStatus(OrderStatus.REFUNDED)
-                .note(reason)
-                .changedBy(changedBy)
-                .build());
+        log.info("Refund requested for order {} by {}: {}", order.getReference(), requestedBy, reason);
+        return new OrderDto(order);
+    }
 
-        List<PaymentRecord> records = paymentRecordRepository
-                .findByOrderIdOrderByCreatedAtDesc(id);
+    /** Clears an order's open refund request once an admin has finished handling it manually. */
+    @Transactional
+    public OrderDto resolveRefundRequest(UUID id, String resolvedBy) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        order.setRefundResolvedAt(java.time.Instant.now());
+        orderRepository.save(order);
+        log.info("Refund request resolved for order {} by {}", order.getReference(), resolvedBy);
+        return new OrderDto(order);
+    }
+
+    /**
+     * Explicit, standalone admin action: marks the order's latest payment record as failed/refunded.
+     * Never triggered automatically — an admin decides this only once they've actually processed
+     * the real-world refund (e.g. a manual M-Pesa reversal) themselves.
+     */
+    @Transactional
+    public OrderDto markPaymentFailed(UUID id, String reason, String changedBy) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        List<PaymentRecord> records = paymentRecordRepository.findByOrderIdOrderByCreatedAtDesc(id);
         if (!records.isEmpty()) {
             PaymentRecord latest = records.get(0);
             latest.setStatus(PaymentRecordStatus.FAILED);
             latest.setFailureReason("Refunded: " + reason);
             paymentRecordRepository.save(latest);
         }
+        order.setPaymentStatus(PaymentStatus.REFUNDED);
+        order.setStaffNotes(reason);
+        orderRepository.save(order);
 
-        try {
-            inventoryService.restoreForOrder(order);
-        } catch (Exception e) {
-            log.error("Stock restore failed for refunded order {}: {}",
-                    order.getReference(), e.getMessage(), e);
-        }
+        log.info("Payment marked refunded/failed for order {} by {}: {}", order.getReference(), changedBy, reason);
+        return new OrderDto(orderReader.loadFresh(id));
+    }
 
-        Order fresh = orderReader.loadFresh(id);
-        notificationService.onOrderCancelled(fresh);
-        return new OrderDto(fresh);
+    /**
+     * Explicit, standalone admin action: restores stock for every item on this order. Never
+     * triggered automatically alongside a status change — an admin clicks this only when they've
+     * confirmed the goods are actually coming back into inventory.
+     */
+    @Transactional
+    public OrderDto restoreInventory(UUID id, String changedBy) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        inventoryService.restoreForOrder(order);
+        log.info("Inventory restored for order {} by {}", order.getReference(), changedBy);
+        return new OrderDto(orderReader.loadFresh(id));
     }
 
     @Transactional
