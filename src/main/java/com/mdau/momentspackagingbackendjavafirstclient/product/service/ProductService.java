@@ -355,6 +355,10 @@ public class ProductService {
         Product product = productRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found: " + id));
         product.setDeleted(true);
+        // Unlink from Riseller — the DB's unique index on risellerItemId doesn't exclude
+        // soft-deleted rows, so leaving it set would crash the next catalog sync the moment
+        // Riseller still lists (or re-lists) this item and tries to create/link it fresh.
+        product.setRisellerItemId(null);
         productRepository.save(product);
         log.info("Product {} soft-deleted", id);
     }

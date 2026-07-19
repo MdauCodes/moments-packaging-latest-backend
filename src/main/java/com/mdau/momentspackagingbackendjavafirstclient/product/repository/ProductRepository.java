@@ -153,6 +153,14 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findByRisellerItemIdAndDeletedFalse(String risellerItemId);
 
     /**
+     * Includes soft-deleted products — a manually-deleted product never had its
+     * risellerItemId cleared, so the DB's unique index on that column still holds it.
+     * Catalog sync must check this before auto-creating, or it crashes on that
+     * constraint the moment Riseller still lists (or re-lists) the same item.
+     */
+    Optional<Product> findByRisellerItemId(String risellerItemId);
+
+    /**
      * Products not yet linked to any Riseller item — candidates for auto-matching.
      * Includes suspended products so they can be re-activated when Riseller re-lists them.
      */

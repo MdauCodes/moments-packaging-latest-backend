@@ -194,11 +194,28 @@ public class RisellerSyncService {
                     }
 
                     case RisellerNameMatcher.MatchOutcome.NotFound() -> {
-                        // No existing product matches — Riseller is source of truth, so create it
-                        Product created = buildProductFromCatalogItem(item, uuid, code);
-                        productRepository.save(created);
-                        autoCreated++;
-                        log.info("Catalog auto-created: \"{}\" (code={})", created.getName(), code);
+                        // A manually-deleted product never has its risellerItemId cleared, so the
+                        // DB's unique index on that column still holds it — inserting a fresh row
+                        // for the same Riseller item crashes the whole sync transaction. If Riseller
+                        // still lists it, the right move is to bring the old row back, not duplicate it.
+                        var deletedMatch = productRepository.findByRisellerItemId(uuid);
+                        if (deletedMatch.isPresent()) {
+                            Product revived = deletedMatch.get();
+                            revived.setDeleted(false);
+                            revived.setRisellerSuspended(false);
+                            if (item.getPriceInc() != null && item.getPriceInc() > 0) {
+                                revived.setBasePrice(BigDecimal.valueOf(item.getPriceInc()).setScale(2, java.math.RoundingMode.HALF_UP));
+                            }
+                            productRepository.save(revived);
+                            exactLinked++;
+                            log.info("Catalog REVIVED previously-deleted product: \"{}\" (code={})", revived.getName(), code);
+                        } else {
+                            // No existing product matches — Riseller is source of truth, so create it
+                            Product created = buildProductFromCatalogItem(item, uuid, code);
+                            productRepository.save(created);
+                            autoCreated++;
+                            log.info("Catalog auto-created: \"{}\" (code={})", created.getName(), code);
+                        }
                     }
                 }
             }
