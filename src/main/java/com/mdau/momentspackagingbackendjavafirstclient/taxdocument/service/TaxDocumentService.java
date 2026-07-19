@@ -3,6 +3,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service;
 import com.mdau.momentspackagingbackendjavafirstclient.common.exception.ResourceNotFoundException;
 import com.mdau.momentspackagingbackendjavafirstclient.email.service.EmailService;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
+import com.mdau.momentspackagingbackendjavafirstclient.receipt.repository.ReceiptRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocument;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocumentStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.repository.TaxDocumentRepository;
@@ -42,6 +43,7 @@ public class TaxDocumentService {
     private final TaxInvoicePdfService taxInvoicePdfService;
     private final UploadService uploadService;
     private final EmailService emailService;
+    private final ReceiptRepository receiptRepository;
 
     @Transactional
     public TaxDocument requestForOrder(Order order) {
@@ -196,7 +198,10 @@ public class TaxDocumentService {
         }
 
         try {
-            emailService.sendTaxInvoiceReadyEmail(doc);
+            String receiptUrl = receiptRepository.findByOrder_Reference(order.getReference())
+                    .map(r -> r.getCloudinaryUrl())
+                    .orElse(null);
+            emailService.sendTaxInvoiceReadyEmail(doc, receiptUrl);
             doc.setStatus(TaxDocumentStatus.SENT);
             doc.setSentAt(Instant.now());
             doc.setFailureReason(null);

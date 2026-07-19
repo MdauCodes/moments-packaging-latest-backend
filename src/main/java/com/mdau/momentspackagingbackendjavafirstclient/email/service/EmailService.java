@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mdau.momentspackagingbackendjavafirstclient.enquiry.entity.Enquiry;
 import com.mdau.momentspackagingbackendjavafirstclient.lead.entity.Lead;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
+import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
 import com.mdau.momentspackagingbackendjavafirstclient.taxdocument.entity.TaxDocument;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
@@ -33,6 +34,7 @@ public class EmailService {
     private final JavaMailSender  mailSender;
     private final TemplateEngine  templateEngine;
     private final ObjectMapper    objectMapper;
+    private final PaymentRecordRepository paymentRecordRepository;
 
     @Value("${app.email.from}")
     private String fromAddress;
@@ -288,9 +290,25 @@ public class EmailService {
                 "Order Confirmed - " + order.getReference());
     }
 
-    @Async public void sendOrderPaidEmail(Order order) {
-        sendOrderEmail(order, "email/order-paid",
-                "Payment Received - " + order.getReference());
+    @Async
+    public void sendOrderPaidEmail(Order order, String receiptUrl) {
+        try {
+            if (order.getItems() != null) org.hibernate.Hibernate.initialize(order.getItems());
+            if (order.getStatusHistory() != null) org.hibernate.Hibernate.initialize(order.getStatusHistory());
+            if (order.getCustomer() != null) org.hibernate.Hibernate.initialize(order.getCustomer());
+            Context ctx = new Context(Locale.ENGLISH);
+            addCompanyContext(ctx);
+            ctx.setVariable("order", order);
+            ctx.setVariable("receiptUrl", receiptUrl);
+            List<com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecord> records =
+                    paymentRecordRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
+            ctx.setVariable("receiptNumber", records.isEmpty() ? null : records.get(0).getReceiptNumber());
+            String html = templateEngine.process("email/order-paid", ctx);
+            sendHtml(order.getEmail(), "Payment Received - " + order.getReference(), html);
+            log.info("Order email [email/order-paid] sent for {}", order.getReference());
+        } catch (Exception e) {
+            log.error("Failed to send order-paid email for {}: {}", order.getReference(), e.getMessage());
+        }
     }
 
     @Async public void sendOrderInProductionEmail(Order order) {
@@ -339,11 +357,12 @@ public class EmailService {
      * TaxDocumentService needs to know whether the send actually succeeded so it can set the
      * TaxDocument's status to SENT or FAILED accordingly, rather than fire-and-forget.
      */
-    public void sendTaxInvoiceReadyEmail(TaxDocument doc) throws Exception {
+    public void sendTaxInvoiceReadyEmail(TaxDocument doc, String receiptUrl) throws Exception {
         Context ctx = new Context(Locale.ENGLISH);
         addCompanyContext(ctx);
         ctx.setVariable("order", doc.getOrder());
         ctx.setVariable("pdfUrl", doc.getCloudinaryUrl());
+        ctx.setVariable("receiptUrl", receiptUrl);
         String html = templateEngine.process("email/tax-invoice-ready", ctx);
         sendHtml(doc.getRecipientEmail(), "Your tax invoice - " + doc.getOrder().getReference(), html);
     }

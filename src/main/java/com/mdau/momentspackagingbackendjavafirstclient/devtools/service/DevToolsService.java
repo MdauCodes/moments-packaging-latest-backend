@@ -212,7 +212,7 @@ public class DevToolsService {
                 .cloudinaryPublicId(uploaded.getPublicId())
                 .build();
         try {
-            emailService.sendTaxInvoiceReadyEmail(transientDoc);
+            emailService.sendTaxInvoiceReadyEmail(transientDoc, null);
         } catch (Exception e) {
             throw new RuntimeException("Test email failed: " + e.getMessage(), e);
         }

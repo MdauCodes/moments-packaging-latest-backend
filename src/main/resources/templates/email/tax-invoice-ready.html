@@ -27,6 +27,9 @@ a.link{color:#2d5016;font-weight:bold}
     <p style="text-align:center">
       <a class="cta" th:href="${pdfUrl}" href="#">Download tax invoice (PDF)</a>
     </p>
+    <p style="text-align:center" th:if="${receiptUrl != null}">
+      <a class="link" th:href="${receiptUrl}">Download your receipt (PDF)</a>
+    </p>
     <div class="expiry">
       This link is available for <strong>2 weeks</strong> from today. After that, contact us with
       your order reference and we'll resend it.

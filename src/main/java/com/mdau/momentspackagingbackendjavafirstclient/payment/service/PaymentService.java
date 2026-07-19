@@ -41,6 +41,7 @@ public class PaymentService {
     private final InvoiceNumberGenerator       invoiceNumberGenerator;
     private final ReferralService              referralService;
     private final com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service.TaxDocumentService taxDocumentService;
+    private final com.mdau.momentspackagingbackendjavafirstclient.receipt.service.ReceiptService receiptService;
 
     // -- Initiate ---------------------------------------------------------
 
@@ -318,7 +319,17 @@ public class PaymentService {
         }
 
         Order paidOrder = orderReader.loadFresh(order.getId());
-        notificationService.onOrderPaid(paidOrder);
+
+        // Every order gets a Receipt the moment payment succeeds — unlike the tax invoice,
+        // this is never opt-in. Generated before the payment-confirmation email so its link
+        // can be included there; a failure here must never block the payment flow itself.
+        String receiptUrl = null;
+        try {
+            receiptUrl = receiptService.generateForPaidOrder(paidOrder).getCloudinaryUrl();
+        } catch (Exception e) {
+            log.error("Receipt generation failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
+        }
+        notificationService.onOrderPaid(paidOrder, receiptUrl);
 
         if (Boolean.TRUE.equals(paidOrder.getTaxInvoiceRequested())) {
             try {

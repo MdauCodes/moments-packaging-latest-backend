@@ -38,9 +38,9 @@ public class NotificationService {
     }
 
     @Async
-    public void onOrderPaid(Order order) {
+    public void onOrderPaid(Order order, String receiptUrl) {
         try {
-            emailService.sendOrderPaidEmail(order);
+            emailService.sendOrderPaidEmail(order, receiptUrl);
         } catch (Exception e) {
             log.error("onOrderPaid email failed for {}: {}", order.getReference(), e.getMessage());
         }
@@ -63,7 +63,7 @@ public class NotificationService {
         try {
             smsService.sendSms(order.getPhone(),
                     "Order " + order.getReference()
-                    + " iko production. Itakuwa tayari siku 7-14. - Moments Packaging");
+                    + " iko production. Tutakutumia dispatch update hivi karibuni. - Moments Packaging");
         } catch (Exception e) {
             log.error("onOrderInProduction SMS failed for {}: {}", order.getReference(), e.getMessage());
         }
