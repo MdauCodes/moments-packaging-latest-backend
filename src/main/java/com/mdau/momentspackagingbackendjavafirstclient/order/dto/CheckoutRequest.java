@@ -44,12 +44,21 @@ public class CheckoutRequest {
     @Email(message = "Tax invoice email must be valid")
     private String taxInvoiceEmail;
 
-    /** Customer's own KRA PIN, printed on the tax invoice for their own remittance records. */
-    @Pattern(regexp = "^$|^[A-Za-z]\\d{9}[A-Za-z]$", message = "KRA PIN must be in the format A123456789Z")
+    /**
+     * Customer's own KRA PIN, printed on the tax invoice for their own remittance records.
+     * Deliberately NOT validated here — this can arrive pre-filled from a Business Account's
+     * saved profile, and a malformed value there must never block checkout/payment over a
+     * cosmetic tax-document field. CheckoutService checks the format and silently drops it
+     * if it doesn't match, rather than failing the whole order.
+     */
     private String taxInvoiceKraPin;
 
-    /** Individual Shopper rewards points to redeem against this order — optional, capped server-side. */
-    @Min(value = 1, message = "redeemPoints must be positive")
+    /**
+     * Reward Coupons to redeem against this order — optional, capped server-side. Allows 0 (not
+     * just >=1) so any caller that sends "no redemption" as 0 rather than omitting the field
+     * entirely doesn't fail checkout over it; CheckoutService already treats 0/null the same way.
+     */
+    @Min(value = 0, message = "redeemPoints cannot be negative")
     private Integer redeemPoints;
 
     @NotNull(message = "Payment method is required")

@@ -247,10 +247,7 @@ public class CheckoutService {
                         ? (request.getTaxInvoiceEmail() != null && !request.getTaxInvoiceEmail().isBlank()
                                 ? request.getTaxInvoiceEmail() : request.getEmail())
                         : null)
-                .taxInvoiceKraPin(request.isTaxInvoiceRequested()
-                        && request.getTaxInvoiceKraPin() != null && !request.getTaxInvoiceKraPin().isBlank()
-                        ? request.getTaxInvoiceKraPin().toUpperCase()
-                        : null)
+                .taxInvoiceKraPin(resolveTaxInvoiceKraPin(request))
                 .build();
 
         // â”€â”€ Resolve items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -364,5 +361,27 @@ public class CheckoutService {
         log.info("Order created: {} fulfillment={} (source: {})",
                 reference, fulfillmentType, cartItems.isEmpty() ? "inline" : "cart");
         return dto;
+    }
+
+    private static final java.util.regex.Pattern KRA_PIN_PATTERN =
+            java.util.regex.Pattern.compile("^[A-Za-z]\\d{9}[A-Za-z]$");
+
+    /**
+     * Deliberately lenient: this can arrive pre-filled from a Business Account's saved profile,
+     * and a malformed value there must never block checkout/payment over a cosmetic tax-document
+     * field. A bad format is dropped (order proceeds with no KRA PIN on the invoice) rather than
+     * failing the whole request — see CheckoutRequest.taxInvoiceKraPin for why this isn't a
+     * @Pattern constraint on the DTO instead.
+     */
+    private String resolveTaxInvoiceKraPin(CheckoutRequest request) {
+        if (!request.isTaxInvoiceRequested()) return null;
+        String raw = request.getTaxInvoiceKraPin();
+        if (raw == null || raw.isBlank()) return null;
+        String normalized = raw.trim().toUpperCase();
+        if (!KRA_PIN_PATTERN.matcher(normalized).matches()) {
+            log.warn("Dropping malformed taxInvoiceKraPin on checkout (order proceeds without it): \"{}\"", raw);
+            return null;
+        }
+        return normalized;
     }
 }
