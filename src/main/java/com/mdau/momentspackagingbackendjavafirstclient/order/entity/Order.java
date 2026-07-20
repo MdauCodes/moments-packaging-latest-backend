@@ -127,18 +127,30 @@ public class Order {
     private BigDecimal subtotal;
 
     /**
-     * VAT-inclusive sum of line totals for non-vat-exempt items only
-     * (already embedded in subtotal, not additional to it).
+     * VAT-inclusive sum of non-vat-exempt line totals BEFORE any discount is
+     * allocated against them — the "sticker price" taxable base, kept only so
+     * documents can show the gross → discount → net chain. Not used for VAT math.
+     */
+    @Column(name = "gross_taxable_amount", precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal grossTaxableAmount = BigDecimal.ZERO;
+
+    /**
+     * VAT-inclusive sum of non-vat-exempt line totals AFTER the order's discount
+     * has been allocated proportionally across every line (exempt and non-exempt
+     * alike, by each line's share of subtotal). This — not grossTaxableAmount —
+     * is the correct KRA taxable base: VAT is only ever due on what the customer
+     * actually paid, not the pre-discount sticker price.
      */
     @Column(name = "taxable_amount", precision = 12, scale = 2)
     @Builder.Default
     private BigDecimal taxableAmount = BigDecimal.ZERO;
 
     /**
-     * VAT extracted from each non-exempt line's VAT-inclusive price, using
-     * that product's own vatRate at the time the order was placed. Computed
-     * in CheckoutService.checkout() — already embedded in subtotal/total,
-     * not additional to them.
+     * VAT extracted from each non-exempt line's discounted, VAT-inclusive price
+     * (see taxableAmount), using that product's own vatRate at the time the
+     * order was placed. Computed in CheckoutService.checkout() — already
+     * embedded in subtotal/total, not additional to them.
      */
     @Column(name = "vat_amount", precision = 12, scale = 2)
     @Builder.Default

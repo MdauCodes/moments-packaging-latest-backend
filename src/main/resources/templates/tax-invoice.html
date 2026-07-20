@@ -66,35 +66,59 @@
     </tr>
   </table>
 
+  <!--
+    VAT is charged on what the customer actually paid, not the pre-discount sticker
+    price — the order's discount is allocated proportionally across vatable and
+    exempt items before VAT is extracted (see CheckoutService.checkout()). This
+    table shows that chain explicitly (gross → discount → net → VAT) rather than
+    folding the discount in silently, so the customer can see exactly how the VAT
+    figure was reached.
+  -->
   <table class="totals"
-         th:with="exemptAmount=${order.subtotal - order.taxableAmount}">
+         th:with="hasDiscount=${order.discount != null and order.discount.compareTo(T(java.math.BigDecimal).ZERO) > 0},
+                   taxableDiscount=${order.grossTaxableAmount - order.taxableAmount},
+                   exemptGross=${order.subtotal - order.grossTaxableAmount},
+                   exemptDiscount=${order.discount - taxableDiscount},
+                   exemptNet=${exemptGross - exemptDiscount}">
     <tr>
       <td class="label">No. of items</td>
       <td class="value" th:text="${order.items.size()}">0</td>
     </tr>
+    <tr th:if="${hasDiscount}">
+      <td class="label">Vatable items (before discount)</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.grossTaxableAmount, 1, 2)}">KES 0</td>
+    </tr>
+    <tr th:if="${hasDiscount and taxableDiscount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+      <td class="label">Discount on vatable items</td>
+      <td class="value" th:text="${'-KES ' + #numbers.formatDecimal(taxableDiscount, 1, 2)}">-KES 0</td>
+    </tr>
     <tr>
-      <td class="label">Vatable amount (VAT-exclusive)</td>
+      <td class="label" th:text="${hasDiscount ? 'Vatable amount (VAT-inclusive, after discount)' : 'Vatable amount (VAT-inclusive)'}">Vatable amount</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.taxableAmount, 1, 2)}">KES 0</td>
+    </tr>
+    <tr>
+      <td class="label">— Vatable amount (VAT-exclusive)</td>
       <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.taxableAmount - order.vatAmount, 1, 2)}">KES 0</td>
     </tr>
     <tr>
-      <td class="label">VAT (16%)</td>
-      <td class="value" th:text="${'KES ' + order.vatAmount}">KES 0</td>
+      <td class="label">— VAT (16%)</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.vatAmount, 1, 2)}">KES 0</td>
     </tr>
-    <tr th:if="${exemptAmount != null and exemptAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
-      <td class="label">VAT-exempt items</td>
-      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(exemptAmount, 1, 2)}">KES 0</td>
+    <tr th:if="${exemptGross != null and exemptGross.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
+      <td class="label" th:text="${hasDiscount ? 'VAT-exempt items (after discount)' : 'VAT-exempt items'}">VAT-exempt items</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(exemptNet, 1, 2)}">KES 0</td>
     </tr>
     <tr th:if="${order.deliveryFee != null and order.deliveryFee.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
       <td class="label">Delivery fee (not vatable)</td>
-      <td class="value" th:text="${'KES ' + order.deliveryFee}">KES 0</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.deliveryFee, 1, 2)}">KES 0</td>
     </tr>
-    <tr th:if="${order.discount != null and order.discount.compareTo(T(java.math.BigDecimal).ZERO) > 0}">
-      <td class="label">Discount</td>
-      <td class="value" th:text="${'-KES ' + order.discount}">-KES 0</td>
+    <tr th:if="${hasDiscount}">
+      <td class="label">Total discount applied</td>
+      <td class="value" th:text="${'-KES ' + #numbers.formatDecimal(order.discount, 1, 2)}">-KES 0</td>
     </tr>
     <tr class="grand">
       <td class="label">Total (VAT-inclusive)</td>
-      <td class="value" th:text="${'KES ' + order.totalAmount}">KES 0</td>
+      <td class="value" th:text="${'KES ' + #numbers.formatDecimal(order.totalAmount, 1, 2)}">KES 0</td>
     </tr>
   </table>
 

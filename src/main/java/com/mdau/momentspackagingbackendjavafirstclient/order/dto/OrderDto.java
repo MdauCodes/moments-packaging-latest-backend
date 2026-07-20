@@ -26,6 +26,7 @@ public class OrderDto {
     private final String     county;
     private final String     postalCode;
     private final BigDecimal subtotal;
+    private final BigDecimal grossTaxableAmount;
     private final BigDecimal taxableAmount;
     private final BigDecimal vatAmount;
     private final BigDecimal deliveryFee;
@@ -77,6 +78,7 @@ public class OrderDto {
         this.county                    = order.getCounty();
         this.postalCode                = order.getPostalCode();
         this.subtotal                  = order.getSubtotal();
+        this.grossTaxableAmount        = order.getGrossTaxableAmount();
         this.taxableAmount             = order.getTaxableAmount();
         this.vatAmount                 = order.getVatAmount();
         this.deliveryFee               = order.getDeliveryFee();

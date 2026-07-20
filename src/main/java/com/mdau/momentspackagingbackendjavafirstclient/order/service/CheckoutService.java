@@ -182,8 +182,14 @@ public class CheckoutService {
         // ── VAT breakdown ────────────────────────────────────────────────
         // Product.basePrice (and therefore every line total / subtotal derived
         // from it) is VAT-inclusive, so VAT is extracted out of each line
-        // rather than added on top. taxableAmount is the gross (VAT-inclusive)
-        // total of non-exempt lines only, matching its own field doc.
+        // rather than added on top. The order's discount is allocated
+        // proportionally across every line (by that line's share of subtotal)
+        // BEFORE VAT is extracted, so VAT is only ever charged on what the
+        // customer actually paid — never on the pre-discount sticker price.
+        BigDecimal discountRatio = subtotal.compareTo(BigDecimal.ZERO) > 0
+                ? discount.divide(subtotal, 6, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal grossTaxableAmount = BigDecimal.ZERO;
         BigDecimal taxableAmount = BigDecimal.ZERO;
         BigDecimal vatAmount = BigDecimal.ZERO;
         if (!cartItems.isEmpty()) {
@@ -192,8 +198,11 @@ public class CheckoutService {
                 BigDecimal lineTotal = ci.getLineTotalSnapshot();
                 if (lineTotal == null || Boolean.TRUE.equals(product != null ? product.getVatExempt() : null)) continue;
                 BigDecimal rate = (product != null && product.getVatRate() != null) ? product.getVatRate() : new BigDecimal("0.16");
-                BigDecimal lineVat = lineTotal.subtract(lineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
-                taxableAmount = taxableAmount.add(lineTotal);
+                BigDecimal lineDiscount = lineTotal.multiply(discountRatio).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal discountedLineTotal = lineTotal.subtract(lineDiscount);
+                BigDecimal lineVat = discountedLineTotal.subtract(discountedLineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
+                grossTaxableAmount = grossTaxableAmount.add(lineTotal);
+                taxableAmount = taxableAmount.add(discountedLineTotal);
                 vatAmount = vatAmount.add(lineVat);
             }
         } else if (request.getItems() != null) {
@@ -209,8 +218,11 @@ public class CheckoutService {
                 }
                 if (Boolean.TRUE.equals(product != null ? product.getVatExempt() : null)) continue;
                 BigDecimal rate = (product != null && product.getVatRate() != null) ? product.getVatRate() : new BigDecimal("0.16");
-                BigDecimal lineVat = lineTotal.subtract(lineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
-                taxableAmount = taxableAmount.add(lineTotal);
+                BigDecimal lineDiscount = lineTotal.multiply(discountRatio).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal discountedLineTotal = lineTotal.subtract(lineDiscount);
+                BigDecimal lineVat = discountedLineTotal.subtract(discountedLineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
+                grossTaxableAmount = grossTaxableAmount.add(lineTotal);
+                taxableAmount = taxableAmount.add(discountedLineTotal);
                 vatAmount = vatAmount.add(lineVat);
             }
         }
@@ -232,6 +244,7 @@ public class CheckoutService {
                 .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(PaymentStatus.PENDING)
                 .subtotal(subtotal)
+                .grossTaxableAmount(grossTaxableAmount)
                 .taxableAmount(taxableAmount)
                 .vatAmount(vatAmount)
                 .deliveryFee(deliveryFee)
