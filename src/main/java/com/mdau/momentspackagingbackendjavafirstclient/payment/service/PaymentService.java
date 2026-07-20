@@ -42,6 +42,7 @@ public class PaymentService {
     private final ReferralService              referralService;
     private final com.mdau.momentspackagingbackendjavafirstclient.taxdocument.service.TaxDocumentService taxDocumentService;
     private final com.mdau.momentspackagingbackendjavafirstclient.receipt.service.ReceiptService receiptService;
+    private final com.mdau.momentspackagingbackendjavafirstclient.documentbundle.service.DocumentBundleService documentBundleService;
 
     // -- Initiate ---------------------------------------------------------
 
@@ -329,13 +330,31 @@ public class PaymentService {
         } catch (Exception e) {
             log.error("Receipt generation failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
         }
-        notificationService.onOrderPaid(paidOrder, receiptUrl);
+        boolean etrGated = Boolean.TRUE.equals(paidOrder.getEtrRequested());
+
+        // ETR-gated orders hold back both the receipt link (in this email) and the tax invoice
+        // email — nothing reaches the customer until an admin uploads the ETR and the bundle goes
+        // out as one email. Ungated orders keep today's behavior exactly as before.
+        notificationService.onOrderPaid(paidOrder, etrGated ? null : receiptUrl);
 
         if (Boolean.TRUE.equals(paidOrder.getTaxInvoiceRequested())) {
-            try {
-                taxDocumentService.sendIfRequested(paidOrder);
-            } catch (Exception e) {
-                log.error("Tax invoice send failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
+            if (etrGated) {
+                try {
+                    taxDocumentService.regenerateForOrder(paidOrder);
+                } catch (Exception e) {
+                    log.error("Tax invoice regeneration failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
+                }
+                try {
+                    documentBundleService.createPendingForOrder(paidOrder);
+                } catch (Exception e) {
+                    log.error("Document bundle creation failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
+                }
+            } else {
+                try {
+                    taxDocumentService.sendIfRequested(paidOrder);
+                } catch (Exception e) {
+                    log.error("Tax invoice send failed for order {}: {}", paidOrder.getReference(), e.getMessage(), e);
+                }
             }
         }
 

@@ -32,6 +32,8 @@ public class OrderDto {
     private final BigDecimal deliveryFee;
     private final BigDecimal discount;
     private final BigDecimal totalAmount;
+    private final Boolean    etrRequested;
+    private final String     documentsEmail;
     private final String     notes;
     private final String     staffNotes;
     private final String     assignedTo;
@@ -84,6 +86,8 @@ public class OrderDto {
         this.deliveryFee               = order.getDeliveryFee();
         this.discount                  = order.getDiscount();
         this.totalAmount               = order.getTotalAmount();
+        this.etrRequested              = order.getEtrRequested();
+        this.documentsEmail            = order.getDocumentsEmail();
         this.notes                     = order.getNotes();
         this.staffNotes                = order.getStaffNotes();
         this.assignedTo                = order.getAssignedTo();

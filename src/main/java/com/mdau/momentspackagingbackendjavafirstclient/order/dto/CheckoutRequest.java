@@ -53,6 +53,16 @@ public class CheckoutRequest {
      */
     private String taxInvoiceKraPin;
 
+    /** Customer ticked "Send me my ETR & tax documents". See Order.etrRequested. */
+    private boolean etrRequested;
+
+    /**
+     * Where to email the receipt/tax-invoice/ETR bundle — required (checked server-side in
+     * CheckoutService) only when etrRequested is true.
+     */
+    @Email(message = "Documents email must be valid")
+    private String documentsEmail;
+
     /**
      * Reward Coupons to redeem against this order — optional, capped server-side. Allows 0 (not
      * just >=1) so any caller that sends "no redemption" as 0 rather than omitting the field

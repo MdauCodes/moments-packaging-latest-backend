@@ -195,6 +195,21 @@ public class Order {
     private String taxInvoiceKraPin;
 
     /**
+     * Customer ticked "Send me my ETR & tax documents" at checkout. Unlike taxInvoiceRequested
+     * alone (which only ever auto-sent a standalone tax invoice email), this gates the receipt AND
+     * tax invoice from being emailed immediately on payment — instead a DocumentBundle is created
+     * PENDING, and all three (receipt, tax invoice, ETR) are emailed together only once an admin
+     * uploads the ETR scan. See documentbundle package and PaymentService.applySuccessfulPayment.
+     */
+    @Column(name = "etr_requested", nullable = false)
+    @Builder.Default
+    private Boolean etrRequested = false;
+
+    /** Where to email the receipt/tax-invoice/ETR bundle — required at checkout when etrRequested is ticked. */
+    @Column(name = "documents_email", length = 255)
+    private String documentsEmail;
+
+    /**
      * Refund handling is deliberately NOT automated: logging a request here never touches
      * status/paymentStatus/inventory by itself. An admin reviews it and, separately, decides
      * whether to move the order to REFUNDED (manual override), mark the payment record failed,

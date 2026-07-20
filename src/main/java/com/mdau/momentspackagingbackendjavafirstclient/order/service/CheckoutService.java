@@ -140,6 +140,13 @@ public class CheckoutService {
             deliveryFee = deliveryZoneService.getFeeForCounty(request.getCounty());
         }
 
+        // ── ETR / documents bundle — email is mandatory only when the customer checked the box ──
+        if (request.isEtrRequested()
+                && (request.getDocumentsEmail() == null || request.getDocumentsEmail().isBlank())) {
+            throw new IllegalArgumentException(
+                    "Please provide a valid email to receive your receipt, tax invoice and ETR.");
+        }
+
         // â”€â”€ Promo codes cannot be combined with a Reward Coupons redemption on the same order â”€â”€
         // Every promo code (including a Business Account's auto-issued welcome code) carries this
         // as an explicit written term, so it's enforced here rather than left to the frontend to
@@ -255,12 +262,11 @@ public class CheckoutService {
                 .courierType(request.getCourierType())
                 .courierServiceName(request.getCourierServiceName())
                 .courierStageOrOffice(request.getCourierStageOrOffice())
-                .taxInvoiceRequested(request.isTaxInvoiceRequested())
-                .taxInvoiceEmail(request.isTaxInvoiceRequested()
-                        ? (request.getTaxInvoiceEmail() != null && !request.getTaxInvoiceEmail().isBlank()
-                                ? request.getTaxInvoiceEmail() : request.getEmail())
-                        : null)
+                .taxInvoiceRequested(request.isEtrRequested())
+                .taxInvoiceEmail(request.isEtrRequested() ? resolveDocumentsEmail(request) : null)
                 .taxInvoiceKraPin(resolveTaxInvoiceKraPin(request))
+                .etrRequested(request.isEtrRequested())
+                .documentsEmail(request.isEtrRequested() ? resolveDocumentsEmail(request) : null)
                 .build();
 
         // â”€â”€ Resolve items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -374,6 +380,10 @@ public class CheckoutService {
         log.info("Order created: {} fulfillment={} (source: {})",
                 reference, fulfillmentType, cartItems.isEmpty() ? "inline" : "cart");
         return dto;
+    }
+
+    private String resolveDocumentsEmail(CheckoutRequest request) {
+        return request.getDocumentsEmail().trim();
     }
 
     private static final java.util.regex.Pattern KRA_PIN_PATTERN =

@@ -171,6 +171,20 @@ public class TaxDocumentService {
     }
 
     /**
+     * Regenerates the final tax-invoice PDF from the order's now-settled payment data, WITHOUT
+     * emailing it — used by the ETR-gated document bundle flow (order.etrRequested), where the
+     * bundle (receipt + tax invoice + ETR) is only ever emailed together once an admin uploads
+     * the ETR scan, never as a standalone tax-invoice email. See DocumentBundleService.
+     */
+    @Transactional
+    public void regenerateForOrder(Order order) {
+        taxDocumentRepository.findByOrder_Reference(order.getReference())
+                .ifPresentOrElse(
+                        doc -> generateAndUpload(doc.getId()),
+                        () -> log.warn("Order {} has etrRequested=true but no TaxDocument row exists", order.getReference()));
+    }
+
+    /**
      * Called from PaymentService once an order's payment succeeds. If checkout's initial
      * generateAndUpload() failed (e.g. a transient Cloudinary hiccup), retries it here — payment
      * confirmation often follows checkout by only seconds to minutes, so this is a natural

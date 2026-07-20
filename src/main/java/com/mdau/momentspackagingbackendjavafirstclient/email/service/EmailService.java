@@ -367,6 +367,24 @@ public class EmailService {
         sendHtml(doc.getRecipientEmail(), "Your tax invoice - " + doc.getOrder().getReference(), html);
     }
 
+    /**
+     * Synchronous and throws on failure, same reasoning as sendTaxInvoiceReadyEmail —
+     * DocumentBundleService needs to know whether the send actually succeeded so it can set the
+     * bundle's status to SENT or FAILED (with reason) rather than fire-and-forget.
+     */
+    public void sendDocumentBundleEmail(
+            com.mdau.momentspackagingbackendjavafirstclient.documentbundle.entity.DocumentBundle bundle,
+            String receiptUrl, String taxInvoiceUrl) throws Exception {
+        Context ctx = new Context(Locale.ENGLISH);
+        addCompanyContext(ctx);
+        ctx.setVariable("order", bundle.getOrder());
+        ctx.setVariable("receiptUrl", receiptUrl);
+        ctx.setVariable("taxInvoiceUrl", taxInvoiceUrl);
+        ctx.setVariable("etrUrl", bundle.getEtrCloudinaryUrl());
+        String html = templateEngine.process("email/document-bundle-ready", ctx);
+        sendHtml(bundle.getRecipientEmail(), "Your receipt, tax invoice & ETR - " + bundle.getOrder().getReference(), html);
+    }
+
     private void sendOrderEmail(Order order, String template, String subject) {
         try {
             // Eagerly initialize ALL lazy collections before Thymeleaf accesses them
