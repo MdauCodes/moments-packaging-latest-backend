@@ -51,13 +51,14 @@ public class DevToolsService {
     private final UploadService        uploadService;
     private final EmailService         emailService;
 
+    private record PricedLine(BigDecimal lineTotal, BigDecimal vatRate) {}
+
     @Transactional(readOnly = true)
     public CheckoutDryRunResult dryRunCheckout(CheckoutDryRunRequest request) {
         List<String> warnings = new ArrayList<>();
         List<CheckoutDryRunItem> resolvedItems = new ArrayList<>();
+        List<PricedLine> vatableLines = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
-        BigDecimal taxableAmount = BigDecimal.ZERO;
-        BigDecimal vatAmount = BigDecimal.ZERO;
 
         if (request.getItems() == null || request.getItems().isEmpty()) {
             warnings.add("No items provided — nothing to price.");
@@ -89,9 +90,7 @@ public class DevToolsService {
 
                 if (!Boolean.TRUE.equals(product.getVatExempt())) {
                     BigDecimal rate = product.getVatRate() != null ? product.getVatRate() : new BigDecimal("0.16");
-                    BigDecimal lineVat = lineTotal.subtract(lineTotal.divide(BigDecimal.ONE.add(rate), 2, RoundingMode.HALF_UP));
-                    taxableAmount = taxableAmount.add(lineTotal);
-                    vatAmount = vatAmount.add(lineVat);
+                    vatableLines.add(new PricedLine(lineTotal, rate));
                 }
             }
         }
@@ -119,6 +118,22 @@ public class DevToolsService {
 
         if (request.getRedeemPoints() != null && request.getRedeemPoints() > 0) {
             warnings.add("Points redemption preview isn't simulated here — it depends on a real customer's points balance.");
+        }
+
+        // Mirrors CheckoutService.checkout(): the discount is allocated proportionally across
+        // every line (by share of subtotal) before VAT is extracted, so this preview doesn't
+        // drift from the real checkout math.
+        BigDecimal discountRatio = subtotal.compareTo(BigDecimal.ZERO) > 0
+                ? discount.divide(subtotal, 6, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        BigDecimal taxableAmount = BigDecimal.ZERO;
+        BigDecimal vatAmount = BigDecimal.ZERO;
+        for (PricedLine line : vatableLines) {
+            BigDecimal lineDiscount = line.lineTotal().multiply(discountRatio).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal discountedLineTotal = line.lineTotal().subtract(lineDiscount);
+            BigDecimal lineVat = discountedLineTotal.subtract(discountedLineTotal.divide(BigDecimal.ONE.add(line.vatRate()), 2, RoundingMode.HALF_UP));
+            taxableAmount = taxableAmount.add(discountedLineTotal);
+            vatAmount = vatAmount.add(lineVat);
         }
 
         BigDecimal total = subtotal.add(deliveryFee).subtract(discount);
