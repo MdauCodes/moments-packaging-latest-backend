@@ -56,13 +56,26 @@ public class DocumentBundleService {
                         .build()));
     }
 
-    /** Admin upload — validates, uploads the ETR to Cloudinary, then immediately sends the bundle. */
+    /**
+     * Admin upload — validates, uploads the ETR to Cloudinary, then immediately sends the bundle.
+     * Works regardless of the bundle's current status, so it doubles as the "re-upload & resend"
+     * action for a FAILED send or an EXPIRED (auto-deleted after 2 months) ETR — see
+     * DocumentBundleCleanupJob. A prior ETR asset is deleted first so re-uploads don't orphan
+     * old Cloudinary files.
+     */
     @Transactional
     public DocumentBundle uploadEtrAndSend(UUID bundleId, MultipartFile file) {
         DocumentBundle bundle = documentBundleRepository.findById(bundleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document bundle not found: " + bundleId));
+        if (bundle.getEtrCloudinaryPublicId() != null) {
+            try {
+                uploadService.deleteRaw(bundle.getEtrCloudinaryPublicId());
+            } catch (Exception e) {
+                log.warn("Could not delete previous ETR asset for order {}: {}", bundle.getOrder().getReference(), e.getMessage());
+            }
+        }
         byte[] bytes = validateAndReadEtrFile(file);
-        String filename = "etr-" + bundle.getOrder().getReference();
+        String filename = "etr-" + bundle.getOrder().getReference() + "-" + System.currentTimeMillis();
         UploadResponse uploaded = uploadService.uploadRaw(bytes, "etr-documents", filename);
         bundle.setEtrCloudinaryUrl(uploaded.getUrl());
         bundle.setEtrCloudinaryPublicId(uploaded.getPublicId());
@@ -80,6 +93,35 @@ public class DocumentBundleService {
             throw new IllegalStateException("Upload the ETR document before sending.");
         }
         return sendBundle(bundle);
+    }
+
+    /**
+     * Called monthly by DocumentBundleCleanupJob. Deletes the Cloudinary ETR asset for every SENT
+     * bundle whose ETR was uploaded more than 2 months ago and flips it to EXPIRED. Deliberately
+     * a longer window than the tax invoice's 2-week retention (see TaxDocumentCleanupJob) — ETRs
+     * are the KRA-compliance document customers are most likely to need to re-download later, so
+     * they get more time before deletion, while still being minimized against Cloudinary cost.
+     * Recoverable afterwards only via the admin re-upload action, same as an expired tax invoice.
+     */
+    @Transactional
+    public int expireOldEtrs() {
+        Instant cutoff = Instant.now().minus(60, java.time.temporal.ChronoUnit.DAYS);
+        var due = documentBundleRepository.findByStatusAndEtrUploadedAtBefore(DocumentBundleStatus.SENT, cutoff);
+        for (DocumentBundle bundle : due) {
+            try {
+                if (bundle.getEtrCloudinaryPublicId() != null) {
+                    uploadService.deleteRaw(bundle.getEtrCloudinaryPublicId());
+                }
+                bundle.setEtrCloudinaryUrl(null);
+                bundle.setEtrCloudinaryPublicId(null);
+                bundle.setStatus(DocumentBundleStatus.EXPIRED);
+                documentBundleRepository.save(bundle);
+            } catch (Exception e) {
+                log.error("Failed to expire ETR for bundle {} (order {}): {}",
+                        bundle.getId(), bundle.getOrder().getReference(), e.getMessage(), e);
+            }
+        }
+        return due.size();
     }
 
     private DocumentBundle sendBundle(DocumentBundle bundle) {

@@ -7,6 +7,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,4 +16,6 @@ import java.util.UUID;
 public interface DocumentBundleRepository extends JpaRepository<DocumentBundle, UUID> {
     Optional<DocumentBundle> findByOrder_Reference(String orderReference);
     Page<DocumentBundle> findByStatus(DocumentBundleStatus status, Pageable pageable);
+    /** Used by the monthly cleanup job — 2 months is measured from when the ETR was uploaded, not from checkout. */
+    List<DocumentBundle> findByStatusAndEtrUploadedAtBefore(DocumentBundleStatus status, Instant cutoff);
 }

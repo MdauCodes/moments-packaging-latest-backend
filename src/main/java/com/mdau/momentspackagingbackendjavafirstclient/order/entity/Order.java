@@ -210,6 +210,14 @@ public class Order {
     private String documentsEmail;
 
     /**
+     * The order's ETR-gated document bundle, if etrRequested — read-only side of the relation
+     * (DocumentBundle.order owns the FK). Accessed directly by OrderDto the same way it already
+     * reads Order.items, relying on the caller's transaction to keep the lazy load valid.
+     */
+    @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
+    private com.mdau.momentspackagingbackendjavafirstclient.documentbundle.entity.DocumentBundle documentBundle;
+
+    /**
      * Refund handling is deliberately NOT automated: logging a request here never touches
      * status/paymentStatus/inventory by itself. An admin reviews it and, separately, decides
      * whether to move the order to REFUNDED (manual override), mark the payment record failed,

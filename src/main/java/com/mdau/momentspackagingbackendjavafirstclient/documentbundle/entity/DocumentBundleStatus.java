@@ -7,4 +7,6 @@ public enum DocumentBundleStatus {
     SENT,
     /** ETR upload succeeded but the email send failed, or a retry failed — see failureReason. Retryable. */
     FAILED,
+    /** The monthly cleanup job deleted the Cloudinary ETR asset after the 2-month retention window. Not an error — an admin can re-upload to resend. */
+    EXPIRED,
 }

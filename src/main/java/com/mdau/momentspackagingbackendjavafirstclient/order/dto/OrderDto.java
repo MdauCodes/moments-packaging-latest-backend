@@ -34,6 +34,10 @@ public class OrderDto {
     private final BigDecimal totalAmount;
     private final Boolean    etrRequested;
     private final String     documentsEmail;
+    /** Null until an admin has uploaded the ETR at least once for this order's DocumentBundle. */
+    private final String     documentBundleStatus;
+    /** ETR available for re-download/resend until this date — null until first uploaded, cleared once EXPIRED. */
+    private final Instant    etrAvailableUntil;
     private final String     notes;
     private final String     staffNotes;
     private final String     assignedTo;
@@ -88,6 +92,10 @@ public class OrderDto {
         this.totalAmount               = order.getTotalAmount();
         this.etrRequested              = order.getEtrRequested();
         this.documentsEmail            = order.getDocumentsEmail();
+        var bundle = order.getDocumentBundle();
+        this.documentBundleStatus      = bundle != null ? bundle.getStatus().name() : null;
+        this.etrAvailableUntil         = bundle != null && bundle.getEtrUploadedAt() != null
+                ? bundle.getEtrUploadedAt().plus(60, java.time.temporal.ChronoUnit.DAYS) : null;
         this.notes                     = order.getNotes();
         this.staffNotes                = order.getStaffNotes();
         this.assignedTo                = order.getAssignedTo();
