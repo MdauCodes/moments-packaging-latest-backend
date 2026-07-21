@@ -3,6 +3,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.analytics.controller;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TaxReportDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.service.AnalyticsService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
 import lombok.RequiredArgsConstructor;
@@ -51,5 +52,14 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getRewardsEconomics(from, to);
+    }
+
+    /** Phase 4 — tax reporting: VAT to remit, vatable sales, and tax-document compliance. */
+    @IsStaffOrAdmin
+    @GetMapping("/tax")
+    public TaxReportDto tax(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getTaxReport(from, to);
     }
 }

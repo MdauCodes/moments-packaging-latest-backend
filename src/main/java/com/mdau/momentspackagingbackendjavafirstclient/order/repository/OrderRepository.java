@@ -149,4 +149,29 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         ORDER BY revenue DESC
         """)
     List<Object[]> findTopSellingProducts(@Param("start") Instant start, Pageable pageable);
+
+    /** Analytics Phase 4 — tax report: [0]=sum(taxableAmount), [1]=sum(vatAmount), [2]=paid order
+     *  count, for PAID orders in range. taxableAmount is already the post-discount KRA base and
+     *  vatAmount the VAT already extracted from it (see Order.java) — this is the amount to remit. */
+    @Query("""
+        SELECT COALESCE(SUM(o.taxableAmount), 0), COALESCE(SUM(o.vatAmount), 0), COUNT(o) FROM Order o
+        WHERE o.paymentStatus = 'PAID'
+        AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    List<Object[]> sumVatForPaidInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Count of PAID orders in range that requested a tax invoice / ETR bundle — for compliance stats. */
+    @Query("""
+        SELECT COUNT(o) FROM Order o
+        WHERE o.paymentStatus = 'PAID' AND o.taxInvoiceRequested = true
+        AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    long countTaxInvoiceRequestedInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    @Query("""
+        SELECT COUNT(o) FROM Order o
+        WHERE o.paymentStatus = 'PAID' AND o.etrRequested = true
+        AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    long countEtrRequestedInRange(@Param("start") Instant start, @Param("end") Instant end);
 }

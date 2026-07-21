@@ -7,7 +7,10 @@ import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEcon
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsSourceBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusCountDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusDurationDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TaxReportDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopWalletHolderDto;
+import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.entity.DocumentBundleStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.repository.DocumentBundleRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentStatus;
@@ -55,6 +58,7 @@ public class AnalyticsService {
     private final CreditWalletRepository       creditWalletRepository;
     private final ReferralEventRepository      referralEventRepository;
     private final SettingsService              settingsService;
+    private final DocumentBundleRepository     documentBundleRepository;
 
     @Transactional(readOnly = true)
     public RevenueSummaryDto getRevenueSummary(Instant start, Instant end) {
@@ -265,6 +269,36 @@ public class AnalyticsService {
                 redeemedValueKes,
                 medianBalance,
                 topHolders
+        );
+    }
+
+    /**
+     * Phase 4 — tax reporting. VAT is only ever due on what a paying customer actually paid, so
+     * this only ever sums PAID orders (same discipline as revenue in Phase 1) using the already-
+     * corrected post-discount taxableAmount/vatAmount fields (see Order.java — the VAT-on-discount
+     * fix). Also surfaces tax-document compliance: how many paid orders asked for a tax invoice /
+     * ETR, and where each requested ETR bundle currently sits in its PENDING→SENT/FAILED lifecycle.
+     */
+    @Transactional(readOnly = true)
+    public TaxReportDto getTaxReport(Instant start, Instant end) {
+        List<Object[]> vatRows = orderRepository.sumVatForPaidInRange(start, end);
+        Object[] vatRow = vatRows.isEmpty() ? new Object[]{BigDecimal.ZERO, BigDecimal.ZERO, 0L} : vatRows.get(0);
+        BigDecimal vatableSales = orNil((BigDecimal) vatRow[0]);
+        BigDecimal vatToRemit = orNil((BigDecimal) vatRow[1]);
+        long paidOrderCount = ((Number) vatRow[2]).longValue();
+
+        long taxInvoiceRequested = orderRepository.countTaxInvoiceRequestedInRange(start, end);
+        long etrRequested = orderRepository.countEtrRequestedInRange(start, end);
+
+        List<StatusCountDto> bundleCounts = documentBundleRepository.countByStatusForOrdersInRange(start, end).stream()
+                .map(row -> new StatusCountDto(((DocumentBundleStatus) row[0]).name(), ((Number) row[1]).longValue()))
+                .toList();
+
+        return new TaxReportDto(
+                start, end,
+                vatableSales, vatToRemit, paidOrderCount,
+                taxInvoiceRequested, etrRequested,
+                bundleCounts
         );
     }
 
