@@ -3,8 +3,11 @@ package com.mdau.momentspackagingbackendjavafirstclient.analytics.service;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.PaymentMethodBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsSourceBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusCountDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusDurationDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopWalletHolderDto;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentStatus;
@@ -12,7 +15,14 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRep
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderStatusHistoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecordStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.entity.CreditTransactionType;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.entity.ReferralEventStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.CreditTransactionRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.CreditWalletRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.ReferralEventRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,9 +46,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AnalyticsService {
 
+    private static final String KEY_CREDITS_PER_KES = "referral.credits.per.kes";
+
     private final OrderRepository              orderRepository;
     private final PaymentRecordRepository      paymentRecordRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final CreditTransactionRepository  creditTransactionRepository;
+    private final CreditWalletRepository       creditWalletRepository;
+    private final ReferralEventRepository      referralEventRepository;
+    private final SettingsService              settingsService;
 
     @Transactional(readOnly = true)
     public RevenueSummaryDto getRevenueSummary(Instant start, Instant end) {
@@ -189,6 +205,81 @@ public class AnalyticsService {
                     return new PaymentMethodBreakdownDto(e.getKey(), success, failed, other, round1(rate));
                 })
                 .toList();
+    }
+
+    /**
+     * Phase 3 — Reward Coupons & referral economics. Coupon counts are converted to KES using the
+     * same `referral.credits.per.kes` setting and rounding (FLOOR, 2dp) that ReferralService itself
+     * uses at redemption time, so the dashboard figures always agree with what customers actually see.
+     */
+    @Transactional(readOnly = true)
+    public RewardsEconomicsDto getRewardsEconomics(Instant start, Instant end) {
+        int creditsPerKes = Integer.parseInt(settingsService.getValue(KEY_CREDITS_PER_KES, "10"));
+
+        long outstandingBalance = creditWalletRepository.sumAllBalances();
+        BigDecimal outstandingValueKes = creditsToKes(outstandingBalance, creditsPerKes);
+
+        List<Integer> allBalances = creditWalletRepository.findAllBalances();
+        double medianBalance = median(allBalances);
+
+        List<TopWalletHolderDto> topHolders = creditWalletRepository.findTopHolders(PageRequest.of(0, 10)).stream()
+                .map(row -> {
+                    String name = String.valueOf(row[0]) + " " + String.valueOf(row[1]);
+                    int balance = ((Number) row[2]).intValue();
+                    return new TopWalletHolderDto(name.trim(), balance, creditsToKes(balance, creditsPerKes));
+                })
+                .toList();
+
+        List<Object[]> typeRows = creditTransactionRepository.sumByTypeInRange(start, end);
+        List<RewardsSourceBreakdownDto> earnedInRange = new ArrayList<>();
+        long redeemedCoupons = 0;
+        for (Object[] row : typeRows) {
+            CreditTransactionType type = (CreditTransactionType) row[0];
+            long coupons = ((Number) row[2]).longValue();
+            if (type == CreditTransactionType.REDEEMED) {
+                redeemedCoupons = coupons;
+            } else if (type.name().startsWith("EARNED_")) {
+                earnedInRange.add(new RewardsSourceBreakdownDto(type.name(), coupons, creditsToKes(coupons, creditsPerKes)));
+            }
+        }
+        BigDecimal redeemedValueKes = creditsToKes(redeemedCoupons, creditsPerKes);
+
+        // Referral conversion — of referrals whose referee signed up in this range, how many confirmed.
+        List<Object[]> statusRows = referralEventRepository.countByStatusInRange(start, end);
+        long referralSignups = 0;
+        long referralConfirmed = 0;
+        for (Object[] row : statusRows) {
+            ReferralEventStatus status = (ReferralEventStatus) row[0];
+            long count = ((Number) row[1]).longValue();
+            referralSignups += count;
+            if (status == ReferralEventStatus.CONFIRMED) referralConfirmed = count;
+        }
+        double conversionRate = referralSignups > 0 ? round1(referralConfirmed * 100.0 / referralSignups) : 0.0;
+
+        return new RewardsEconomicsDto(
+                start, end,
+                outstandingBalance, outstandingValueKes,
+                redeemedCoupons, redeemedValueKes,
+                earnedInRange,
+                conversionRate, referralSignups, referralConfirmed,
+                redeemedValueKes,
+                medianBalance,
+                topHolders
+        );
+    }
+
+    private static double median(List<Integer> values) {
+        if (values.isEmpty()) return 0.0;
+        List<Integer> sorted = new ArrayList<>(values);
+        sorted.sort(null);
+        int mid = sorted.size() / 2;
+        return sorted.size() % 2 == 0
+                ? (sorted.get(mid - 1) + sorted.get(mid)) / 2.0
+                : sorted.get(mid);
+    }
+
+    private static BigDecimal creditsToKes(long credits, int creditsPerKes) {
+        return BigDecimal.valueOf(credits).divide(BigDecimal.valueOf(creditsPerKes), 2, RoundingMode.FLOOR);
     }
 
     private static double round1(double v) {

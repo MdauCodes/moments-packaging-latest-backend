@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.analytics.controller;
 
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.service.AnalyticsService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
 import lombok.RequiredArgsConstructor;
@@ -41,5 +42,14 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getOperationsSummary(from, to);
+    }
+
+    /** Phase 3 — Reward Coupons & referral economics: outstanding balances, redemption cost, top holders. */
+    @IsStaffOrAdmin
+    @GetMapping("/rewards")
+    public RewardsEconomicsDto rewards(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getRewardsEconomics(from, to);
     }
 }
