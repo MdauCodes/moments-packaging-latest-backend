@@ -1,5 +1,6 @@
 package com.mdau.momentspackagingbackendjavafirstclient.analytics.controller;
 
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.service.AnalyticsService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
@@ -31,5 +32,14 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getRevenueSummary(from, to);
+    }
+
+    /** Phase 2 — order funnel, time-in-stage, cancellation rate, repeat customers, refunds. */
+    @IsStaffOrAdmin
+    @GetMapping("/operations")
+    public OperationsSummaryDto operations(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getOperationsSummary(from, to);
     }
 }

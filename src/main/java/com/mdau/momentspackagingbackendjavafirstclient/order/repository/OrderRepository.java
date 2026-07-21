@@ -96,6 +96,43 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         """)
     List<Object[]> getOrderStatsForCustomer(@Param("customer") User customer);
 
+    /** Analytics Phase 2 — order status funnel: [0]=status, [1]=count, for orders created in range. */
+    @Query("""
+        SELECT o.status, COUNT(o) FROM Order o
+        WHERE o.createdAt >= :start AND o.createdAt < :end
+        GROUP BY o.status
+        """)
+    List<Object[]> countByStatusInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Distinct registered customers who placed an order in range — the cohort for repeat-rate. */
+    @Query("""
+        SELECT DISTINCT o.customer.id FROM Order o
+        WHERE o.customer IS NOT NULL AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    List<UUID> findDistinctCustomerIdsInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Lifetime PAID order count per customer, for the given ids — [0]=customerId, [1]=count. */
+    @Query("""
+        SELECT o.customer.id, COUNT(o) FROM Order o
+        WHERE o.customer.id IN :customerIds AND o.paymentStatus = 'PAID'
+        GROUP BY o.customer.id
+        """)
+    List<Object[]> countLifetimePaidOrdersByCustomerIds(@Param("customerIds") List<UUID> customerIds);
+
+    /** Refund requests logged in range — [0]=count, [1]=value of the affected orders. */
+    @Query("""
+        SELECT COUNT(o), COALESCE(SUM(o.totalAmount), 0) FROM Order o
+        WHERE o.refundRequestedAt >= :start AND o.refundRequestedAt < :end
+        """)
+    List<Object[]> refundsRequestedInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Refund requests resolved in range, with both timestamps, for computing average resolution time in Java. */
+    @Query("""
+        SELECT o FROM Order o
+        WHERE o.refundResolvedAt >= :start AND o.refundResolvedAt < :end AND o.refundRequestedAt IS NOT NULL
+        """)
+    List<Order> findResolvedRefundsInRange(@Param("start") Instant start, @Param("end") Instant end);
+
     @Query("""
         SELECT COUNT(o), COALESCE(SUM(o.totalAmount), 0), MIN(o.createdAt), MAX(o.createdAt) FROM Order o
         WHERE o.customer = :customer AND o.paymentStatus = 'PAID'
