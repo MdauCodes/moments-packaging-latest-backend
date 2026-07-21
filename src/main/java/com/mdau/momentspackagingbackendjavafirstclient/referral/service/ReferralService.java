@@ -49,6 +49,8 @@ public class ReferralService {
     private static final String KEY_CREDITS_PER_KES     = "referral.credits.per.kes";
     private static final String KEY_MAX_REDEMPTION_PCT  = "referral.max.redemption.percent";
     private static final String KEY_MAX_ACTIVE_REFERRALS= "referral.max.active.referrals.per.user";
+    /** How many of the referee's paid orders keep earning the referrer credits — default 1 (first order only), admin-tunable. */
+    private static final String KEY_MAX_QUALIFYING_ORDERS= "referral.max.qualifying.orders";
     /** Redemptions allowed before the customer must verify their email to redeem again. */
     public  static final int    FREE_REDEMPTION_LIMIT    = 3;
     private static final String KEY_WELCOME_POINTS      = "rewards.welcome.points";
@@ -201,6 +203,13 @@ public class ReferralService {
                 .orElse(null);
         if (event == null) return;
 
+        int maxQualifyingOrders = Math.max(1, Integer.parseInt(settingsService.getValue(KEY_MAX_QUALIFYING_ORDERS, "1")));
+        int alreadyQualified = event.getQualifyingOrderCount();
+        // Guards against re-processing the event after it's already hit the cap — shouldn't
+        // normally happen since status flips to CONFIRMED at the cap, but stays safe if the
+        // cap setting is lowered after some orders already qualified under a higher one.
+        if (alreadyQualified >= maxQualifyingOrders) return;
+
         BigDecimal orderTotal = order.getTotalAmount();
         ReferralTierConfig tier = tierRepo.findMatchingTier(orderTotal).orElse(null);
         if (tier == null) {
@@ -210,28 +219,38 @@ public class ReferralService {
             return;
         }
 
-        if (tier.getRefereeCredits() > 0) {
+        // The referee's own purchase bonus is a one-time thing — only their first qualifying
+        // order pays it, regardless of how many orders keep earning the referrer credits.
+        if (alreadyQualified == 0 && tier.getRefereeCredits() > 0) {
             awardCredits(buyer, tier.getRefereeCredits(),
                     CreditTransactionType.EARNED_PURCHASE,
                     "Credits earned for qualifying purchase of KES " + orderTotal,
                     event, order.getId().toString());
+            event.setRefereeCreditsAwarded(tier.getRefereeCredits());
         }
         if (tier.getReferrerCredits() > 0) {
+            String suffix = maxQualifyingOrders > 1
+                    ? " (order " + (alreadyQualified + 1) + " of " + maxQualifyingOrders + ")"
+                    : "";
             awardCredits(event.getReferrer(), tier.getReferrerCredits(),
                     CreditTransactionType.EARNED_REFERRAL,
-                    "Credits earned — your referral " + buyer.getFirstName() + " made a purchase",
+                    "Credits earned — your referral " + buyer.getFirstName() + " made a purchase" + suffix,
                     event, order.getId().toString());
+            event.setReferrerCreditsAwarded(event.getReferrerCreditsAwarded() + tier.getReferrerCredits());
         }
 
-        event.setStatus(ReferralEventStatus.CONFIRMED);
+        int newCount = alreadyQualified + 1;
         event.setOrder(order);
         event.setQualifyingAmount(orderTotal);
-        event.setRefereeCreditsAwarded(tier.getRefereeCredits());
-        event.setReferrerCreditsAwarded(tier.getReferrerCredits());
+        event.setQualifyingOrderCount(newCount);
+        if (newCount >= maxQualifyingOrders) {
+            event.setStatus(ReferralEventStatus.CONFIRMED);
+        }
         referralEventRepo.save(event);
 
-        log.info("Referral confirmed: {} credits → referrer, {} credits → referee",
-                tier.getReferrerCredits(), tier.getRefereeCredits());
+        log.info("Referral order {}/{} for {}: {} credits → referrer, {} credits → referee",
+                newCount, maxQualifyingOrders, buyer.getEmail(),
+                tier.getReferrerCredits(), alreadyQualified == 0 ? tier.getRefereeCredits() : 0);
     }
 
     // ── Credit redemption ─────────────────────────────────────────────────────

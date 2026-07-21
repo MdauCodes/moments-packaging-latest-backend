@@ -55,4 +55,15 @@ public class ReferralEvent extends BaseEntity {
     @Column(name = "referee_credits_awarded", nullable = false)
     @Builder.Default
     private Integer refereeCreditsAwarded = 0;
+
+    /**
+     * How many of the referee's paid orders have already earned the referrer credits — capped at
+     * the admin-configurable "referral.max.qualifying.orders" setting (default 1, matching the
+     * original one-time-only behavior). The referee's own one-time purchase bonus is unaffected —
+     * it still only ever pays out on their first qualifying order regardless of this count. See
+     * ReferralService.processOrderForReferral.
+     */
+    @Column(name = "qualifying_order_count", nullable = false)
+    @Builder.Default
+    private Integer qualifyingOrderCount = 0;
 }
