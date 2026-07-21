@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.order.repository;
 
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.user.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -66,6 +67,28 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     long countByStatus(OrderStatus status);
 
     long countByCreatedAtBetween(Instant start, Instant end);
+
+    /**
+     * Analytics dashboard — value of orders in a date range by payment status, generalized
+     * beyond sumPaidOrdersInRange (kept as-is since other callers depend on its exact signature).
+     * Revenue must only ever come from this with status=PAID — PENDING/FAILED rows are real
+     * orders but never actual revenue.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
+        WHERE o.paymentStatus = :status
+        AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    BigDecimal sumOrdersInRangeByPaymentStatus(
+            @Param("start") Instant start, @Param("end") Instant end, @Param("status") PaymentStatus status);
+
+    @Query("""
+        SELECT COUNT(o) FROM Order o
+        WHERE o.paymentStatus = :status
+        AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    long countOrdersInRangeByPaymentStatus(
+            @Param("start") Instant start, @Param("end") Instant end, @Param("status") PaymentStatus status);
 
     @Query("""
         SELECT COUNT(o), COALESCE(SUM(o.totalAmount), 0), MAX(o.createdAt) FROM Order o
