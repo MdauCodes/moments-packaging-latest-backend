@@ -2,11 +2,14 @@ package com.mdau.momentspackagingbackendjavafirstclient.analytics.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.PaymentMethodBreakdownDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductPerformanceDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductsInventoryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsSourceBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusCountDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusDurationDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StockAlertDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TaxReportDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopWalletHolderDto;
 import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.entity.DocumentBundleStatus;
@@ -18,6 +21,9 @@ import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderRep
 import com.mdau.momentspackagingbackendjavafirstclient.order.repository.OrderStatusHistoryRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecordStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.payment.repository.PaymentRecordRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.Product;
+import com.mdau.momentspackagingbackendjavafirstclient.product.entity.StockStatus;
+import com.mdau.momentspackagingbackendjavafirstclient.product.repository.ProductRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.entity.CreditTransactionType;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.entity.ReferralEventStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.CreditTransactionRepository;
@@ -59,6 +65,7 @@ public class AnalyticsService {
     private final ReferralEventRepository      referralEventRepository;
     private final SettingsService              settingsService;
     private final DocumentBundleRepository     documentBundleRepository;
+    private final ProductRepository            productRepository;
 
     @Transactional(readOnly = true)
     public RevenueSummaryDto getRevenueSummary(Instant start, Instant end) {
@@ -300,6 +307,63 @@ public class AnalyticsService {
                 taxInvoiceRequested, etrRequested,
                 bundleCounts
         );
+    }
+
+    /**
+     * Phase 5 — products & inventory. Top sellers are date-ranged (PAID orders only, same
+     * discipline as every other revenue figure here); stock levels and inventory valuation are a
+     * live snapshot, not date-scoped, since "how much stock do we hold right now" doesn't have a
+     * meaningful historical range. costPrice is only populated for Riseller-synced items, so the
+     * cost-based valuation is a floor, not a guarantee — productsMissingCostPriceCount says how big
+     * that gap is rather than silently under-reporting it.
+     */
+    @Transactional(readOnly = true)
+    public ProductsInventoryDto getProductsInventory(Instant start, Instant end) {
+        List<ProductPerformanceDto> topSelling = orderRepository.findTopSellingProductsInRange(start, end, PageRequest.of(0, 10)).stream()
+                .map(row -> new ProductPerformanceDto(
+                        String.valueOf(row[0]),
+                        ((Number) row[1]).longValue(),
+                        orNil((BigDecimal) row[2])))
+                .toList();
+
+        long inStockCount = productRepository.countByStockStatusAndDeletedFalse(StockStatus.IN_STOCK);
+        long lowStockCount = productRepository.countByStockStatusAndDeletedFalse(StockStatus.LOW_STOCK);
+        long outOfStockCount = productRepository.countByStockStatusAndDeletedFalse(StockStatus.OUT_OF_STOCK);
+
+        BigDecimal totalCostValue = BigDecimal.ZERO;
+        BigDecimal totalRetailValue = BigDecimal.ZERO;
+        long missingCostPriceCount = 0;
+        for (Object[] row : productRepository.findInventoryValuationRows()) {
+            BigDecimal costPrice = (BigDecimal) row[0];
+            BigDecimal basePrice = (BigDecimal) row[1];
+            int stockCount = ((Number) row[2]).intValue();
+            if (costPrice == null) {
+                missingCostPriceCount++;
+            } else {
+                totalCostValue = totalCostValue.add(costPrice.multiply(BigDecimal.valueOf(stockCount)));
+            }
+            if (basePrice != null) {
+                totalRetailValue = totalRetailValue.add(basePrice.multiply(BigDecimal.valueOf(stockCount)));
+            }
+        }
+
+        List<StockAlertDto> lowStockAlerts = productRepository.findLowStockAlerts(PageRequest.of(0, 10)).stream()
+                .map(p -> new StockAlertDto(p.getName(), nz(p.getStockCount()), nz(p.getLowStockThreshold()), p.getStockStatus().name()))
+                .toList();
+
+        return new ProductsInventoryDto(
+                start, end,
+                topSelling,
+                inStockCount, lowStockCount, outOfStockCount,
+                totalCostValue.setScale(2, RoundingMode.HALF_UP),
+                totalRetailValue.setScale(2, RoundingMode.HALF_UP),
+                missingCostPriceCount,
+                lowStockAlerts
+        );
+    }
+
+    private static int nz(Integer v) {
+        return v != null ? v : 0;
     }
 
     private static double median(List<Integer> values) {

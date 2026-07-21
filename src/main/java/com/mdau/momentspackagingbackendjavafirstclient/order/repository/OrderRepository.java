@@ -174,4 +174,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         AND o.createdAt >= :start AND o.createdAt < :end
         """)
     long countEtrRequestedInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics Phase 5 — top sellers for a date range: [0]=name, [1]=units sold, [2]=revenue. */
+    @Query("""
+        SELECT oi.productNameSnapshot, COALESCE(SUM(oi.quantity), 0), COALESCE(SUM(oi.lineTotal), 0)
+        FROM OrderItem oi
+        JOIN oi.order o
+        WHERE o.paymentStatus = 'PAID'
+        AND o.createdAt >= :start AND o.createdAt < :end
+        GROUP BY oi.productNameSnapshot
+        ORDER BY SUM(oi.lineTotal) DESC
+        """)
+    List<Object[]> findTopSellingProductsInRange(@Param("start") Instant start, @Param("end") Instant end, Pageable pageable);
 }

@@ -144,6 +144,22 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findByStockStatusAndDeletedFalse(StockStatus stockStatus);
 
+    long countByStockStatusAndDeletedFalse(StockStatus stockStatus);
+
+    /** Analytics Phase 5 — [0]=costPrice (nullable, Riseller-synced only), [1]=basePrice, [2]=stockCount,
+     *  for every active product currently in stock. Valuation is summed in Java since costPrice can be
+     *  null and SQL SUM silently drops nulls, which would understate the true "missing cost data" gap. */
+    @Query("SELECT p.costPrice, p.basePrice, p.stockCount FROM Product p WHERE p.deleted = false AND p.stockCount > 0")
+    List<Object[]> findInventoryValuationRows();
+
+    /** Analytics Phase 5 — lowest-stock active products needing restock attention, most urgent first. */
+    @Query("""
+        SELECT p FROM Product p
+        WHERE p.deleted = false AND p.stockStatus IN ('LOW_STOCK', 'OUT_OF_STOCK')
+        ORDER BY p.stockCount ASC
+        """)
+    List<Product> findLowStockAlerts(Pageable pageable);
+
     boolean existsBySlug(String slug);
 
     @Query("SELECT p FROM Product p JOIN p.keywords k WHERE k = :keyword AND p.deleted = false")

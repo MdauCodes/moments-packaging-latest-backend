@@ -3,6 +3,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.analytics.controller;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductsInventoryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TaxReportDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.service.AnalyticsService;
 import com.mdau.momentspackagingbackendjavafirstclient.common.annotation.IsStaffOrAdmin;
@@ -61,5 +62,14 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getTaxReport(from, to);
+    }
+
+    /** Phase 5 — products & inventory: top sellers for the range, live stock levels and valuation. */
+    @IsStaffOrAdmin
+    @GetMapping("/products")
+    public ProductsInventoryDto products(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getProductsInventory(from, to);
     }
 }
