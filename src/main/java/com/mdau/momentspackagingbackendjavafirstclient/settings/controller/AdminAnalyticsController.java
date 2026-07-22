@@ -24,6 +24,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Analytics Phase 9 note: the comprehensive date-ranged dashboard (AdminAnalyticsRevenueController)
+ * now covers revenue, operations, rewards, tax, products, profitability, projections and customers
+ * with a consistent PAID-only revenue definition. This controller's fixed-window /overview endpoint
+ * is kept as-is — it's still the only source for total products/users/enquiries/leads and today/
+ * week/MTD figures the frontend's legacy "operational snapshot" panel displays — but its revenue
+ * figures use a different definition (not PAID-only) and should not be treated as reconciling with
+ * the newer dashboard.
+ */
 @RestController
 @RequestMapping("/api/v1/admin/analytics")
 @RequiredArgsConstructor
