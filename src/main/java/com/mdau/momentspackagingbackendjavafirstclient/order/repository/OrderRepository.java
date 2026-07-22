@@ -232,4 +232,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         GROUP BY o.customer.accountType
         """)
     List<Object[]> sumRevenueByAccountTypeInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics charts — daily revenue trend line: [0]=createdAt, [1]=totalAmount, [2]=paymentStatus,
+     *  for every order in range whose payment status is one of the three the trend chart plots.
+     *  Bucketed by local calendar day in Java (Africa/Nairobi), same approach as the Phase 2
+     *  time-in-stage math — no DB-side date_trunc, kept portable and consistent with the rest of
+     *  this service. */
+    @Query("""
+        SELECT o.createdAt, o.totalAmount, o.paymentStatus FROM Order o
+        WHERE o.paymentStatus IN ('PAID', 'PENDING', 'FAILED')
+        AND o.createdAt >= :start AND o.createdAt < :end
+        """)
+    List<Object[]> findRevenueTrendRowsInRange(@Param("start") Instant start, @Param("end") Instant end);
 }

@@ -5,6 +5,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.MonthlyProj
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProfitabilityDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueTrendDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductsInventoryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TaxReportDto;
@@ -38,6 +39,15 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getRevenueSummary(from, to);
+    }
+
+    /** Backs the revenue trend chart — daily paid/pending/failed totals for the range. */
+    @IsStaffOrAdmin
+    @GetMapping("/revenue-trend")
+    public RevenueTrendDto revenueTrend(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getRevenueTrend(from, to);
     }
 
     /** Phase 2 — order funnel, time-in-stage, cancellation rate, repeat customers, refunds. */

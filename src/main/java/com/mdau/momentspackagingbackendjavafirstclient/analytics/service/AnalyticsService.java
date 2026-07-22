@@ -2,6 +2,7 @@ package com.mdau.momentspackagingbackendjavafirstclient.analytics.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.AccountTypeBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.CustomerAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.DailyRevenuePointDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.MonthlyProjectionDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.PaymentMethodBreakdownDto;
@@ -9,6 +10,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductPerf
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductsInventoryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProfitabilityDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueTrendDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsSourceBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusCountDto;
@@ -45,6 +47,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -55,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 
 /**
@@ -108,6 +112,30 @@ public class AnalyticsService {
                 avgOrderValue,
                 byMethod
         );
+    }
+
+    /** Backs the revenue trend chart — daily paid/pending/failed totals, bucketed by local
+     *  calendar day (Africa/Nairobi) so a day's bucket matches what the business considers "today". */
+    @Transactional(readOnly = true)
+    public RevenueTrendDto getRevenueTrend(Instant start, Instant end) {
+        ZoneId zone = ZoneId.of("Africa/Nairobi");
+        Map<LocalDate, BigDecimal[]> byDay = new TreeMap<>();
+        for (Object[] row : orderRepository.findRevenueTrendRowsInRange(start, end)) {
+            Instant createdAt = (Instant) row[0];
+            BigDecimal amount = orNil((BigDecimal) row[1]);
+            PaymentStatus status = (PaymentStatus) row[2];
+            LocalDate day = createdAt.atZone(zone).toLocalDate();
+            BigDecimal[] bucket = byDay.computeIfAbsent(day, d -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO});
+            if (status == PaymentStatus.PAID) bucket[0] = bucket[0].add(amount);
+            else if (status == PaymentStatus.PENDING) bucket[1] = bucket[1].add(amount);
+            else if (status == PaymentStatus.FAILED) bucket[2] = bucket[2].add(amount);
+        }
+
+        List<DailyRevenuePointDto> points = byDay.entrySet().stream()
+                .map(e -> new DailyRevenuePointDto(e.getKey(), e.getValue()[0], e.getValue()[1], e.getValue()[2]))
+                .toList();
+
+        return new RevenueTrendDto(start, end, points);
     }
 
     @Transactional(readOnly = true)
