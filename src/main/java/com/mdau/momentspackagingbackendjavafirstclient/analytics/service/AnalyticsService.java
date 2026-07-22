@@ -1,9 +1,13 @@
 package com.mdau.momentspackagingbackendjavafirstclient.analytics.service;
 
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.AccountTypeBreakdownDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.CustomerAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.MonthlyProjectionDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.PaymentMethodBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductPerformanceDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductsInventoryDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProfitabilityDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsSourceBreakdownDto;
@@ -11,6 +15,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusCount
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StatusDurationDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.StockAlertDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TaxReportDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopCustomerDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopWalletHolderDto;
 import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.entity.DocumentBundleStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.repository.DocumentBundleRepository;
@@ -30,6 +35,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.Credi
 import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.CreditWalletRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.referral.repository.ReferralEventRepository;
 import com.mdau.momentspackagingbackendjavafirstclient.settings.service.SettingsService;
+import com.mdau.momentspackagingbackendjavafirstclient.user.entity.AccountType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -39,10 +45,16 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -359,6 +371,138 @@ public class AnalyticsService {
                 totalRetailValue.setScale(2, RoundingMode.HALF_UP),
                 missingCostPriceCount,
                 lowStockAlerts
+        );
+    }
+
+    /**
+     * Phase 6 — profitability. COGS uses each product's CURRENT costPrice against units sold in the
+     * range, not a historical snapshot (OrderItem doesn't carry one) — an approximation if costs
+     * changed mid-period, which is why unitsMissingCostPriceCount is surfaced rather than hidden.
+     * Coupon/reward cost reuses Phase 3's redemption value, since a redeemed coupon is literally a
+     * discount the business absorbed — deducting it again here gives the more honest "net" figure.
+     */
+    @Transactional(readOnly = true)
+    public ProfitabilityDto getProfitability(Instant start, Instant end) {
+        BigDecimal paidRevenue = orNil(orderRepository.sumOrdersInRangeByPaymentStatus(start, end, PaymentStatus.PAID));
+
+        List<Object[]> unitRows = orderRepository.sumUnitsSoldByProductInRange(start, end);
+        Set<UUID> productIds = new HashSet<>();
+        for (Object[] row : unitRows) {
+            if (row[0] != null) productIds.add((UUID) row[0]);
+        }
+        Map<UUID, BigDecimal> costByProduct = new HashMap<>();
+        if (!productIds.isEmpty()) {
+            for (Product p : productRepository.findAllById(productIds)) {
+                costByProduct.put(p.getId(), p.getCostPrice());
+            }
+        }
+
+        BigDecimal cogs = BigDecimal.ZERO;
+        long unitsMissingCost = 0;
+        for (Object[] row : unitRows) {
+            UUID productId = (UUID) row[0];
+            long units = ((Number) row[1]).longValue();
+            BigDecimal costPrice = productId != null ? costByProduct.get(productId) : null;
+            if (costPrice == null) {
+                unitsMissingCost += units;
+            } else {
+                cogs = cogs.add(costPrice.multiply(BigDecimal.valueOf(units)));
+            }
+        }
+
+        BigDecimal grossProfit = paidRevenue.subtract(cogs);
+        double grossMargin = paidRevenue.compareTo(BigDecimal.ZERO) > 0
+                ? round1(grossProfit.doubleValue() * 100.0 / paidRevenue.doubleValue())
+                : 0.0;
+
+        BigDecimal couponCost = getRewardsEconomics(start, end).redeemedValueKesInRange();
+        BigDecimal netProfit = grossProfit.subtract(couponCost);
+        double netMargin = paidRevenue.compareTo(BigDecimal.ZERO) > 0
+                ? round1(netProfit.doubleValue() * 100.0 / paidRevenue.doubleValue())
+                : 0.0;
+
+        return new ProfitabilityDto(
+                start, end,
+                paidRevenue.setScale(2, RoundingMode.HALF_UP),
+                cogs.setScale(2, RoundingMode.HALF_UP),
+                grossProfit.setScale(2, RoundingMode.HALF_UP),
+                grossMargin,
+                unitsMissingCost,
+                couponCost,
+                netProfit.setScale(2, RoundingMode.HALF_UP),
+                netMargin
+        );
+    }
+
+    /**
+     * Phase 7 — monthly projection. Samples the current month from its start up to the first 7
+     * days elapsed (or fewer, early in the month) and scales that sample linearly to the month's
+     * full day count. A run-rate extrapolation, not a forecast model — the frontend labels it as such.
+     */
+    @Transactional(readOnly = true)
+    public MonthlyProjectionDto getMonthlyProjection() {
+        ZoneId zone = ZoneId.of("Africa/Nairobi");
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        YearMonth month = YearMonth.from(now);
+        int daysInMonth = month.lengthOfMonth();
+
+        Instant monthStart = month.atDay(1).atStartOfDay(zone).toInstant();
+        Instant monthEnd = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant();
+
+        int daysElapsed = now.getDayOfMonth();
+        int sampleDays = Math.max(1, Math.min(7, daysElapsed));
+        Instant sampleStart = monthStart;
+        Instant sampleEnd = month.atDay(1).plusDays(sampleDays).atStartOfDay(zone).toInstant();
+        if (sampleEnd.isAfter(now.toInstant())) sampleEnd = now.toInstant();
+
+        ProfitabilityDto sample = getProfitability(sampleStart, sampleEnd);
+        BigDecimal scale = BigDecimal.valueOf(daysInMonth).divide(BigDecimal.valueOf(sampleDays), 6, RoundingMode.HALF_UP);
+        BigDecimal sampleCosts = sample.estimatedCogsKes().add(sample.couponRedemptionCostKes());
+
+        return new MonthlyProjectionDto(
+                monthStart, monthEnd, sampleStart, sampleEnd,
+                sampleDays, daysInMonth,
+                sample.paidRevenueKes(), sample.paidRevenueKes().multiply(scale).setScale(2, RoundingMode.HALF_UP),
+                sample.estimatedGrossProfitKes(), sample.estimatedGrossProfitKes().multiply(scale).setScale(2, RoundingMode.HALF_UP),
+                sampleCosts, sampleCosts.multiply(scale).setScale(2, RoundingMode.HALF_UP)
+        );
+    }
+
+    /**
+     * Phase 8 — customers. "New" means their first-ever PAID order fell in this range; lifetime
+     * value and the account-type split are computed across each customer's whole history, since
+     * that's what "who are our best customers" actually means, not just this window's activity.
+     */
+    @Transactional(readOnly = true)
+    public CustomerAnalyticsDto getCustomerAnalytics(Instant start, Instant end) {
+        List<Object[]> newCustomerRows = orderRepository.findNewPaidCustomersInRange(start, end);
+        long newCustomers = newCustomerRows.size();
+        BigDecimal newCustomerFirstOrderValue = BigDecimal.ZERO;
+        for (Object[] row : newCustomerRows) {
+            newCustomerFirstOrderValue = newCustomerFirstOrderValue.add(orNil((BigDecimal) row[2]));
+        }
+
+        List<AccountTypeBreakdownDto> byAccountType = orderRepository.sumRevenueByAccountTypeInRange(start, end).stream()
+                .map(row -> new AccountTypeBreakdownDto(
+                        ((AccountType) row[0]).name(),
+                        ((Number) row[1]).longValue(),
+                        orNil((BigDecimal) row[2])))
+                .toList();
+
+        List<TopCustomerDto> topCustomers = orderRepository.findTopCustomersByLifetimeRevenue(PageRequest.of(0, 10)).stream()
+                .map(row -> {
+                    String name = (String.valueOf(row[1]) + " " + String.valueOf(row[2])).trim();
+                    AccountType accountType = (AccountType) row[3];
+                    long orderCount = ((Number) row[4]).longValue();
+                    BigDecimal revenue = orNil((BigDecimal) row[5]);
+                    return new TopCustomerDto(name, accountType != null ? accountType.name() : "UNKNOWN", orderCount, revenue);
+                })
+                .toList();
+
+        return new CustomerAnalyticsDto(
+                start, end,
+                newCustomers, newCustomerFirstOrderValue.setScale(2, RoundingMode.HALF_UP),
+                byAccountType, topCustomers
         );
     }
 

@@ -1,6 +1,9 @@
 package com.mdau.momentspackagingbackendjavafirstclient.analytics.controller;
 
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.CustomerAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.MonthlyProjectionDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProfitabilityDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RevenueSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.RewardsEconomicsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProductsInventoryDto;
@@ -71,5 +74,30 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getProductsInventory(from, to);
+    }
+
+    /** Phase 6 — profitability: gross/net profit and margin for the range, COGS and coupon cost deducted. */
+    @IsStaffOrAdmin
+    @GetMapping("/profitability")
+    public ProfitabilityDto profitability(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getProfitability(from, to);
+    }
+
+    /** Phase 7 — monthly projection: current month's run rate, extrapolated from the first week's actuals. */
+    @IsStaffOrAdmin
+    @GetMapping("/projection")
+    public MonthlyProjectionDto projection() {
+        return analyticsService.getMonthlyProjection();
+    }
+
+    /** Phase 8 — customers: new paying customers, account-type split, top customers by lifetime value. */
+    @IsStaffOrAdmin
+    @GetMapping("/customers")
+    public CustomerAnalyticsDto customers(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getCustomerAnalytics(from, to);
     }
 }

@@ -186,4 +186,50 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         ORDER BY SUM(oi.lineTotal) DESC
         """)
     List<Object[]> findTopSellingProductsInRange(@Param("start") Instant start, @Param("end") Instant end, Pageable pageable);
+
+    /** Analytics Phase 6 — units sold per product for a date range (PAID orders only): [0]=productId,
+     *  [1]=units. productId can be null for legacy/manual line items, which the service treats as
+     *  "cost unknown" rather than silently dropping from the units-sold count. */
+    @Query("""
+        SELECT oi.productId, COALESCE(SUM(oi.quantity), 0)
+        FROM OrderItem oi
+        JOIN oi.order o
+        WHERE o.paymentStatus = 'PAID'
+        AND o.createdAt >= :start AND o.createdAt < :end
+        GROUP BY oi.productId
+        """)
+    List<Object[]> sumUnitsSoldByProductInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics Phase 8 — new vs returning: [0]=customerId, [1]=lifetime PAID order count, [2]=lifetime
+     *  PAID revenue, for customers whose FIRST paid order fell in this range (i.e. they're "new" here). */
+    @Query("""
+        SELECT o.customer.id, COUNT(o), COALESCE(SUM(o.totalAmount), 0)
+        FROM Order o
+        WHERE o.customer IS NOT NULL AND o.paymentStatus = 'PAID'
+        GROUP BY o.customer.id
+        HAVING MIN(o.createdAt) >= :start AND MIN(o.createdAt) < :end
+        """)
+    List<Object[]> findNewPaidCustomersInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics Phase 8 — top customers by lifetime PAID revenue: [0]=customerId, [1]=firstName,
+     *  [2]=lastName, [3]=accountType, [4]=order count, [5]=lifetime revenue. */
+    @Query("""
+        SELECT o.customer.id, o.customer.firstName, o.customer.lastName, o.customer.accountType,
+               COUNT(o), COALESCE(SUM(o.totalAmount), 0)
+        FROM Order o
+        WHERE o.customer IS NOT NULL AND o.paymentStatus = 'PAID'
+        GROUP BY o.customer.id, o.customer.firstName, o.customer.lastName, o.customer.accountType
+        ORDER BY SUM(o.totalAmount) DESC
+        """)
+    List<Object[]> findTopCustomersByLifetimeRevenue(Pageable pageable);
+
+    /** Analytics Phase 8 — PAID revenue in range grouped by the customer's account type. */
+    @Query("""
+        SELECT o.customer.accountType, COUNT(DISTINCT o.customer.id), COALESCE(SUM(o.totalAmount), 0)
+        FROM Order o
+        WHERE o.customer IS NOT NULL AND o.paymentStatus = 'PAID'
+        AND o.createdAt >= :start AND o.createdAt < :end
+        GROUP BY o.customer.accountType
+        """)
+    List<Object[]> sumRevenueByAccountTypeInRange(@Param("start") Instant start, @Param("end") Instant end);
 }
