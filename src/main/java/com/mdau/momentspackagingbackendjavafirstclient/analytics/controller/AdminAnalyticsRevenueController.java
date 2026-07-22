@@ -1,6 +1,9 @@
 package com.mdau.momentspackagingbackendjavafirstclient.analytics.controller;
 
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.AlertsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.CustomerAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.DeliveryAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.GeographicAnalyticsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.MonthlyProjectionDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.ProfitabilityDto;
@@ -109,5 +112,31 @@ public class AdminAnalyticsRevenueController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
         return analyticsService.getCustomerAnalytics(from, to);
+    }
+
+    /** Geographic analytics — PAID revenue by delivery county for the range. */
+    @IsStaffOrAdmin
+    @GetMapping("/geographic")
+    public GeographicAnalyticsDto geographic(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getGeographicAnalytics(from, to);
+    }
+
+    /** Delivery analytics — delivery rate and average DISPATCHED→DELIVERED time per fulfillment type. */
+    @IsStaffOrAdmin
+    @GetMapping("/delivery")
+    public DeliveryAnalyticsDto delivery(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
+        return analyticsService.getDeliveryAnalytics(from, to);
+    }
+
+    /** Alerts — a live (not date-ranged) snapshot: stale pending orders, recent failed payments,
+     *  low/out-of-stock counts, unresolved refunds. */
+    @IsStaffOrAdmin
+    @GetMapping("/alerts")
+    public AlertsDto alerts() {
+        return analyticsService.getAlerts();
     }
 }

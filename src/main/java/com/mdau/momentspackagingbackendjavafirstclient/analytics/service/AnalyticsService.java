@@ -1,8 +1,13 @@
 package com.mdau.momentspackagingbackendjavafirstclient.analytics.service;
 
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.AccountTypeBreakdownDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.AlertsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.CustomerAnalyticsDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.DailyRevenuePointDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.DeliveryAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.DeliveryPerformanceDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.GeographicAnalyticsDto;
+import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.GeographicBreakdownDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.MonthlyProjectionDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.OperationsSummaryDto;
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.PaymentMethodBreakdownDto;
@@ -21,6 +26,7 @@ import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopCustomer
 import com.mdau.momentspackagingbackendjavafirstclient.analytics.dto.TopWalletHolderDto;
 import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.entity.DocumentBundleStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.documentbundle.repository.DocumentBundleRepository;
+import com.mdau.momentspackagingbackendjavafirstclient.order.entity.FulfillmentType;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.Order;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.OrderStatus;
 import com.mdau.momentspackagingbackendjavafirstclient.order.entity.PaymentStatus;
@@ -51,6 +57,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -535,6 +542,99 @@ public class AnalyticsService {
                 newCustomers, newCustomerFirstOrderValue.setScale(2, RoundingMode.HALF_UP),
                 byAccountType, topCustomers
         );
+    }
+
+    /** Geographic analytics — PAID revenue by delivery county. One indexed GROUP BY query;
+     *  no per-order lookups. Orders with no county on file are labelled "Unknown" rather than dropped. */
+    @Transactional(readOnly = true)
+    public GeographicAnalyticsDto getGeographicAnalytics(Instant start, Instant end) {
+        List<GeographicBreakdownDto> byCounty = orderRepository.sumRevenueByCountyInRange(start, end).stream()
+                .map(row -> new GeographicBreakdownDto(
+                        row[0] != null ? String.valueOf(row[0]) : "Unknown",
+                        ((Number) row[1]).longValue(),
+                        orNil((BigDecimal) row[2])))
+                .toList();
+        return new GeographicAnalyticsDto(start, end, byCounty);
+    }
+
+    /**
+     * Delivery analytics — per fulfillment type: delivery rate (delivered ÷ delivered+cancelled,
+     * among orders that reached a resolved outcome — still-in-transit orders aren't counted as a
+     * failure) and average DISPATCHED→DELIVERED duration. Two queries total: one GROUP BY for the
+     * status counts, one ordered scalar scan for the duration math (same Java-side consecutive-
+     * delta approach as the Phase 2 time-in-stage calculation, extended with fulfillmentType).
+     */
+    @Transactional(readOnly = true)
+    public DeliveryAnalyticsDto getDeliveryAnalytics(Instant start, Instant end) {
+        Map<FulfillmentType, long[]> statusTally = new LinkedHashMap<>(); // [total, delivered, cancelled]
+        for (Object[] row : orderRepository.countByFulfillmentTypeAndStatusInRange(start, end)) {
+            FulfillmentType type = (FulfillmentType) row[0];
+            OrderStatus status = (OrderStatus) row[1];
+            long count = ((Number) row[2]).longValue();
+            long[] bucket = statusTally.computeIfAbsent(type, t -> new long[3]);
+            bucket[0] += count;
+            if (status == OrderStatus.DELIVERED) bucket[1] += count;
+            if (status == OrderStatus.CANCELLED) bucket[2] += count;
+        }
+
+        Map<FulfillmentType, double[]> durationTally = new LinkedHashMap<>(); // [totalHours, count]
+        UUID prevOrderId = null;
+        FulfillmentType prevType = null;
+        OrderStatus prevStatus = null;
+        Instant prevChangedAt = null;
+        for (Object[] row : orderStatusHistoryRepository.findForOrdersCreatedInRangeWithFulfillmentType(start, end)) {
+            UUID orderId = (UUID) row[0];
+            FulfillmentType type = (FulfillmentType) row[1];
+            OrderStatus toStatus = (OrderStatus) row[2];
+            Instant changedAt = (Instant) row[3];
+            if (orderId.equals(prevOrderId) && prevStatus == OrderStatus.DISPATCHED && toStatus == OrderStatus.DELIVERED) {
+                double hours = Duration.between(prevChangedAt, changedAt).toMinutes() / 60.0;
+                double[] bucket = durationTally.computeIfAbsent(prevType, t -> new double[2]);
+                bucket[0] += hours;
+                bucket[1] += 1;
+            }
+            prevOrderId = orderId;
+            prevType = type;
+            prevStatus = toStatus;
+            prevChangedAt = changedAt;
+        }
+
+        List<DeliveryPerformanceDto> byType = statusTally.entrySet().stream()
+                .map(e -> {
+                    FulfillmentType type = e.getKey();
+                    long total = e.getValue()[0];
+                    long delivered = e.getValue()[1];
+                    long cancelled = e.getValue()[2];
+                    long resolved = delivered + cancelled;
+                    double rate = resolved > 0 ? round1(delivered * 100.0 / resolved) : 0.0;
+                    double[] dur = durationTally.getOrDefault(type, new double[]{0, 0});
+                    double avgHours = dur[1] > 0 ? round1(dur[0] / dur[1]) : 0.0;
+                    return new DeliveryPerformanceDto(type.name(), total, delivered, cancelled, rate, avgHours, (long) dur[1]);
+                })
+                .toList();
+
+        return new DeliveryAnalyticsDto(start, end, byType);
+    }
+
+    /**
+     * Alerts — a deliberately lightweight, always-current (no date range) snapshot: five small
+     * indexed COUNT queries rather than the admin having to open five different pages to notice
+     * these on their own. Reuses ProductRepository's existing stock-status counts (already built
+     * for Phase 5) instead of re-querying — no duplicate work for numbers already computed elsewhere.
+     */
+    @Transactional(readOnly = true)
+    public AlertsDto getAlerts() {
+        Instant now = Instant.now();
+        Instant staleCutoff = now.minus(24, ChronoUnit.HOURS);
+        Instant recentFailedCutoff = now.minus(7, ChronoUnit.DAYS);
+
+        long stalePending = orderRepository.countStalePendingOrders(staleCutoff);
+        long failedRecent = paymentRecordRepository.countFailedSince(recentFailedCutoff);
+        long lowStock = productRepository.countByStockStatusAndDeletedFalse(StockStatus.LOW_STOCK);
+        long outOfStock = productRepository.countByStockStatusAndDeletedFalse(StockStatus.OUT_OF_STOCK);
+        long unresolvedRefunds = orderRepository.countUnresolvedRefunds();
+
+        return new AlertsDto(now, stalePending, failedRecent, lowStock, outOfStock, unresolvedRefunds);
     }
 
     private static int nz(Integer v) {

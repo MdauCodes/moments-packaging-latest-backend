@@ -244,4 +244,31 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
         AND o.createdAt >= :start AND o.createdAt < :end
         """)
     List<Object[]> findRevenueTrendRowsInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics — PAID revenue by delivery county, one GROUP BY query, no per-order lookups.
+     *  Nulls (orders with no county recorded) are grouped together and labelled downstream. */
+    @Query("""
+        SELECT o.county, COUNT(o), COALESCE(SUM(o.totalAmount), 0) FROM Order o
+        WHERE o.paymentStatus = 'PAID' AND o.createdAt >= :start AND o.createdAt < :end
+        GROUP BY o.county
+        ORDER BY SUM(o.totalAmount) DESC
+        """)
+    List<Object[]> sumRevenueByCountyInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics — delivery performance: [0]=fulfillmentType, [1]=status, [2]=count, for orders
+     *  created in range. One GROUP BY query; the service derives delivered/cancelled rates from it. */
+    @Query("""
+        SELECT o.fulfillmentType, o.status, COUNT(o) FROM Order o
+        WHERE o.createdAt >= :start AND o.createdAt < :end
+        GROUP BY o.fulfillmentType, o.status
+        """)
+    List<Object[]> countByFulfillmentTypeAndStatusInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics alerts — orders stuck in PENDING_PAYMENT past a cutoff, needing a nudge or cancellation. */
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = 'PENDING_PAYMENT' AND o.createdAt < :cutoff")
+    long countStalePendingOrders(@Param("cutoff") Instant cutoff);
+
+    /** Analytics alerts — refund requested but not yet resolved (no time bound: these never age out on their own). */
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.refundRequestedAt IS NOT NULL AND o.refundResolvedAt IS NULL")
+    long countUnresolvedRefunds();
 }

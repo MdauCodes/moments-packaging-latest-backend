@@ -27,4 +27,14 @@ public interface OrderStatusHistoryRepository extends JpaRepository<OrderStatusH
         ORDER BY h.order.id, h.changedAt
         """)
     List<Object[]> findForOrdersCreatedInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics — same shape as findForOrdersCreatedInRange plus [1]=fulfillmentType, so delivery
+     *  performance can bucket DISPATCHED→DELIVERED durations per fulfillment type without a second
+     *  per-order lookup. Still one query, same ordering guarantee. */
+    @Query("""
+        SELECT h.order.id, h.order.fulfillmentType, h.toStatus, h.changedAt FROM OrderStatusHistory h
+        WHERE h.order.createdAt >= :start AND h.order.createdAt < :end
+        ORDER BY h.order.id, h.changedAt
+        """)
+    List<Object[]> findForOrdersCreatedInRangeWithFulfillmentType(@Param("start") Instant start, @Param("end") Instant end);
 }

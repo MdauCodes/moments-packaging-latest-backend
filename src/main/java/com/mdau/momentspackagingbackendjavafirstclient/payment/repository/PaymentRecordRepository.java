@@ -31,4 +31,8 @@ public interface PaymentRecordRepository extends JpaRepository<PaymentRecord, UU
         GROUP BY p.method, p.status
         """)
     List<Object[]> countByMethodAndStatusInRange(@Param("start") Instant start, @Param("end") Instant end);
+
+    /** Analytics alerts — failed payment attempts since a cutoff, a quick signal of active gateway/STK trouble. */
+    @Query("SELECT COUNT(p) FROM PaymentRecord p WHERE p.status = 'FAILED' AND p.createdAt >= :since")
+    long countFailedSince(@Param("since") Instant since);
 }
