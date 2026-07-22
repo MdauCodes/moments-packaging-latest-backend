@@ -483,10 +483,13 @@ public class AnalyticsService {
         }
 
         List<AccountTypeBreakdownDto> byAccountType = orderRepository.sumRevenueByAccountTypeInRange(start, end).stream()
-                .map(row -> new AccountTypeBreakdownDto(
-                        ((AccountType) row[0]).name(),
-                        ((Number) row[1]).longValue(),
-                        orNil((BigDecimal) row[2])))
+                .map(row -> {
+                    AccountType accountType = (AccountType) row[0];
+                    return new AccountTypeBreakdownDto(
+                            accountType != null ? accountType.name() : "UNKNOWN",
+                            ((Number) row[1]).longValue(),
+                            orNil((BigDecimal) row[2]));
+                })
                 .toList();
 
         List<TopCustomerDto> topCustomers = orderRepository.findTopCustomersByLifetimeRevenue(PageRequest.of(0, 10)).stream()
