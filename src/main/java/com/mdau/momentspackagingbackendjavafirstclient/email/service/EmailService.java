@@ -72,11 +72,23 @@ public class EmailService {
     @Value("${app.company.whatsapp-number}")
     private String companyWhatsapp;
 
+    @Value("${app.frontend.url:https://momentspackaging.com}")
+    private String frontendUrl;
+
     /** Sets the footer contact variables every customer-facing email template reads. */
     private void addCompanyContext(Context ctx) {
         ctx.setVariable("companyEmail", companyEmail);
         ctx.setVariable("companyPhone", companyPhone);
         ctx.setVariable("companyWhatsapp", companyWhatsapp);
+    }
+
+    /**
+     * Deep-links to the actual tracking page (pre-filled, auto-runs the lookup) — every
+     * order-status email's "track your order" link should use this, not a hardcoded homepage
+     * URL. Previously several templates linked to the bare homepage or had no link at all.
+     */
+    private String trackOrderUrl(Order order) {
+        return frontendUrl + "/orders/track?ref=" + order.getReference();
     }
 
     // ---- Staff invite & password reset ----
@@ -300,6 +312,7 @@ public class EmailService {
             addCompanyContext(ctx);
             ctx.setVariable("order", order);
             ctx.setVariable("receiptUrl", receiptUrl);
+            ctx.setVariable("trackOrderUrl", trackOrderUrl(order));
             List<com.mdau.momentspackagingbackendjavafirstclient.payment.entity.PaymentRecord> records =
                     paymentRecordRepository.findByOrderIdOrderByCreatedAtDesc(order.getId());
             ctx.setVariable("receiptNumber", records.isEmpty() ? null : records.get(0).getReceiptNumber());
@@ -343,6 +356,7 @@ public class EmailService {
             addCompanyContext(ctx);
             ctx.setVariable("order", order);
             ctx.setVariable("failureReason", failureReason);
+            ctx.setVariable("trackOrderUrl", trackOrderUrl(order));
             String html = templateEngine.process("email/payment-failed", ctx);
             sendHtml(order.getEmail(),
                     "Payment unsuccessful - " + order.getReference(), html);
@@ -363,6 +377,7 @@ public class EmailService {
         ctx.setVariable("order", doc.getOrder());
         ctx.setVariable("pdfUrl", doc.getCloudinaryUrl());
         ctx.setVariable("receiptUrl", receiptUrl);
+        ctx.setVariable("trackOrderUrl", trackOrderUrl(doc.getOrder()));
         String html = templateEngine.process("email/tax-invoice-ready", ctx);
         sendHtml(doc.getRecipientEmail(), "Your tax invoice - " + doc.getOrder().getReference(), html);
     }
@@ -381,6 +396,7 @@ public class EmailService {
         ctx.setVariable("receiptUrl", receiptUrl);
         ctx.setVariable("taxInvoiceUrl", taxInvoiceUrl);
         ctx.setVariable("etrUrl", bundle.getEtrCloudinaryUrl());
+        ctx.setVariable("trackOrderUrl", trackOrderUrl(bundle.getOrder()));
         String html = templateEngine.process("email/document-bundle-ready", ctx);
         sendHtml(bundle.getRecipientEmail(), "Your receipt, tax invoice & ETR - " + bundle.getOrder().getReference(), html);
     }
@@ -401,6 +417,7 @@ public class EmailService {
             Context ctx = new Context(Locale.ENGLISH);
             addCompanyContext(ctx);
             ctx.setVariable("order", order);
+            ctx.setVariable("trackOrderUrl", trackOrderUrl(order));
             String html = templateEngine.process(template, ctx);
             sendHtml(order.getEmail(), subject, html);
             log.info("Order email [{}] sent for {}", template, order.getReference());

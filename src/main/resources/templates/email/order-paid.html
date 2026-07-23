@@ -57,7 +57,7 @@ a.link{color:#2d5016;font-weight:bold}
       <a class="link" th:href="${receiptUrl}">Download your receipt (PDF)</a>
     </p>
     <p>We will notify you as soon as your order moves to the next stage.</p>
-    <p>Track your order at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
+    <p>Track your order at <a class="link" th:href="${trackOrderUrl}" th:text="${trackOrderUrl}">momentspackaging.com/orders/track</a></p>
     <p style="margin-top:24px">Have a question? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a> or WhatsApp <a class="link" th:href="'https://wa.me/' + ${companyWhatsapp}" th:text="'+' + ${companyWhatsapp}">+254119556688</a></p>
   </div>
   <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>

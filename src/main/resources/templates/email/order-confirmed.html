@@ -35,7 +35,7 @@ a.link{color:#2d5016;font-weight:bold}
     <p class="total">Total: KES <span th:text="${order.totalAmount}">0</span></p>
     <p>Payment method: <strong th:text="${order.paymentMethod}">MPESA</strong></p>
     <p>We will keep you updated at every stage of your order.</p>
-    <p>Track your order at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
+    <p>Track your order at <a class="link" th:href="${trackOrderUrl}" th:text="${trackOrderUrl}">momentspackaging.com/orders/track</a></p>
     <p style="margin-top:24px">Have a question? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a></p>
   </div>
   <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>

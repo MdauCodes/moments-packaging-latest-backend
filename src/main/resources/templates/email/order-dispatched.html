@@ -19,6 +19,7 @@ a.link{color:#2d5016;font-weight:bold}
     <p>Your order is on its way!</p>
     <div class="ref" th:text="${order.reference}">ORD-2026-05-0001</div>
     <p>Our delivery team will contact you to arrange delivery. Within Nairobi, expect delivery same day or next day. For other locations across Kenya, delivery is typically within 3 days depending on courier availability.</p>
+    <p>Track your order at <a class="link" th:href="${trackOrderUrl}" th:text="${trackOrderUrl}">momentspackaging.com/orders/track</a></p>
     <p>Questions? WhatsApp us: <a class="link" th:href="'https://wa.me/' + ${companyWhatsapp}" th:text="'+' + ${companyWhatsapp}">+254119556688</a></p>
     <p style="margin-top:24px">Or <a class="link" href="https://www.momentspackaging.com/customers/enquiries">send us an enquiry here</a></p>
   </div>

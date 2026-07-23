@@ -33,6 +33,7 @@ a.link{color:#2d5016;font-weight:bold}
     <div class="cta">
       <a href="https://www.momentspackaging.com/account/orders">Retry Payment</a>
     </div>
+    <p>You can also track this order without an account at <a class="link" th:href="${trackOrderUrl}" th:text="${trackOrderUrl}">momentspackaging.com/orders/track</a></p>
     <p style="font-size:13px;color:#888">Need help? WhatsApp <a class="link" th:href="'https://wa.me/' + ${companyWhatsapp}" th:text="'+' + ${companyWhatsapp}">+254119556688</a> or <a class="link" href="https://www.momentspackaging.com/customers/enquiries">contact us here</a>.</p>
   </div>
   <div class="footer">&copy; 2026 Moments Packaging Kenya &mdash; <a th:href="'mailto:' + ${companyEmail}" style="color:#888" th:text="${companyEmail}">info@momentspackaging.com</a></div>

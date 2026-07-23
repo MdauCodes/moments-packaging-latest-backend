@@ -19,6 +19,7 @@ a.link{color:#2d5016;font-weight:bold}
     <p>Your order has been delivered! Thank you for choosing Moments Packaging Kenya.</p>
     <div class="ref" th:text="${order.reference}">ORD-2026-05-0001</div>
     <p>We hope your packaging looks amazing. We would love to hear your feedback!</p>
+    <p>View your order details at <a class="link" th:href="${trackOrderUrl}" th:text="${trackOrderUrl}">momentspackaging.com/orders/track</a></p>
     <p>Order again at <a class="link" href="https://www.momentspackaging.com">momentspackaging.com</a></p>
     <p style="margin-top:24px">Any issues? <a class="link" href="https://www.momentspackaging.com/customers/enquiries">Contact us here</a></p>
   </div>
