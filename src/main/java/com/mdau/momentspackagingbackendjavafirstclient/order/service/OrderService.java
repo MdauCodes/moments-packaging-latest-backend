@@ -58,11 +58,48 @@ public class OrderService {
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + id));
     }
 
+    /**
+     * @param email Optional — when it matches the order's own email (case-insensitive), the
+     *              full record (financials, contact name, items, delivery address) is returned.
+     *              Otherwise only status/tracking-progress fields are — order references are
+     *              sequential and guessable, so reference-alone must never expose PII/financials.
+     */
     @Transactional(readOnly = true)
-    public OrderTrackingDto getTrackingInfo(String reference) {
+    public OrderTrackingDto getTrackingInfo(String reference, String email) {
         Order order = orderRepository.findByReference(reference)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + reference));
+
+        boolean verified = email != null && !email.isBlank()
+                && order.getEmail() != null
+                && order.getEmail().trim().equalsIgnoreCase(email.trim());
+
+        List<OrderTrackingDto.TrackingHistoryDto> history = order.getStatusHistory().stream()
+                .map(h -> new OrderTrackingDto.TrackingHistoryDto(h.getToStatus().name(), h.getChangedAt()))
+                .toList();
+
+        if (!verified) {
+            return new OrderTrackingDto(
+                    false,
+                    order.getId(),
+                    order.getReference(),
+                    order.getStatus().name(),
+                    order.getPaymentStatus().name(),
+                    order.getPaymentMethod().name(),
+                    null,                       // contactName
+                    maskEmail(order.getEmail()),
+                    List.of(),                  // items
+                    history,
+                    null, null,                 // totalAmount, deliveryFee
+                    order.getFulfillmentType() != null ? order.getFulfillmentType().name() : null,
+                    null, null, null, null,     // subtotal, discount, vatAmount, invoiceNumber
+                    order.getCreatedAt(),
+                    null,                       // paidAt
+                    null,                       // taxInvoiceKraPin
+                    null, null);                // deliveryAddress, county
+        }
+
         return new OrderTrackingDto(
+                true,
                 order.getId(),
                 order.getReference(),
                 order.getStatus().name(),
@@ -75,10 +112,7 @@ public class OrderService {
                                 i.getProductNameSnapshot(), i.getQuantity(), i.getLineTotal(),
                                 i.getUnitPrice(), i.getSizeSnapshot(), i.getMaterialSnapshot(), i.getFinishSnapshot()))
                         .toList(),
-                order.getStatusHistory().stream()
-                        .map(h -> new OrderTrackingDto.TrackingHistoryDto(
-                                h.getToStatus().name(), h.getChangedAt()))
-                        .toList(),
+                history,
                 order.getTotalAmount(),
                 order.getDeliveryFee(),
                 order.getFulfillmentType() != null ? order.getFulfillmentType().name() : null,
@@ -88,7 +122,9 @@ public class OrderService {
                 order.getInvoiceNumber(),
                 order.getCreatedAt(),
                 order.getPaidAt(),
-                order.getTaxInvoiceKraPin());
+                order.getTaxInvoiceKraPin(),
+                order.getDeliveryAddress(),
+                order.getCounty());
     }
 
     @Transactional(readOnly = true)

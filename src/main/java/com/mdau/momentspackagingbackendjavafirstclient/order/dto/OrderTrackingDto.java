@@ -11,6 +11,13 @@ import java.util.UUID;
 @Getter
 @AllArgsConstructor
 public class OrderTrackingDto {
+    /**
+     * True only when the caller supplied the email address that placed this order.
+     * Order references are sequential (ORD-2026-07-0001, -0002, ...) — not a secret — so
+     * looking up by reference alone must never expose PII/financial detail; only an
+     * email-matched lookup does. See OrderService.getTrackingInfo().
+     */
+    private boolean verified;
     private UUID   id;
     private String reference;
     private String status;
@@ -23,9 +30,7 @@ public class OrderTrackingDto {
     private BigDecimal totalAmount;
     private BigDecimal deliveryFee;
     private String     fulfillmentType;
-    // Financial breakdown — not PII, safe on the public tracking endpoint. Needed so a
-    // customer's own "Download receipt" reconciles correctly from any device, not just
-    // the one that placed the order (which has the fuller checkout-time record cached).
+    // Financial breakdown / PII — only populated when `verified` is true.
     private BigDecimal subtotal;
     private BigDecimal discount;
     private BigDecimal vatAmount;
@@ -33,6 +38,8 @@ public class OrderTrackingDto {
     private Instant    createdAt;
     private Instant    paidAt;
     private String     taxInvoiceKraPin;
+    private String     deliveryAddress;
+    private String     county;
 
     @Getter
     @AllArgsConstructor

@@ -26,11 +26,23 @@ public class PublicOrderController {
 
     /**
      * Public order tracking by reference — no auth required.
-     * GET /api/v1/orders/track/{reference}
+     * GET /api/v1/orders/track/{reference}[?email=buyer@example.com]
+     *
+     * References are sequential (ORD-2026-07-0001, -0002, ...), not a secret, so reference
+     * alone only returns status/progress — full details (financials, contact name, delivery
+     * address) require the email param to match the order's own email.
      */
     @GetMapping("/track/{reference}")
-    public ResponseEntity<OrderTrackingDto> track(@PathVariable String reference) {
-        return ResponseEntity.ok(orderService.getTrackingInfo(reference));
+    public ResponseEntity<OrderTrackingDto> track(
+            @PathVariable String reference,
+            @RequestParam(required = false) String email,
+            HttpServletRequest request) {
+        // The email param is a match/no-match oracle — rate-limit it the same as /by-email
+        // to stop someone guessing emails against a known reference.
+        if (email != null && !email.isBlank()) {
+            rateLimitConfig.checkEmailLookup(request);
+        }
+        return ResponseEntity.ok(orderService.getTrackingInfo(reference, email));
     }
 
     /**
