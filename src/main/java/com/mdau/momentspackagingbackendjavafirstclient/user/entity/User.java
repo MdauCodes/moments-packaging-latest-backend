@@ -18,7 +18,10 @@ import java.util.stream.Collectors;
         @Index(name = "idx_users_email",   columnList = "email"),
         @Index(name = "idx_users_phone",   columnList = "phone"),
         @Index(name = "idx_users_deleted", columnList = "deleted"),
-        @Index(name = "idx_users_is_staff", columnList = "is_staff")
+        @Index(name = "idx_users_is_staff", columnList = "is_staff"),
+        // Added 2026-07-23 — FK with no index; notable because staffRole is EAGER-fetched
+        // (joined on essentially every User load, not just staff-specific queries).
+        @Index(name = "idx_users_staff_role_id", columnList = "staff_role_id")
 })
 @Getter
 @Setter

@@ -16,7 +16,9 @@ import lombok.*;
  */
 @Entity
 @Table(name = "business_accounts", indexes = {
-        @Index(name = "idx_business_accounts_user_id", columnList = "user_id", unique = true)
+        @Index(name = "idx_business_accounts_user_id", columnList = "user_id", unique = true),
+        // Added 2026-07-23 — FK with no index (Postgres doesn't auto-index FK columns).
+        @Index(name = "idx_business_accounts_industry_id", columnList = "industry_id")
 })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class BusinessAccount extends BaseEntity {

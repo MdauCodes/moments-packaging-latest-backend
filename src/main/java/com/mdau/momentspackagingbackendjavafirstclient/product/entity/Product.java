@@ -22,7 +22,10 @@ import java.util.Set;
         @Index(name = "idx_products_is_fast_moving", columnList = "is_fast_moving"),
         @Index(name = "idx_products_monthly_clicks", columnList = "monthly_clicks"),
         @Index(name = "idx_products_stock_status",   columnList = "stock_status"),
-        @Index(name = "idx_products_deleted",        columnList = "deleted")
+        @Index(name = "idx_products_deleted",        columnList = "deleted"),
+        // Added 2026-07-23 — FK with no index; Subcategory/Category already index their own FKs,
+        // this one was the odd one out.
+        @Index(name = "idx_products_subcategory_id", columnList = "subcategory_id")
 })
 @Getter
 @Setter

@@ -10,7 +10,10 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "wishlists", indexes = {
-        @Index(name = "idx_wishlists_customer_id", columnList = "customer_id")
+        @Index(name = "idx_wishlists_customer_id", columnList = "customer_id"),
+        // Added 2026-07-23 — the (customer_id, product_id) unique constraint below only helps
+        // lookups that start with customer_id; "who wishlisted this product" needs its own index.
+        @Index(name = "idx_wishlists_product_id", columnList = "product_id")
 }, uniqueConstraints = {
         @UniqueConstraint(name = "uq_wishlist_customer_product",
                 columnNames = {"customer_id", "product_id"})

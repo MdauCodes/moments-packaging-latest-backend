@@ -18,7 +18,18 @@ import java.util.UUID;
         @Index(name = "idx_orders_created_at",      columnList = "created_at"),
         @Index(name = "idx_orders_payment_status",  columnList = "payment_status"),
         @Index(name = "idx_orders_email",           columnList = "email"),
-        @Index(name = "idx_orders_idempotency_key", columnList = "idempotency_key", unique = true)
+        @Index(name = "idx_orders_idempotency_key", columnList = "idempotency_key", unique = true),
+        // Added for the analytics dashboards (2026-07-23) — each of these backs a specific
+        // full-scan query in OrderRepository (refund reporting, geographic/fulfillment
+        // breakdowns). The composite index covers the common "payment_status + date range"
+        // shape most revenue/tax/profitability queries filter on, in addition to the two
+        // existing single-column indexes above (Postgres can only ride one index per table
+        // per query, so the pair alone doesn't help a query filtering on both at once).
+        @Index(name = "idx_orders_refund_requested_at", columnList = "refund_requested_at"),
+        @Index(name = "idx_orders_refund_resolved_at",  columnList = "refund_resolved_at"),
+        @Index(name = "idx_orders_county",              columnList = "county"),
+        @Index(name = "idx_orders_fulfillment_type",    columnList = "fulfillment_type"),
+        @Index(name = "idx_orders_payment_status_created_at", columnList = "payment_status, created_at")
 })
 @Getter
 @Setter

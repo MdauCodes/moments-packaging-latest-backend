@@ -14,7 +14,9 @@ import java.util.UUID;
         @Index(name = "idx_payment_records_order_id",            columnList = "order_id"),
         @Index(name = "idx_payment_records_checkout_request_id", columnList = "checkout_request_id"),
         @Index(name = "idx_payment_records_status",              columnList = "status"),
-        @Index(name = "idx_payment_records_external_reference",  columnList = "external_reference")
+        @Index(name = "idx_payment_records_external_reference",  columnList = "external_reference"),
+        // Added 2026-07-23 — countByMethodAndStatusInRange/countFailedSince filter on this directly.
+        @Index(name = "idx_payment_records_created_at",          columnList = "created_at")
 })
 @Getter
 @Setter
