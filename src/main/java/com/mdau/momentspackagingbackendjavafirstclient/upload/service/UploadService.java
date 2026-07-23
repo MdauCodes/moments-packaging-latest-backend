@@ -18,7 +18,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class UploadService {
 
-    private static final int    MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    private static final int    MAX_SIZE_BYTES        = 5 * 1024 * 1024;   // 5MB — end-user uploads (product images, etc.)
+    private static final int    MAX_BACKUP_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — system-generated DB backups, not user input
     private static final byte[] JPEG_MAGIC     = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
     private static final byte[] PNG_MAGIC      = {(byte) 0x89, 0x50, 0x4E, 0x47};
     private static final byte[] WEBP_MAGIC     = {0x52, 0x49, 0x46, 0x46};
@@ -86,6 +87,39 @@ public class UploadService {
         } catch (IOException e) {
             log.error("Cloudinary raw delete failed for {}: {}", publicId, e.getMessage());
             throw new RuntimeException("File delete failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Uploads a system-generated file (e.g. a daily DB backup archive) as a Cloudinary "raw"
+     * resource — separate from uploadRaw() because it's not end-user input: no MIME/magic-byte
+     * validation (the caller controls the bytes), and a much higher size ceiling since a backup
+     * only grows over time.
+     */
+    public UploadResponse uploadBackup(byte[] bytes, String entity, String filename) {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("Backup file is empty");
+        }
+        if (bytes.length > MAX_BACKUP_SIZE_BYTES) {
+            throw new IllegalArgumentException("Backup file exceeds " + (MAX_BACKUP_SIZE_BYTES / 1024 / 1024) + "MB limit");
+        }
+        try {
+            String folder = uploadFolder + "/" + entity;
+            Map<?, ?> result = cloudinary.uploader().upload(
+                    bytes,
+                    ObjectUtils.asMap(
+                            "folder",        folder,
+                            "resource_type", "raw",
+                            "public_id",     filename
+                    )
+            );
+            String url      = (String) result.get("secure_url");
+            String publicId = (String) result.get("public_id");
+            log.info("Uploaded backup file to Cloudinary: {} ({} bytes)", publicId, bytes.length);
+            return new UploadResponse(url, publicId);
+        } catch (IOException e) {
+            log.error("Cloudinary backup upload failed: {}", e.getMessage());
+            throw new RuntimeException("Backup upload failed: " + e.getMessage());
         }
     }
 
