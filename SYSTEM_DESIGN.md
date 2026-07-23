@@ -112,12 +112,15 @@ ShedLock means these are safe under multiple instances *for the lock itself*, bu
 
 - BCrypt password hashing, stateless JWT, method-level `@IsAdmin`/`@IsStaffOrAdmin` annotations on sensitive actions.
 - Per-IP rate limiting on login/checkout/payment/cart/enquiry endpoints (`RateLimitConfig`) — note it trusts `X-Forwarded-For` at face value with no trusted-proxy validation; confirm the deployment's edge actually sets this header correctly, or it's spoofable.
-- **`src/main/resources/.env` is tracked in git** with real secrets (JWT signing key, DB password, Cloudinary keys). Treat any secret that has ever been in this file as compromised until rotated — anyone with historical repo access has them. This is being remediated; if you're reading this and it's still tracked, that's the highest-priority fix in the repo.
+- **`src/main/resources/.env` was tracked in git** with real secrets (JWT signing key, DB password, Cloudinary keys) — untracked going forward as of 2026-07-23, but the values were live in history and must still be rotated (new JWT secret already generated; DB password and Cloudinary keys need rotating via Railway/Cloudinary dashboards) and the history purged (needs collaborator coordination first — force-push territory).
 - `README.md` documents the seeded superadmin accounts' real emails and default password pattern — also worth scrubbing once rotation is done.
+- **Order references are sequential and guessable** (`ORD-2026-07-0001`, `-0002`, ...) — `GET /orders/track/{reference}` used to return full financials/PII on reference alone. Fixed 2026-07-23: reference-only now returns status/progress only; full details (items, pricing, contact name, delivery address) require an `?email=` param matching the order's own email (`OrderService.getTrackingInfo`), itself rate-limited the same as `/by-email` since it's now a match/no-match oracle.
 
 ## 9. Backups
 
-`DatabaseBackupJob` (daily, 2am Africa/Nairobi) dumps every table in the `public` schema (except ShedLock's own bookkeeping table) to one JSON file per table, zips them with a manifest, and uploads the archive to Cloudinary as a raw resource under `system-backups/`.
+`DatabaseBackupJob` (daily, 2am Africa/Nairobi) dumps every table in the `public` schema (except ShedLock's own bookkeeping table) to one JSON file per table, zips them with a manifest, and uploads the archive to Cloudinary as a raw resource under `system-backups/`. Filenames spell out the full moment down to the second plus UTC offset and zone name (e.g. `backup-2026-07-23T02-00-00+03-00-Africa-Nairobi`) so the Cloudinary console alone tells you exactly when a backup ran, no need to open the archive.
+
+**Retention**: every run keeps only the 2 most recent backups (the one just created plus the one immediately before it) and deletes anything older, via the Cloudinary Admin API (`DatabaseBackupService.enforceRetention`). This self-corrects even if a run is missed for a few days — it'll just delete more than one stale backup at once rather than leaving them.
 
 This is **data-only, not a full pg_dump-equivalent** — schema isn't included, because the schema is fully reproducible from the JPA entity classes already in git (`ddl-auto: update`). To restore: deploy the app fresh (schema gets created), then re-insert each table's JSON rows in the manifest's table order (parent tables before dependents). There is no automated restore tool yet — writing one is a natural next step if this is ever needed for real.
 
