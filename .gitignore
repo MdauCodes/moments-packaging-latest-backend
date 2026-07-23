@@ -32,6 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### Node (maintenance scripts, e.g. enrich-products.mjs) ###
+node_modules/
+
 #src/main/resources/application.yml
 #
 #src/main/resources/application.yml

@@ -1,0 +1,24 @@
+{
+  "name": "moments-packaging-backend-java-first-client",
+  "version": "1.0.0",
+  "description": "Spring Boot 3 / Java 21 backend for Moments Packaging Kenya. The platform is a fully self-serve e-commerce platform where customers browse products, configure orders, and pay directly via PayHero (M-Pesa STK push), bank transfer, or cash on delivery. Enterprise orders (10,000+ units) are routed to the sales team via a dedicated quote endpoint.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MdauCodes/moments-packaging-latest-backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/MdauCodes/moments-packaging-latest-backend/issues"
+  },
+  "homepage": "https://github.com/MdauCodes/moments-packaging-latest-backend#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.107.0"
+  }
+}
