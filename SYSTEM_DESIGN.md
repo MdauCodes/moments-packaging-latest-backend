@@ -124,7 +124,17 @@ ShedLock means these are safe under multiple instances *for the lock itself*, bu
 
 This is **data-only, not a full pg_dump-equivalent** — schema isn't included, because the schema is fully reproducible from the JPA entity classes already in git (`ddl-auto: update`). To restore: deploy the app fresh (schema gets created), then re-insert each table's JSON rows in the manifest's table order (parent tables before dependents). There is no automated restore tool yet — writing one is a natural next step if this is ever needed for real.
 
-## 10. Deployment topology
+## 10. Database indexing
+
+Since there's no Flyway/Liquibase (see §2 — schema is derived from entities via `ddl-auto: update`), every index lives as a JPA `@Table(indexes = {@Index(...)})` block on the entity class itself, not a separate migration. An audit on 2026-07-23 found the codebase already had good hygiene (39 entities with explicit indexes, no N+1 queries anywhere in the analytics layer — every KPI is a real `COUNT`/`SUM`/`GROUP BY` pushed to Postgres, not aggregated in Java) but six real gaps, since fixed:
+
+- **FK columns with no index** (Postgres doesn't auto-index foreign keys, only primary keys): `BusinessAccount.industry_id`, `Wishlist.product_id` (the existing `(customer_id, product_id)` unique constraint only helps lookups that start with `customer_id`), `Product.subcategory_id`, `User.staff_role_id` (notable — that association is `EAGER`, joined on essentially every `User` load).
+- **Filter/sort columns with no index**: `Order.refundRequestedAt`, `Order.refundResolvedAt`, `Order.county`, `Order.fulfillmentType` — each backs a specific full-scan query in `OrderRepository` (refund reporting, geographic/delivery analytics). Also added a composite `(payment_status, created_at)` index on `orders`, since most revenue/tax/profitability queries filter on both together and Postgres can only ride one single-column index per query.
+- `PaymentRecord.createdAt` — backs `countByMethodAndStatusInRange`/`countFailedSince`.
+
+If you add a new query method that filters/sorts/groups by a column, check whether that column already has an index before assuming it'll be fast at scale — there's no query-plan safety net here beyond what's explicitly declared.
+
+## 11. Deployment topology
 
 - App: Railway (production URL referenced in `enrich-products.mjs` as `moments-packaging-latest-backend-production.up.railway.app`).
 - DB: PostgreSQL, also presumably Railway-hosted in production (local dev points at `localhost:5432`).
@@ -134,7 +144,7 @@ This is **data-only, not a full pg_dump-equivalent** — schema isn't included, 
 - SMS: Africa's Talking, currently disabled by default (`AT_ENABLED=false`) — email is the only live notification channel.
 - Frontend: separate Vite/React static build, calling this API's `/api/v1/**` routes over CORS (`app.cors.allowed-origins`).
 
-## 11. Where to look for X
+## 12. Where to look for X
 
 - "Why does this order have this status" → `order/entity/OrderStatus.java` + `order/controller/AdminOrderController.java` + the order detail drawer's status history in the frontend.
 - "How do coupons/discounts actually get calculated" → `referral/` domain + the admin Settings-editable values referenced in §6.
