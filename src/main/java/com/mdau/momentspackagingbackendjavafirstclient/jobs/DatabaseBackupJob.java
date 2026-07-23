@@ -22,8 +22,8 @@ public class DatabaseBackupJob {
         log.info("DatabaseBackupJob started");
         try {
             DatabaseBackupService.BackupResult result = databaseBackupService.runBackup();
-            log.info("DatabaseBackupJob: backed up {} table(s), {} row(s), {} bytes -> {}",
-                    result.tableCount(), result.totalRows(), result.sizeBytes(), result.cloudinaryUrl());
+            log.info("DatabaseBackupJob: backed up {} table(s), {} row(s), {} bytes -> {} (deleted {} old backup(s))",
+                    result.tableCount(), result.totalRows(), result.sizeBytes(), result.cloudinaryUrl(), result.deletedOldBackups());
         } catch (Exception e) {
             log.error("DatabaseBackupJob failed: {}", e.getMessage(), e);
         }

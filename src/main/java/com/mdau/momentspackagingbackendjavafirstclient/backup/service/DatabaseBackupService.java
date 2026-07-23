@@ -1,10 +1,13 @@
 package com.mdau.momentspackagingbackendjavafirstclient.backup.service;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadResponse;
 import com.mdau.momentspackagingbackendjavafirstclient.upload.service.UploadService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -52,8 +55,12 @@ public class DatabaseBackupService {
     private final DataSource dataSource;
     private final UploadService uploadService;
     private final ObjectMapper objectMapper;
+    private final Cloudinary cloudinary;
 
-    public record BackupResult(String cloudinaryUrl, int tableCount, long totalRows, long sizeBytes) {}
+    @Value("${app.cloudinary.upload-folder}")
+    private String uploadFolder;
+
+    public record BackupResult(String cloudinaryUrl, int tableCount, long totalRows, long sizeBytes, int deletedOldBackups) {}
 
     public BackupResult runBackup() throws SQLException, IOException {
         List<String> tables = listTables();
@@ -72,8 +79,9 @@ public class DatabaseBackupService {
                 zip.closeEntry();
             }
 
+            ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Africa/Nairobi"));
             Map<String, Object> manifest = new LinkedHashMap<>();
-            manifest.put("generatedAt", ZonedDateTime.now(ZoneId.of("Africa/Nairobi")).toString());
+            manifest.put("generatedAt", now.toString());
             manifest.put("tables", tables);
             manifest.put("totalRows", totalRows);
             zip.putNextEntry(new ZipEntry("manifest.json"));
@@ -82,10 +90,53 @@ public class DatabaseBackupService {
         }
 
         byte[] archive = zipBytes.toByteArray();
-        String filename = "backup-" + ZonedDateTime.now(ZoneId.of("Africa/Nairobi")).format(FILENAME_FORMAT);
+        String filename = backupFilename();
         UploadResponse uploaded = uploadService.uploadBackup(archive, BACKUP_FOLDER, filename);
+        int deleted = enforceRetention();
 
-        return new BackupResult(uploaded.getUrl(), tables.size(), totalRows, archive.length);
+        return new BackupResult(uploaded.getUrl(), tables.size(), totalRows, archive.length, deleted);
+    }
+
+    /**
+     * e.g. "backup-2026-07-23T02-00-00+03-00-Africa-Nairobi" — full date, time to the second,
+     * and UTC offset + zone name spelled out, so anyone looking at the filename alone (in the
+     * Cloudinary console, no need to open the archive) knows exactly when it ran.
+     */
+    private String backupFilename() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of("Africa/Nairobi"));
+        String offset = now.getOffset().getId().replace(":", "-"); // "+03:00" -> "+03-00"
+        return "backup-" + now.format(FILENAME_FORMAT) + offset + "-Africa-Nairobi";
+    }
+
+    /**
+     * Keeps only the 2 most recent backups (the one just uploaded, plus the one immediately
+     * before it) — deletes anything older. Applied every run, so it self-corrects even if a
+     * run was missed for a few days (e.g. deletes 3 old ones at once rather than leaving them).
+     */
+    private int enforceRetention() {
+        try {
+            String prefix = uploadFolder + "/" + BACKUP_FOLDER + "/";
+            Map<?, ?> result = cloudinary.api().resources(ObjectUtils.asMap(
+                    "type", "upload",
+                    "resource_type", "raw",
+                    "prefix", prefix,
+                    "max_results", 500
+            ));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> resources = (List<Map<String, Object>>) result.get("resources");
+            resources.sort((a, b) -> String.valueOf(b.get("created_at")).compareTo(String.valueOf(a.get("created_at"))));
+
+            int deleted = 0;
+            for (int i = 2; i < resources.size(); i++) {
+                String publicId = (String) resources.get(i).get("public_id");
+                uploadService.deleteRaw(publicId);
+                deleted++;
+            }
+            return deleted;
+        } catch (Exception e) {
+            log.warn("DatabaseBackupService: retention cleanup failed (backup itself still succeeded): {}", e.getMessage());
+            return 0;
+        }
     }
 
     private List<String> listTables() throws SQLException {
