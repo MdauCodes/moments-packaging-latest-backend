@@ -35,8 +35,8 @@ build/
 ### Node (maintenance scripts, e.g. enrich-products.mjs) ###
 node_modules/
 
-#src/main/resources/application.yml
-#
-#src/main/resources/application.yml
-#
-#src/main/resources/application.yml
+### Secrets — was tracked historically; see SYSTEM_DESIGN.md security notes.
+### Untracking here stops NEW commits from including it; it does not remove
+### it from existing git history, which still needs a separate rotation +
+### history-purge pass. ###
+src/main/resources/.env
